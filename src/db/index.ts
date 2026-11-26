@@ -34,7 +34,11 @@ export async function checkDb(): Promise<{ ok: boolean; error?: string }> {
     await d.execute("SELECT 1");
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: (e as Error).message };
+    // Drizzle wraps the driver error, so surface the underlying cause:
+    // without it /health can only say "Failed query: SELECT 1" and the
+    // real reason (auth, SSL, host) stays hidden.
+    const cause = (e as { cause?: { message?: string } }).cause;
+    return { ok: false, error: cause?.message || (e as Error).message };
   }
 }
 

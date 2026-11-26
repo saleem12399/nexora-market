@@ -1,0 +1,342 @@
+{
+ "exportedAt": "2026-11-26T13:56:42+05:00",
+ "logs": [
+  {
+   "action": "Homepage defaults seeded",
+   "actor": "System",
+   "createdAt": "2026-11-25T16:42:49.845Z",
+   "detail": "3 banners, 5 collections, 9 sections",
+   "id": 48
+  },
+  {
+   "action": "Sample product images seeded",
+   "actor": "System",
+   "createdAt": "2026-11-25T13:03:18.360Z",
+   "detail": "48 sample photo(s) stored, 0 product(s) already had a photo, 0 failed. Sample photos are representative stock images, labelled \"Sample image\" in the storefront; owner uploads replace them.",
+   "id": 47
+  },
+  {
+   "action": "Demo order created",
+   "actor": "Customer",
+   "createdAt": "2026-11-25T12:34:23.088Z",
+   "detail": "NX-DEMO-10062971 — Rs. 3,289",
+   "id": 46
+  },
+  {
+   "action": "Return requested",
+   "actor": "Demo Customer",
+   "createdAt": "2026-11-25T09:51:50.856Z",
+   "detail": "RET-DEMO-310810 — NX-DEMO-100001 / Aurora X5 Wireless Earbuds (Demo) / Rs. 5,499",
+   "id": 45
+  },
+  {
+   "action": "Order advanced",
+   "actor": "Customer (Demo Simulation)",
+   "createdAt": "2026-11-25T09:48:21.072Z",
+   "detail": "NX-DEMO-00082630 → Confirmed",
+   "id": 44
+  },
+  {
+   "action": "Demo order created",
+   "actor": "Customer",
+   "createdAt": "2026-11-25T09:48:02.748Z",
+   "detail": "NX-DEMO-00082630 — Rs. 1,152",
+   "id": 43
+  },
+  {
+   "action": "Password changed",
+   "actor": "Customer",
+   "createdAt": "2026-11-25T09:45:39.029Z",
+   "detail": "saleemjan089@gmail.com",
+   "id": 42
+  },
+  {
+   "action": "Demo order created",
+   "actor": "Customer",
+   "createdAt": "2026-11-25T09:22:04.737Z",
+   "detail": "NX-DEMO-98524600 — Rs. 23,463",
+   "id": 41
+  },
+  {
+   "action": "Account registered",
+   "actor": "Customer",
+   "createdAt": "2026-11-25T09:19:14.384Z",
+   "detail": "Muhammad <saleemjan089@gmail.com>",
+   "id": 40
+  },
+  {
+   "action": "Password reset requested",
+   "actor": "Customer",
+   "createdAt": "2026-11-25T09:17:49.436Z",
+   "detail": "saleemlalkha@gmail.com",
+   "id": 39
+  },
+  {
+   "action": "Password changed",
+   "actor": "Customer",
+   "createdAt": "2026-11-25T09:17:01.906Z",
+   "detail": "saleemlalkha@gmail.com",
+   "id": 38
+  },
+  {
+   "action": "Account registered",
+   "actor": "Customer",
+   "createdAt": "2026-11-25T09:16:38.680Z",
+   "detail": "Muhammad <saleemlalkha@gmail.com>",
+   "id": 37
+  },
+  {
+   "action": "Big Test live journey completed",
+   "actor": "System",
+   "createdAt": "2026-11-25T09:05:31.352Z",
+   "detail": "Customer #1, address #1, order NX-DEMO-97530481 (#11) total Rs. 4761, movements [1, 2], payment txns [1, 2], shipment #1, 12 tracking events, return RET-DEMO-531294 (#24), duplicate blocked: true",
+   "id": 36
+  },
+  {
+   "action": "Return requested",
+   "actor": "Big Test QA Customer",
+   "createdAt": "2026-11-25T09:05:31.319Z",
+   "detail": "RET-DEMO-531294 — NX-DEMO-97530481 / Men's Premium Cotton T-Shirt (Demo) / Rs. 1,749",
+   "id": 35
+  },
+  {
+   "action": "Order advanced",
+   "actor": "Order Manager",
+   "createdAt": "2026-11-25T09:05:31.275Z",
+   "detail": "NX-DEMO-97530481 → Delivered",
+   "id": 34
+  },
+  {
+   "action": "Order advanced",
+   "actor": "Order Manager",
+   "createdAt": "2026-11-25T09:05:31.204Z",
+   "detail": "NX-DEMO-97530481 → Out for Delivery",
+   "id": 33
+  },
+  {
+   "action": "Order advanced",
+   "actor": "Order Manager",
+   "createdAt": "2026-11-25T09:05:31.160Z",
+   "detail": "NX-DEMO-97530481 → Arrived in Destination City",
+   "id": 32
+  },
+  {
+   "action": "Order advanced",
+   "actor": "Order Manager",
+   "createdAt": "2026-11-25T09:05:31.114Z",
+   "detail": "NX-DEMO-97530481 → Arrived at Sorting Facility",
+   "id": 31
+  },
+  {
+   "action": "Order advanced",
+   "actor": "Order Manager",
+   "createdAt": "2026-11-25T09:05:31.066Z",
+   "detail": "NX-DEMO-97530481 → In Transit",
+   "id": 30
+  },
+  {
+   "action": "Order advanced",
+   "actor": "Order Manager",
+   "createdAt": "2026-11-25T09:05:30.946Z",
+   "detail": "NX-DEMO-97530481 → Shipped",
+   "id": 29
+  },
+  {
+   "action": "Order advanced",
+   "actor": "Order Manager",
+   "createdAt": "2026-11-25T09:05:30.897Z",
+   "detail": "NX-DEMO-97530481 → Packed",
+   "id": 28
+  },
+  {
+   "action": "Order advanced",
+   "actor": "Order Manager",
+   "createdAt": "2026-11-25T09:05:30.849Z",
+   "detail": "NX-DEMO-97530481 → Processing",
+   "id": 27
+  },
+  {
+   "action": "Order advanced",
+   "actor": "Order Manager",
+   "createdAt": "2026-11-25T09:05:30.800Z",
+   "detail": "NX-DEMO-97530481 → Payment Confirmed",
+   "id": 26
+  },
+  {
+   "action": "Order advanced",
+   "actor": "Order Manager",
+   "createdAt": "2026-11-25T09:05:30.739Z",
+   "detail": "NX-DEMO-97530481 → Confirmed",
+   "id": 25
+  },
+  {
+   "action": "Demo order created",
+   "actor": "Customer",
+   "createdAt": "2026-11-25T09:05:30.634Z",
+   "detail": "NX-DEMO-97530481 — Rs. 4,761",
+   "id": 24
+  },
+  {
+   "action": "Delivery address saved",
+   "actor": "Big Test QA",
+   "createdAt": "2026-11-25T09:05:30.410Z",
+   "detail": "bigtest.qa@nexora.demo — Karachi, Sindh (Pakistani mobile validated) — live journey step 2",
+   "id": 23
+  },
+  {
+   "action": "Account registered",
+   "actor": "Big Test QA",
+   "createdAt": "2026-11-25T09:05:30.381Z",
+   "detail": "Big Test QA Customer <bigtest.qa@nexora.demo> — live journey step 1 (password stored as salted PBKDF2 hash)",
+   "id": 22
+  },
+  {
+   "action": "Temporary test coupon created",
+   "actor": "System",
+   "createdAt": "2026-11-25T09:05:30.295Z",
+   "detail": "BIGTEST5 — 5% off, expires 2026-12-25, usage limit 20, per-customer limit 3. Created ONLY for the Big Test journey; production coupon values remain the owner's decision.",
+   "id": 21
+  },
+  {
+   "action": "Legacy order annotated",
+   "actor": "System",
+   "createdAt": "2026-11-25T09:05:30.245Z",
+   "detail": "NX-DEMO-41510089 — Invalid email \"Xddrtttgyh\"; Invalid phone \"6555544\"",
+   "id": 20
+  },
+  {
+   "action": "Legacy order annotated",
+   "actor": "System",
+   "createdAt": "2026-11-25T09:05:30.213Z",
+   "detail": "NX-DEMO-38959774 — Invalid email \"Bshdbdhua sb.com\"; Invalid phone \"0292939393838\"",
+   "id": 19
+  },
+  {
+   "action": "Legacy order annotated",
+   "actor": "System",
+   "createdAt": "2026-11-25T09:05:30.182Z",
+   "detail": "NX-DEMO-36437811 — Invalid email \"Sahgegegegvev.com\"; Invalid phone \"030303030030\"",
+   "id": 18
+  },
+  {
+   "action": "Legacy order annotated",
+   "actor": "System",
+   "createdAt": "2026-11-25T09:05:30.182Z",
+   "detail": "NX-DEMO-36437811 — Invalid email \"Sahgegegegvev.com\"; Invalid phone \"030303030030\"",
+   "id": 17
+  },
+  {
+   "action": "Database backup snapshot created",
+   "actor": "System",
+   "createdAt": "2026-11-25T09:05:30.154Z",
+   "detail": "backups/pre-correction-1795597530011.json — 105504 bytes; counts: products=72, categories=114, orders=10, orderItems=13, orderEvents=36, returns=2, coupons=4, customers=0, customerAddresses=0, inventoryMovements=0, paymentTransactions=0, shipments=0, staff=9, auditLogs=15, tickets=3, notifications=31",
+   "id": 16
+  },
+  {
+   "action": "Single-company finalize applied",
+   "actor": "System",
+   "createdAt": "2026-11-25T08:36:17.410Z",
+   "detail": "Removed legacy sellers/payouts, re-owned all products to NEXORA MARKET — Official Store, archived legacy catalogue, deactivated legacy categories",
+   "id": 15
+  },
+  {
+   "action": "Phase 2 returns cleanup",
+   "actor": "System",
+   "createdAt": "2026-11-25T08:36:16.761Z",
+   "detail": "Removed 21 invalid return row(s) that failed order/product/refund validation (lab-test spam)",
+   "id": 14
+  },
+  {
+   "action": "Demo order created",
+   "actor": "Customer",
+   "createdAt": "2026-11-24T18:12:17.234Z",
+   "detail": "NX-DEMO-43937098 — Rs. 2,681",
+   "id": 13
+  },
+  {
+   "action": "Single-company finalize applied",
+   "actor": "System",
+   "createdAt": "2026-11-24T18:03:40.110Z",
+   "detail": "Removed legacy sellers/payouts, re-owned all products to NEXORA MARKET — Official Store, archived legacy catalogue, deactivated legacy categories",
+   "id": 12
+  },
+  {
+   "action": "Demo catalogue extended",
+   "actor": "System",
+   "createdAt": "2026-11-24T17:55:04.418Z",
+   "detail": "0 products added; coupon 000 ensured; catalogue v2: 48",
+   "id": 11
+  },
+  {
+   "action": "Catalogue v2 applied",
+   "actor": "System",
+   "createdAt": "2026-11-24T17:55:04.401Z",
+   "detail": "48 single-company demo products across 9 categories; legacy marketplace products archived",
+   "id": 10
+  },
+  {
+   "action": "Demo order created",
+   "actor": "Customer",
+   "createdAt": "2026-11-24T17:31:50.214Z",
+   "detail": "NX-DEMO-41510089 — Rs. 2,539",
+   "id": 9
+  },
+  {
+   "action": "Settings updated",
+   "actor": "Admin",
+   "createdAt": "2026-11-24T17:17:24.588Z",
+   "detail": "profilePhoneVerified",
+   "id": 8
+  },
+  {
+   "action": "Order status changed",
+   "actor": "Customer",
+   "createdAt": "2026-11-24T16:50:00.827Z",
+   "detail": "NX-DEMO-100003 → Cancelled",
+   "id": 7
+  },
+  {
+   "action": "Order status changed",
+   "actor": "Customer",
+   "createdAt": "2026-11-24T16:49:59.038Z",
+   "detail": "NX-DEMO-100004 → Cancelled",
+   "id": 6
+  },
+  {
+   "action": "Order status changed",
+   "actor": "Customer",
+   "createdAt": "2026-11-24T16:49:58.349Z",
+   "detail": "NX-DEMO-100004 → Cancelled",
+   "id": 5
+  },
+  {
+   "action": "Demo order created",
+   "actor": "Customer",
+   "createdAt": "2026-11-24T16:49:19.882Z",
+   "detail": "NX-DEMO-38959774 — Rs. 23,748",
+   "id": 4
+  },
+  {
+   "action": "Demo catalogue extended",
+   "actor": "System",
+   "createdAt": "2026-11-24T16:14:25.380Z",
+   "detail": "12 products added; coupon 000 ensured",
+   "id": 3
+  },
+  {
+   "action": "Demo order created",
+   "actor": "Customer",
+   "createdAt": "2026-11-24T16:07:17.898Z",
+   "detail": "NX-DEMO-36437811 — Rs. 21,148",
+   "id": 2
+  },
+  {
+   "action": "Demo data seeded",
+   "actor": "System",
+   "createdAt": "2026-11-24T15:02:06.667Z",
+   "detail": "Categories, sellers, products, orders, tickets, returns, coupons, payouts",
+   "id": 1
+  }
+ ],
+ "source": "nexora-market listaudit {limit:100}"
+}

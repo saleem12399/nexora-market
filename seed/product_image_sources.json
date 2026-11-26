@@ -1,0 +1,628 @@
+{
+ "NX2-ACC-001": {
+  "liveImageRows": [
+   {
+    "id": 24,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDUvc2FtcGxlLW54Mi1hY2MtMDAxLnBuZw",
+    "storageKey": "product-images/45/sample-nx2-acc-001.png",
+    "fileName": "sample-nx2-acc-001.png"
+   }
+  ],
+  "sourceUrl": "https://goodsoug.com/catalog/goodsoug-v1/good-powerbank-20k.png"
+ },
+ "NX2-ACC-002": {
+  "liveImageRows": [
+   {
+    "id": 20,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDYvc2FtcGxlLW54Mi1hY2MtMDAyLmpwZw",
+    "storageKey": "product-images/46/sample-nx2-acc-002.jpg",
+    "fileName": "sample-nx2-acc-002.jpg"
+   }
+  ],
+  "sourceUrl": "https://i.ebayimg.com/images/g/bLUAAOSw8UZkOlIq/s-l1200.jpg"
+ },
+ "NX2-ACC-003": {
+  "liveImageRows": [
+   {
+    "id": 22,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDcvc2FtcGxlLW54Mi1hY2MtMDAzLmpwZw",
+    "storageKey": "product-images/47/sample-nx2-acc-003.jpg",
+    "fileName": "sample-nx2-acc-003.jpg"
+   }
+  ],
+  "sourceUrl": "https://m.media-amazon.com/images/I/51q95vFvd9L.jpg"
+ },
+ "NX2-ACC-004": {
+  "liveImageRows": [
+   {
+    "id": 19,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDgvc2FtcGxlLW54Mi1hY2MtMDA0LmpwZw",
+    "storageKey": "product-images/48/sample-nx2-acc-004.jpg",
+    "fileName": "sample-nx2-acc-004.jpg"
+   }
+  ],
+  "sourceUrl": "https://i.ebayimg.com/images/g/3YUAAOSwiqplJhYD/s-l500.jpg"
+ },
+ "NX2-ACC-005": {
+  "liveImageRows": [
+   {
+    "id": 28,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDkvc2FtcGxlLW54Mi1hY2MtMDA1LndlYnA",
+    "storageKey": "product-images/49/sample-nx2-acc-005.webp",
+    "fileName": "sample-nx2-acc-005.webp"
+   }
+  ],
+  "sourceUrl": "https://lux-case.es/cdn/shop/products/lcs01-112-659-e.jpg?v=1687817102&width=1000"
+ },
+ "NX2-AUD-001": {
+  "liveImageRows": [
+   {
+    "id": 32,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTYvc2FtcGxlLW54Mi1hdWQtMDAxLndlYnA",
+    "storageKey": "product-images/56/sample-nx2-aud-001.webp",
+    "fileName": "sample-nx2-aud-001.webp"
+   }
+  ],
+  "sourceUrl": "https://ae01.alicdn.com/kf/Sa68380a1378945349f0b58ec0b2ab4e91.jpg"
+ },
+ "NX2-AUD-002": {
+  "liveImageRows": [
+   {
+    "id": 34,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTcvc2FtcGxlLW54Mi1hdWQtMDAyLnBuZw",
+    "storageKey": "product-images/57/sample-nx2-aud-002.png",
+    "fileName": "sample-nx2-aud-002.png"
+   }
+  ],
+  "sourceUrl": "https://assetly.ordermygear.com/assets/d4b04513e5d0c6d56470540619e3f80ef541b1a5"
+ },
+ "NX2-AUD-003": {
+  "liveImageRows": [
+   {
+    "id": 31,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTgvc2FtcGxlLW54Mi1hdWQtMDAzLndlYnA",
+    "storageKey": "product-images/58/sample-nx2-aud-003.webp",
+    "fileName": "sample-nx2-aud-003.webp"
+   }
+  ],
+  "sourceUrl": "https://ae04.alicdn.com/kf/S35570cb96bf14c1aa0daf19606b06957w.jpg"
+ },
+ "NX2-AUD-004": {
+  "liveImageRows": [
+   {
+    "id": 35,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTkvc2FtcGxlLW54Mi1hdWQtMDA0LmpwZw",
+    "storageKey": "product-images/59/sample-nx2-aud-004.jpg",
+    "fileName": "sample-nx2-aud-004.jpg"
+   }
+  ],
+  "sourceUrl": "https://res.halfphoto.com/o/1766095085452326/black_cylindrical_portable_bluetooth_speaker.jpg"
+ },
+ "NX2-AUD-005": {
+  "liveImageRows": [
+   {
+    "id": 33,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjAvc2FtcGxlLW54Mi1hdWQtMDA1LmpwZw",
+    "storageKey": "product-images/60/sample-nx2-aud-005.jpg",
+    "fileName": "sample-nx2-aud-005.jpg"
+   }
+  ],
+  "sourceUrl": "https://m.media-amazon.com/images/I/51azOKI7rNS.jpg"
+ },
+ "NX2-AUD-006": {
+  "liveImageRows": [
+   {
+    "id": 41,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjEvc2FtcGxlLW54Mi1hdWQtMDA2LndlYnA",
+    "storageKey": "product-images/61/sample-nx2-aud-006.webp",
+    "fileName": "sample-nx2-aud-006.webp"
+   }
+  ],
+  "sourceUrl": "https://sc02.alicdn.com/kf/H0415916508ae412fbe66c20f955c64a1K.jpg"
+ },
+ "NX2-BEA-001": {
+  "liveImageRows": [
+   {
+    "id": 39,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjYvc2FtcGxlLW54Mi1iZWEtMDAxLndlYnA",
+    "storageKey": "product-images/66/sample-nx2-bea-001.webp",
+    "fileName": "sample-nx2-bea-001.webp"
+   }
+  ],
+  "sourceUrl": "https://cdn.shopify.com/s/files/1/2015/5425/products/VitaminCserum.jpg?v=1640921632"
+ },
+ "NX2-BEA-002": {
+  "liveImageRows": [
+   {
+    "id": 44,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjcvc2FtcGxlLW54Mi1iZWEtMDAyLmpwZw",
+    "storageKey": "product-images/67/sample-nx2-bea-002.jpg",
+    "fileName": "sample-nx2-bea-002.jpg"
+   }
+  ],
+  "sourceUrl": "https://m.media-amazon.com/images/I/81-aEVprqsS.jpg"
+ },
+ "NX2-BEA-003": {
+  "liveImageRows": [
+   {
+    "id": 43,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjgvc2FtcGxlLW54Mi1iZWEtMDAzLndlYnA",
+    "storageKey": "product-images/68/sample-nx2-bea-003.webp",
+    "fileName": "sample-nx2-bea-003.webp"
+   }
+  ],
+  "sourceUrl": "https://libertysupply.store/cdn/shop/files/51ZAECAyeSS._SL1440_1200x1200.jpg?v=1699761504"
+ },
+ "NX2-BEA-004": {
+  "liveImageRows": [
+   {
+    "id": 46,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjkvc2FtcGxlLW54Mi1iZWEtMDA0LndlYnA",
+    "storageKey": "product-images/69/sample-nx2-bea-004.webp",
+    "fileName": "sample-nx2-bea-004.webp"
+   }
+  ],
+  "sourceUrl": "https://sc04.alicdn.com/kf/Hb55662b9861840b688c4c201289d872cm.jpg"
+ },
+ "NX2-JEW-001": {
+  "liveImageRows": [
+   {
+    "id": 42,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjIvc2FtcGxlLW54Mi1qZXctMDAxLndlYnA",
+    "storageKey": "product-images/62/sample-nx2-jew-001.webp",
+    "fileName": "sample-nx2-jew-001.webp"
+   }
+  ],
+  "sourceUrl": "https://rukminim2.flixcart.com/image/1600/2130/jnex7680/jewellery-set/n/g/k/rbej013-rb-fashion-jewellery-original-imafa3njspghdwqs.jpeg?q=80"
+ },
+ "NX2-JEW-002": {
+  "liveImageRows": [
+   {
+    "id": 38,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjMvc2FtcGxlLW54Mi1qZXctMDAyLndlYnA",
+    "storageKey": "product-images/63/sample-nx2-jew-002.webp",
+    "fileName": "sample-nx2-jew-002.webp"
+   }
+  ],
+  "sourceUrl": "https://www.zoeclare.com.au/cdn/shop/files/1-Pair-925-Sterling-Silver-Zircon-925-Sterling-Silver-Earrings-Geometric-Ear-Studs-3.webp?v=1753075093&width=1200"
+ },
+ "NX2-JEW-003": {
+  "liveImageRows": [
+   {
+    "id": 37,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjQvc2FtcGxlLW54Mi1qZXctMDAzLndlYnA",
+    "storageKey": "product-images/64/sample-nx2-jew-003.webp",
+    "fileName": "sample-nx2-jew-003.webp"
+   }
+  ],
+  "sourceUrl": "https://cdn.shopify.com/s/files/1/0193/6253/products/3797166981168.jpg?v=1575932171"
+ },
+ "NX2-JEW-004": {
+  "liveImageRows": [
+   {
+    "id": 40,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjUvc2FtcGxlLW54Mi1qZXctMDA0LndlYnA",
+    "storageKey": "product-images/65/sample-nx2-jew-004.webp",
+    "fileName": "sample-nx2-jew-004.webp"
+   }
+  ],
+  "sourceUrl": "https://trendha.co.uk/cdn/shop/files/1623995308286.jpg?v=1733661213&width=720"
+ },
+ "NX2-KID-001": {
+  "liveImageRows": [
+   {
+    "id": 47,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNzAvc2FtcGxlLW54Mi1raWQtMDAxLndlYnA",
+    "storageKey": "product-images/70/sample-nx2-kid-001.webp",
+    "fileName": "sample-nx2-kid-001.webp"
+   }
+  ],
+  "sourceUrl": "https://img1.junaroad.com/uiproducts/21693687/zoom_0-1739364600.jpg"
+ },
+ "NX2-KID-002": {
+  "liveImageRows": [
+   {
+    "id": 45,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNzEvc2FtcGxlLW54Mi1raWQtMDAyLndlYnA",
+    "storageKey": "product-images/71/sample-nx2-kid-002.webp",
+    "fileName": "sample-nx2-kid-002.webp"
+   }
+  ],
+  "sourceUrl": "https://rukminim2.flixcart.com/image/800/1070/xif0q/kids-dress/s/d/p/6-12-months-tj-22-stajminadresses-resized-original-imahfp7hyudngkgu.jpeg?q=80"
+ },
+ "NX2-KID-003": {
+  "liveImageRows": [
+   {
+    "id": 48,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNzIvc2FtcGxlLW54Mi1raWQtMDAzLmpwZw",
+    "storageKey": "product-images/72/sample-nx2-kid-003.jpg",
+    "fileName": "sample-nx2-kid-003.jpg"
+   }
+  ],
+  "sourceUrl": "https://down-co.img.susercontent.com/file/sg-11134201-7rd6j-lwf8hmpx9ar9ef"
+ },
+ "NX2-MEN-001": {
+  "liveImageRows": [
+   {
+    "id": 1,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMjUvc2FtcGxlLW54Mi1tZW4tMDAxLndlYnA",
+    "storageKey": "product-images/25/sample-nx2-men-001.webp",
+    "fileName": "sample-nx2-men-001.webp"
+   }
+  ],
+  "sourceUrl": "https://img1.junaroad.com/uiproducts/21170186/zoom_1-1713904303.jpg"
+ },
+ "NX2-MEN-002": {
+  "liveImageRows": [
+   {
+    "id": 2,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMjYvc2FtcGxlLW54Mi1tZW4tMDAyLndlYnA",
+    "storageKey": "product-images/26/sample-nx2-men-002.webp",
+    "fileName": "sample-nx2-men-002.webp"
+   }
+  ],
+  "sourceUrl": "https://bopshop.in/cdn/shop/files/7_5f3f7b22-5781-445e-8e97-f6371898d207.jpg?v=1787662355&width=1080"
+ },
+ "NX2-MEN-003": {
+  "liveImageRows": [
+   {
+    "id": 4,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMjcvc2FtcGxlLW54Mi1tZW4tMDAzLmpwZw",
+    "storageKey": "product-images/27/sample-nx2-men-003.jpg",
+    "fileName": "sample-nx2-men-003.jpg"
+   }
+  ],
+  "sourceUrl": "https://stgsfcc.vishalmegamart.com/on/demandware.static/-/Sites-vmm-apparel-master-catalog/default/dw61ba7743/images/large/1114124465003.jpg"
+ },
+ "NX2-MEN-004": {
+  "liveImageRows": [
+   {
+    "id": 6,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMjgvc2FtcGxlLW54Mi1tZW4tMDA0LmpwZw",
+    "storageKey": "product-images/28/sample-nx2-men-004.jpg",
+    "fileName": "sample-nx2-men-004.jpg"
+   }
+  ],
+  "sourceUrl": "https://assets.myntassets.com/h_1440,q_95,w_1080/assets/images/2025/FEBRUARY/10/3jnYDfX8_2349f85d1830458abcb64acd5e1ad752.jpg"
+ },
+ "NX2-MEN-005": {
+  "liveImageRows": [
+   {
+    "id": 3,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMjkvc2FtcGxlLW54Mi1tZW4tMDA1LmpwZw",
+    "storageKey": "product-images/29/sample-nx2-men-005.jpg",
+    "fileName": "sample-nx2-men-005.jpg"
+   }
+  ],
+  "sourceUrl": "https://images-na.ssl-images-amazon.com/images/I/71Oy3BHlk2L.jpg"
+ },
+ "NX2-MEN-006": {
+  "liveImageRows": [
+   {
+    "id": 5,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzAvc2FtcGxlLW54Mi1tZW4tMDA2LmpwZw",
+    "storageKey": "product-images/30/sample-nx2-men-006.jpg",
+    "fileName": "sample-nx2-men-006.jpg"
+   }
+  ],
+  "sourceUrl": "https://assets.salesground.ai/organizations/51/products/d9bf719ee396af5d1d0cf2f0ba78b858.jpg"
+ },
+ "NX2-MEN-007": {
+  "liveImageRows": [
+   {
+    "id": 10,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzEvc2FtcGxlLW54Mi1tZW4tMDA3LmpwZw",
+    "storageKey": "product-images/31/sample-nx2-men-007.jpg",
+    "fileName": "sample-nx2-men-007.jpg"
+   }
+  ],
+  "sourceUrl": "https://www.goodsagent.com/wp-content/uploads/2024/01/Mens-leather-business-casual-belt-6.jpg"
+ },
+ "NX2-PHN-001": {
+  "liveImageRows": [
+   {
+    "id": 14,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzkvc2FtcGxlLW54Mi1waG4tMDAxLmpwZw",
+    "storageKey": "product-images/39/sample-nx2-phn-001.jpg",
+    "fileName": "sample-nx2-phn-001.jpg"
+   }
+  ],
+  "sourceUrl": "https://www.pagedesk.com/wp-content/uploads/2024/12/15-1.jpg"
+ },
+ "NX2-PHN-002": {
+  "liveImageRows": [
+   {
+    "id": 17,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDAvc2FtcGxlLW54Mi1waG4tMDAyLnBuZw",
+    "storageKey": "product-images/40/sample-nx2-phn-002.png",
+    "fileName": "sample-nx2-phn-002.png"
+   }
+  ],
+  "sourceUrl": "https://www.telstra.com.au/content/dam/tcom/devices/mobile/mhdwhst-s24/onyxblack/front.png"
+ },
+ "NX2-PHN-003": {
+  "liveImageRows": [
+   {
+    "id": 16,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDEvc2FtcGxlLW54Mi1waG4tMDAzLnBuZw",
+    "storageKey": "product-images/41/sample-nx2-phn-003.png",
+    "fileName": "sample-nx2-phn-003.png"
+   }
+  ],
+  "sourceUrl": "https://i01.appmifile.com/webfile/globalimg/products/pc/redmi-note-9/J15S_14b.png"
+ },
+ "NX2-PHN-004": {
+  "liveImageRows": [
+   {
+    "id": 15,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDIvc2FtcGxlLW54Mi1waG4tMDA0LndlYnA",
+    "storageKey": "product-images/42/sample-nx2-phn-004.webp",
+    "fileName": "sample-nx2-phn-004.webp"
+   }
+  ],
+  "sourceUrl": "https://img.lazcdn.com/g/p/f66f0eabfef8b65948fb3ee7323f24d0.jpg_720x720q80.jpg_.webp"
+ },
+ "NX2-PHN-005": {
+  "liveImageRows": [
+   {
+    "id": 23,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDMvc2FtcGxlLW54Mi1waG4tMDA1LndlYnA",
+    "storageKey": "product-images/43/sample-nx2-phn-005.webp",
+    "fileName": "sample-nx2-phn-005.webp"
+   }
+  ],
+  "sourceUrl": "https://i.gadgets360cdn.com/large/y200_pro_vivo_5g_1749541626210.jpg"
+ },
+ "NX2-PHN-006": {
+  "liveImageRows": [
+   {
+    "id": 21,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDQvc2FtcGxlLW54Mi1waG4tMDA2LndlYnA",
+    "storageKey": "product-images/44/sample-nx2-phn-006.webp",
+    "fileName": "sample-nx2-phn-006.webp"
+   }
+  ],
+  "sourceUrl": "https://image.made-in-china.com/226f3j00nZYloBePAhqt/Octa-Core-4G-Android-Tablet-10-LTE-WiFi-11inch-Kids-Tablet-Educational-Quad-Core-IPS-UHD-Tablet-PC-Android.webp"
+ },
+ "NX2-WEA-001": {
+  "liveImageRows": [
+   {
+    "id": 25,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTAvc2FtcGxlLW54Mi13ZWEtMDAxLmpwZw",
+    "storageKey": "product-images/50/sample-nx2-wea-001.jpg",
+    "fileName": "sample-nx2-wea-001.jpg"
+   }
+  ],
+  "sourceUrl": "https://img.joomcdn.net/f52e8003d2f861afa89fff6303004245c81a852c_1024_1024.jpeg"
+ },
+ "NX2-WEA-002": {
+  "liveImageRows": [
+   {
+    "id": 30,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTEvc2FtcGxlLW54Mi13ZWEtMDAyLmpwZw",
+    "storageKey": "product-images/51/sample-nx2-wea-002.jpg",
+    "fileName": "sample-nx2-wea-002.jpg"
+   }
+  ],
+  "sourceUrl": "https://img.gkbcdn.com/p/2022-05-09/Bluetooth-TWS-Audio-Eyewear-Polarized-Sunglasses-Blue-500304-0._w1000_.jpg"
+ },
+ "NX2-WEA-003": {
+  "liveImageRows": [
+   {
+    "id": 29,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTIvc2FtcGxlLW54Mi13ZWEtMDAzLndlYnA",
+    "storageKey": "product-images/52/sample-nx2-wea-003.webp",
+    "fileName": "sample-nx2-wea-003.webp"
+   }
+  ],
+  "sourceUrl": "https://procamglasses.com/_next/image?url=%2Fimg%2Fproducts%2Fpcg-24-inmo-air3.webp&w=1080&q=75"
+ },
+ "NX2-WEA-004": {
+  "liveImageRows": [
+   {
+    "id": 27,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTMvc2FtcGxlLW54Mi13ZWEtMDA0LndlYnA",
+    "storageKey": "product-images/53/sample-nx2-wea-004.webp",
+    "fileName": "sample-nx2-wea-004.webp"
+   }
+  ],
+  "sourceUrl": "https://storeno.b-cdn.net/stores/11-2024/1730811008385.jpeg?width=677"
+ },
+ "NX2-WEA-005": {
+  "liveImageRows": [
+   {
+    "id": 26,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTQvc2FtcGxlLW54Mi13ZWEtMDA1LndlYnA",
+    "storageKey": "product-images/54/sample-nx2-wea-005.webp",
+    "fileName": "sample-nx2-wea-005.webp"
+   }
+  ],
+  "sourceUrl": "https://cdn.shopify.com/s/files/1/0022/8491/2686/files/01_2d630bce-20c4-4776-86d9-bf78f6105629.jpg?v=1730200925"
+ },
+ "NX2-WEA-006": {
+  "liveImageRows": [
+   {
+    "id": 36,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTUvc2FtcGxlLW54Mi13ZWEtMDA2LndlYnA",
+    "storageKey": "product-images/55/sample-nx2-wea-006.webp",
+    "fileName": "sample-nx2-wea-006.webp"
+   }
+  ],
+  "sourceUrl": "https://cdn.multitronic.fi/images/prod/C/4/123030801-29.webp"
+ },
+ "NX2-WOM-001": {
+  "liveImageRows": [
+   {
+    "id": 9,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzIvc2FtcGxlLW54Mi13b20tMDAxLndlYnA",
+    "storageKey": "product-images/32/sample-nx2-wom-001.webp",
+    "fileName": "sample-nx2-wom-001.webp"
+   }
+  ],
+  "sourceUrl": "https://ae04.alicdn.com/kf/H38b174338c264ed8a73a38aebebb9221F.jpg"
+ },
+ "NX2-WOM-002": {
+  "liveImageRows": [
+   {
+    "id": 7,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzMvc2FtcGxlLW54Mi13b20tMDAyLndlYnA",
+    "storageKey": "product-images/33/sample-nx2-wom-002.webp",
+    "fileName": "sample-nx2-wom-002.webp"
+   }
+  ],
+  "sourceUrl": "https://pk.sapphireonline.pk/dw/image/v2/BKSB_PRD/on/demandware.static/-/Sites-sapphire-master-catalog/default/dw8e7c5f7c/images/Jan26/12thJan26/3SFS26WMV103_999_2.JPG?sw=1000&sh=1200"
+ },
+ "NX2-WOM-003": {
+  "liveImageRows": [
+   {
+    "id": 11,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzQvc2FtcGxlLW54Mi13b20tMDAzLmpwZw",
+    "storageKey": "product-images/34/sample-nx2-wom-003.jpg",
+    "fileName": "sample-nx2-wom-003.jpg"
+   }
+  ],
+  "sourceUrl": "https://images.boksha.com/uploads/products/87837/images/cropped/1738159280_157.jpg"
+ },
+ "NX2-WOM-004": {
+  "liveImageRows": [
+   {
+    "id": 8,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzUvc2FtcGxlLW54Mi13b20tMDA0LndlYnA",
+    "storageKey": "product-images/35/sample-nx2-wom-004.webp",
+    "fileName": "sample-nx2-wom-004.webp"
+   }
+  ],
+  "sourceUrl": "https://salitexonline.com/cdn/shop/products/1pc-unstitched-digital-printed-lawn-kurti-uk-00104utuk-00104ut-505492_726126de-19cf-44c0-84c5-2a8f639f03c5.jpg?crop=center&height=1200&v=1699293985&width=900"
+ },
+ "NX2-WOM-005": {
+  "liveImageRows": [
+   {
+    "id": 12,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzYvc2FtcGxlLW54Mi13b20tMDA1LndlYnA",
+    "storageKey": "product-images/36/sample-nx2-wom-005.webp",
+    "fileName": "sample-nx2-wom-005.webp"
+   }
+  ],
+  "sourceUrl": "https://s.alicdn.com/@sc04/kf/H0f18c0982a2e4772a2e604d8bc432510r.jpg"
+ },
+ "NX2-WOM-006": {
+  "liveImageRows": [
+   {
+    "id": 13,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzcvc2FtcGxlLW54Mi13b20tMDA2LmpwZw",
+    "storageKey": "product-images/37/sample-nx2-wom-006.jpg",
+    "fileName": "sample-nx2-wom-006.jpg"
+   }
+  ],
+  "sourceUrl": "https://img.joomcdn.net/250dcc8814f136161a8e5dee4c0dcd476dc4833d_original.jpeg"
+ },
+ "NX2-WOM-007": {
+  "liveImageRows": [
+   {
+    "id": 18,
+    "isSample": true,
+    "sortOrder": 0,
+    "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzgvc2FtcGxlLW54Mi13b20tMDA3LndlYnA",
+    "storageKey": "product-images/38/sample-nx2-wom-007.webp",
+    "fileName": "sample-nx2-wom-007.webp"
+   }
+  ],
+  "sourceUrl": "https://ae01.alicdn.com/kf/HTB1Y78CQgTqK1RjSZPhq6xfOFXae.jpg"
+ },
+ "note": "liveImageRows is null for every SKU: the live cross-check (listproductimages per product) could NOT be run — artifact.list_actions / artifact.invoke_action are not exposed to this subagent session (see MANIFEST.md). Fill liveImageRows from listproductimages when the export is re-run with those tools. Source URLs are verbatim from DATA-PLAN.md (PRODUCT PHOTOS section, 48 SKUs). No SKU is missing a source URL.",
+ "source": "~/workspace/ts-spaces/nexora-market/DATA-PLAN.md — PRODUCT PHOTOS FOR ALL PRODUCTS section (48 URLs, verbatim)"
+}

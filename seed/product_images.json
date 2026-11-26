@@ -1,0 +1,487 @@
+{
+ "exportedAt": "2026-11-26T13:56:42+05:00",
+ "source": "derived from nexora-market listproducts images[]",
+ "images": [
+  {
+   "id": 48,
+   "productId": 72,
+   "productSku": "NX2-KID-003",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNzIvc2FtcGxlLW54Mi1raWQtMDAzLmpwZw",
+   "storageKey": "product-images/72/sample-nx2-kid-003.jpg",
+   "fileName": "sample-nx2-kid-003.jpg"
+  },
+  {
+   "id": 45,
+   "productId": 71,
+   "productSku": "NX2-KID-002",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNzEvc2FtcGxlLW54Mi1raWQtMDAyLndlYnA",
+   "storageKey": "product-images/71/sample-nx2-kid-002.webp",
+   "fileName": "sample-nx2-kid-002.webp"
+  },
+  {
+   "id": 47,
+   "productId": 70,
+   "productSku": "NX2-KID-001",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNzAvc2FtcGxlLW54Mi1raWQtMDAxLndlYnA",
+   "storageKey": "product-images/70/sample-nx2-kid-001.webp",
+   "fileName": "sample-nx2-kid-001.webp"
+  },
+  {
+   "id": 46,
+   "productId": 69,
+   "productSku": "NX2-BEA-004",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjkvc2FtcGxlLW54Mi1iZWEtMDA0LndlYnA",
+   "storageKey": "product-images/69/sample-nx2-bea-004.webp",
+   "fileName": "sample-nx2-bea-004.webp"
+  },
+  {
+   "id": 43,
+   "productId": 68,
+   "productSku": "NX2-BEA-003",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjgvc2FtcGxlLW54Mi1iZWEtMDAzLndlYnA",
+   "storageKey": "product-images/68/sample-nx2-bea-003.webp",
+   "fileName": "sample-nx2-bea-003.webp"
+  },
+  {
+   "id": 44,
+   "productId": 67,
+   "productSku": "NX2-BEA-002",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjcvc2FtcGxlLW54Mi1iZWEtMDAyLmpwZw",
+   "storageKey": "product-images/67/sample-nx2-bea-002.jpg",
+   "fileName": "sample-nx2-bea-002.jpg"
+  },
+  {
+   "id": 39,
+   "productId": 66,
+   "productSku": "NX2-BEA-001",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjYvc2FtcGxlLW54Mi1iZWEtMDAxLndlYnA",
+   "storageKey": "product-images/66/sample-nx2-bea-001.webp",
+   "fileName": "sample-nx2-bea-001.webp"
+  },
+  {
+   "id": 40,
+   "productId": 65,
+   "productSku": "NX2-JEW-004",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjUvc2FtcGxlLW54Mi1qZXctMDA0LndlYnA",
+   "storageKey": "product-images/65/sample-nx2-jew-004.webp",
+   "fileName": "sample-nx2-jew-004.webp"
+  },
+  {
+   "id": 37,
+   "productId": 64,
+   "productSku": "NX2-JEW-003",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjQvc2FtcGxlLW54Mi1qZXctMDAzLndlYnA",
+   "storageKey": "product-images/64/sample-nx2-jew-003.webp",
+   "fileName": "sample-nx2-jew-003.webp"
+  },
+  {
+   "id": 38,
+   "productId": 63,
+   "productSku": "NX2-JEW-002",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjMvc2FtcGxlLW54Mi1qZXctMDAyLndlYnA",
+   "storageKey": "product-images/63/sample-nx2-jew-002.webp",
+   "fileName": "sample-nx2-jew-002.webp"
+  },
+  {
+   "id": 42,
+   "productId": 62,
+   "productSku": "NX2-JEW-001",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjIvc2FtcGxlLW54Mi1qZXctMDAxLndlYnA",
+   "storageKey": "product-images/62/sample-nx2-jew-001.webp",
+   "fileName": "sample-nx2-jew-001.webp"
+  },
+  {
+   "id": 41,
+   "productId": 61,
+   "productSku": "NX2-AUD-006",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjEvc2FtcGxlLW54Mi1hdWQtMDA2LndlYnA",
+   "storageKey": "product-images/61/sample-nx2-aud-006.webp",
+   "fileName": "sample-nx2-aud-006.webp"
+  },
+  {
+   "id": 33,
+   "productId": 60,
+   "productSku": "NX2-AUD-005",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNjAvc2FtcGxlLW54Mi1hdWQtMDA1LmpwZw",
+   "storageKey": "product-images/60/sample-nx2-aud-005.jpg",
+   "fileName": "sample-nx2-aud-005.jpg"
+  },
+  {
+   "id": 35,
+   "productId": 59,
+   "productSku": "NX2-AUD-004",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTkvc2FtcGxlLW54Mi1hdWQtMDA0LmpwZw",
+   "storageKey": "product-images/59/sample-nx2-aud-004.jpg",
+   "fileName": "sample-nx2-aud-004.jpg"
+  },
+  {
+   "id": 31,
+   "productId": 58,
+   "productSku": "NX2-AUD-003",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTgvc2FtcGxlLW54Mi1hdWQtMDAzLndlYnA",
+   "storageKey": "product-images/58/sample-nx2-aud-003.webp",
+   "fileName": "sample-nx2-aud-003.webp"
+  },
+  {
+   "id": 34,
+   "productId": 57,
+   "productSku": "NX2-AUD-002",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTcvc2FtcGxlLW54Mi1hdWQtMDAyLnBuZw",
+   "storageKey": "product-images/57/sample-nx2-aud-002.png",
+   "fileName": "sample-nx2-aud-002.png"
+  },
+  {
+   "id": 32,
+   "productId": 56,
+   "productSku": "NX2-AUD-001",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTYvc2FtcGxlLW54Mi1hdWQtMDAxLndlYnA",
+   "storageKey": "product-images/56/sample-nx2-aud-001.webp",
+   "fileName": "sample-nx2-aud-001.webp"
+  },
+  {
+   "id": 36,
+   "productId": 55,
+   "productSku": "NX2-WEA-006",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTUvc2FtcGxlLW54Mi13ZWEtMDA2LndlYnA",
+   "storageKey": "product-images/55/sample-nx2-wea-006.webp",
+   "fileName": "sample-nx2-wea-006.webp"
+  },
+  {
+   "id": 26,
+   "productId": 54,
+   "productSku": "NX2-WEA-005",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTQvc2FtcGxlLW54Mi13ZWEtMDA1LndlYnA",
+   "storageKey": "product-images/54/sample-nx2-wea-005.webp",
+   "fileName": "sample-nx2-wea-005.webp"
+  },
+  {
+   "id": 27,
+   "productId": 53,
+   "productSku": "NX2-WEA-004",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTMvc2FtcGxlLW54Mi13ZWEtMDA0LndlYnA",
+   "storageKey": "product-images/53/sample-nx2-wea-004.webp",
+   "fileName": "sample-nx2-wea-004.webp"
+  },
+  {
+   "id": 29,
+   "productId": 52,
+   "productSku": "NX2-WEA-003",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTIvc2FtcGxlLW54Mi13ZWEtMDAzLndlYnA",
+   "storageKey": "product-images/52/sample-nx2-wea-003.webp",
+   "fileName": "sample-nx2-wea-003.webp"
+  },
+  {
+   "id": 30,
+   "productId": 51,
+   "productSku": "NX2-WEA-002",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTEvc2FtcGxlLW54Mi13ZWEtMDAyLmpwZw",
+   "storageKey": "product-images/51/sample-nx2-wea-002.jpg",
+   "fileName": "sample-nx2-wea-002.jpg"
+  },
+  {
+   "id": 25,
+   "productId": 50,
+   "productSku": "NX2-WEA-001",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNTAvc2FtcGxlLW54Mi13ZWEtMDAxLmpwZw",
+   "storageKey": "product-images/50/sample-nx2-wea-001.jpg",
+   "fileName": "sample-nx2-wea-001.jpg"
+  },
+  {
+   "id": 28,
+   "productId": 49,
+   "productSku": "NX2-ACC-005",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDkvc2FtcGxlLW54Mi1hY2MtMDA1LndlYnA",
+   "storageKey": "product-images/49/sample-nx2-acc-005.webp",
+   "fileName": "sample-nx2-acc-005.webp"
+  },
+  {
+   "id": 19,
+   "productId": 48,
+   "productSku": "NX2-ACC-004",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDgvc2FtcGxlLW54Mi1hY2MtMDA0LmpwZw",
+   "storageKey": "product-images/48/sample-nx2-acc-004.jpg",
+   "fileName": "sample-nx2-acc-004.jpg"
+  },
+  {
+   "id": 22,
+   "productId": 47,
+   "productSku": "NX2-ACC-003",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDcvc2FtcGxlLW54Mi1hY2MtMDAzLmpwZw",
+   "storageKey": "product-images/47/sample-nx2-acc-003.jpg",
+   "fileName": "sample-nx2-acc-003.jpg"
+  },
+  {
+   "id": 20,
+   "productId": 46,
+   "productSku": "NX2-ACC-002",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDYvc2FtcGxlLW54Mi1hY2MtMDAyLmpwZw",
+   "storageKey": "product-images/46/sample-nx2-acc-002.jpg",
+   "fileName": "sample-nx2-acc-002.jpg"
+  },
+  {
+   "id": 24,
+   "productId": 45,
+   "productSku": "NX2-ACC-001",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDUvc2FtcGxlLW54Mi1hY2MtMDAxLnBuZw",
+   "storageKey": "product-images/45/sample-nx2-acc-001.png",
+   "fileName": "sample-nx2-acc-001.png"
+  },
+  {
+   "id": 21,
+   "productId": 44,
+   "productSku": "NX2-PHN-006",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDQvc2FtcGxlLW54Mi1waG4tMDA2LndlYnA",
+   "storageKey": "product-images/44/sample-nx2-phn-006.webp",
+   "fileName": "sample-nx2-phn-006.webp"
+  },
+  {
+   "id": 23,
+   "productId": 43,
+   "productSku": "NX2-PHN-005",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDMvc2FtcGxlLW54Mi1waG4tMDA1LndlYnA",
+   "storageKey": "product-images/43/sample-nx2-phn-005.webp",
+   "fileName": "sample-nx2-phn-005.webp"
+  },
+  {
+   "id": 15,
+   "productId": 42,
+   "productSku": "NX2-PHN-004",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDIvc2FtcGxlLW54Mi1waG4tMDA0LndlYnA",
+   "storageKey": "product-images/42/sample-nx2-phn-004.webp",
+   "fileName": "sample-nx2-phn-004.webp"
+  },
+  {
+   "id": 16,
+   "productId": 41,
+   "productSku": "NX2-PHN-003",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDEvc2FtcGxlLW54Mi1waG4tMDAzLnBuZw",
+   "storageKey": "product-images/41/sample-nx2-phn-003.png",
+   "fileName": "sample-nx2-phn-003.png"
+  },
+  {
+   "id": 17,
+   "productId": 40,
+   "productSku": "NX2-PHN-002",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvNDAvc2FtcGxlLW54Mi1waG4tMDAyLnBuZw",
+   "storageKey": "product-images/40/sample-nx2-phn-002.png",
+   "fileName": "sample-nx2-phn-002.png"
+  },
+  {
+   "id": 14,
+   "productId": 39,
+   "productSku": "NX2-PHN-001",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzkvc2FtcGxlLW54Mi1waG4tMDAxLmpwZw",
+   "storageKey": "product-images/39/sample-nx2-phn-001.jpg",
+   "fileName": "sample-nx2-phn-001.jpg"
+  },
+  {
+   "id": 18,
+   "productId": 38,
+   "productSku": "NX2-WOM-007",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzgvc2FtcGxlLW54Mi13b20tMDA3LndlYnA",
+   "storageKey": "product-images/38/sample-nx2-wom-007.webp",
+   "fileName": "sample-nx2-wom-007.webp"
+  },
+  {
+   "id": 13,
+   "productId": 37,
+   "productSku": "NX2-WOM-006",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzcvc2FtcGxlLW54Mi13b20tMDA2LmpwZw",
+   "storageKey": "product-images/37/sample-nx2-wom-006.jpg",
+   "fileName": "sample-nx2-wom-006.jpg"
+  },
+  {
+   "id": 12,
+   "productId": 36,
+   "productSku": "NX2-WOM-005",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzYvc2FtcGxlLW54Mi13b20tMDA1LndlYnA",
+   "storageKey": "product-images/36/sample-nx2-wom-005.webp",
+   "fileName": "sample-nx2-wom-005.webp"
+  },
+  {
+   "id": 8,
+   "productId": 35,
+   "productSku": "NX2-WOM-004",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzUvc2FtcGxlLW54Mi13b20tMDA0LndlYnA",
+   "storageKey": "product-images/35/sample-nx2-wom-004.webp",
+   "fileName": "sample-nx2-wom-004.webp"
+  },
+  {
+   "id": 11,
+   "productId": 34,
+   "productSku": "NX2-WOM-003",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzQvc2FtcGxlLW54Mi13b20tMDAzLmpwZw",
+   "storageKey": "product-images/34/sample-nx2-wom-003.jpg",
+   "fileName": "sample-nx2-wom-003.jpg"
+  },
+  {
+   "id": 7,
+   "productId": 33,
+   "productSku": "NX2-WOM-002",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzMvc2FtcGxlLW54Mi13b20tMDAyLndlYnA",
+   "storageKey": "product-images/33/sample-nx2-wom-002.webp",
+   "fileName": "sample-nx2-wom-002.webp"
+  },
+  {
+   "id": 9,
+   "productId": 32,
+   "productSku": "NX2-WOM-001",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzIvc2FtcGxlLW54Mi13b20tMDAxLndlYnA",
+   "storageKey": "product-images/32/sample-nx2-wom-001.webp",
+   "fileName": "sample-nx2-wom-001.webp"
+  },
+  {
+   "id": 10,
+   "productId": 31,
+   "productSku": "NX2-MEN-007",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzEvc2FtcGxlLW54Mi1tZW4tMDA3LmpwZw",
+   "storageKey": "product-images/31/sample-nx2-men-007.jpg",
+   "fileName": "sample-nx2-men-007.jpg"
+  },
+  {
+   "id": 5,
+   "productId": 30,
+   "productSku": "NX2-MEN-006",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMzAvc2FtcGxlLW54Mi1tZW4tMDA2LmpwZw",
+   "storageKey": "product-images/30/sample-nx2-men-006.jpg",
+   "fileName": "sample-nx2-men-006.jpg"
+  },
+  {
+   "id": 3,
+   "productId": 29,
+   "productSku": "NX2-MEN-005",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMjkvc2FtcGxlLW54Mi1tZW4tMDA1LmpwZw",
+   "storageKey": "product-images/29/sample-nx2-men-005.jpg",
+   "fileName": "sample-nx2-men-005.jpg"
+  },
+  {
+   "id": 6,
+   "productId": 28,
+   "productSku": "NX2-MEN-004",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMjgvc2FtcGxlLW54Mi1tZW4tMDA0LmpwZw",
+   "storageKey": "product-images/28/sample-nx2-men-004.jpg",
+   "fileName": "sample-nx2-men-004.jpg"
+  },
+  {
+   "id": 4,
+   "productId": 27,
+   "productSku": "NX2-MEN-003",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMjcvc2FtcGxlLW54Mi1tZW4tMDAzLmpwZw",
+   "storageKey": "product-images/27/sample-nx2-men-003.jpg",
+   "fileName": "sample-nx2-men-003.jpg"
+  },
+  {
+   "id": 2,
+   "productId": 26,
+   "productSku": "NX2-MEN-002",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMjYvc2FtcGxlLW54Mi1tZW4tMDAyLndlYnA",
+   "storageKey": "product-images/26/sample-nx2-men-002.webp",
+   "fileName": "sample-nx2-men-002.webp"
+  },
+  {
+   "id": 1,
+   "productId": 25,
+   "productSku": "NX2-MEN-001",
+   "isSample": true,
+   "sortOrder": 0,
+   "blobUrl": "./blobs/cHJvZHVjdC1pbWFnZXMvMjUvc2FtcGxlLW54Mi1tZW4tMDAxLndlYnA",
+   "storageKey": "product-images/25/sample-nx2-men-001.webp",
+   "fileName": "sample-nx2-men-001.webp"
+  }
+ ],
+ "note": "blobUrl is an artifact-runtime path and is NOT portable; storageKey/fileName identify the stored file. The rebuild serves downloaded source images (see product_image_sources.json) under public/images/ with these fileNames."
+}

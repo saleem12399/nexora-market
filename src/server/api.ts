@@ -90,8 +90,48 @@ async function settingsMap(db: Db): Promise<Record<string, string>> {
   return m;
 }
 
+// Registry of the API actions, so server-rendered pages can call an action
+// in-process (callApiAction) instead of HTTP-fetching their own server.
+// The payload returned is identical to the POST /api/<name> JSON response.
+//
+// Why this exists: the homepage and shop pages used to fetch their own API
+// over http://127.0.0.1:<PORT>. That needs a listening socket, which a Vercel
+// serverless function does not have, so those pages would fail there. The
+// in-process call runs the exact same handler and returns the exact same
+// data, on Render and on Vercel alike. No route, action or rendered output
+// changes.
+//
+// Safety: actions that require a staff role (opts.area) can never be called
+// this way, because there is no authenticated staff request to enforce
+// against. Only public actions are reachable here.
+type ApiHandler = (req: Request, res: Response, db: Db) => Promise<void>;
+const actionHandlers = new Map<string, { handler: ApiHandler; opts?: { auth?: "customer" | "none"; area?: RoleArea } }>();
+
+export async function callApiAction(name: string, body: any = {}): Promise<any> {
+  const entry = actionHandlers.get(name);
+  if (!entry) throw new Error(`Unknown API action: ${name}`);
+  if (entry.opts?.area) throw new Error(`API action ${name} requires staff authorization and cannot be called in-process`);
+  const db = getDb();
+  if (!db) throw new Error("database not configured");
+  let status = 200;
+  let payload: any;
+  // Minimal request: the page handlers call public actions with no session,
+  // exactly like the old self-fetch, which forwarded no cookies or auth
+  // headers. sessionCustomer therefore returns null and the homepage renders
+  // the guest (featured) recommendations, as before.
+  const req = { body, headers: {}, query: {} } as unknown as Request;
+  const res = {
+    status(code: number) { status = code; return this; },
+    json(data: any) { payload = data; return this; },
+  } as unknown as Response;
+  await entry.handler(req, res, db);
+  if (status >= 400) throw new Error(payload?.error || `API action ${name} failed (HTTP ${status})`);
+  return payload;
+}
+
 export function registerApi(app: Express) {
   const a = (name: string, handler: (req: Request, res: Response, db: Db) => Promise<void>, opts?: { auth?: "customer" | "none"; area?: RoleArea }) => {
+    actionHandlers.set(name, { handler, opts });
     app.post(`/api/${name}`, async (req, res) => {
       const db = dbOr503(res); if (!db) return;
       try {

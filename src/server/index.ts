@@ -8,7 +8,7 @@ import path from "node:path";
 import { checkDb, getDb, isDbConfigured } from "../db";
 import * as s from "../db/schema";
 import { asc, desc, eq } from "drizzle-orm";
-import { registerApi } from "./api";
+import { callApiAction, registerApi } from "./api";
 import * as views from "./views";
 
 const app = express();
@@ -28,12 +28,14 @@ function noDb(res: express.Response, feature: string) {
 }
 
 // ---- Storefront pages ----
+// Storefront pages call the API actions in-process (callApiAction) instead
+// of HTTP-fetching their own server: the payload is identical, and it works
+// where no HTTP listener exists (Vercel serverless). See api.ts.
 app.get("/", async (_req, res) => {
   const db = getDb();
   if (!db) return noDb(res, "the homepage");
   try {
-    const r = await fetch(`http://127.0.0.1:${PORT}/api/getHomepage`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
-    const h = await r.json();
+    const h = await callApiAction("getHomepage", {});
     res.send(views.homepageView(h));
   } catch (e) { res.status(500).send(views.layout("Error", `<div class="card light-panel"><p>Homepage failed to load: ${views.esc((e as Error).message)}</p></div>`)); }
 });
@@ -44,8 +46,7 @@ app.get("/shop", async (req, res) => {
   const q: any = req.query;
   const body: any = { category: q.category || undefined, subcategory: q.subcategory || undefined, search: q.search || undefined, sort: q.sort || undefined, inStock: q.inStock ? true : undefined, onDiscount: q.flash ? true : q.onDiscount ? true : undefined, limit: 48, offset: Number(q.offset || 0) };
   const cats = await db.select().from(s.categories).orderBy(asc(s.categories.sortOrder), asc(s.categories.id));
-  const r = await fetch(`http://127.0.0.1:${PORT}/api/listProducts`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  const data: any = await r.json();
+  const data: any = await callApiAction("listProducts", body);
   res.send(views.shopView({ ...data, categories: cats }, { ...(q as any), flash: q.flash }));
 });
 

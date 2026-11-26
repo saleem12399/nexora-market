@@ -3,7 +3,9 @@
 Single-company retail store (Demo mode). One Node.js service — Express +
 Drizzle ORM + Postgres — serving the JSON API and the server-rendered
 storefront + admin from one process. Deployable as **one Render free web
-service** on **Supabase free Postgres**.
+service** or **one Vercel Hobby project** on **Supabase free Postgres**.
+Render needs a card on file (HTTP 402 without one); Vercel Hobby does not —
+see `VERCEL-DEPLOY.md` for the Vercel path, `RENDER-DEPLOY.md` for Render.
 
 Ported from the Muse copy (fullstack artifact slug `nexora-market`) per
 `../REBUILD-SPEC.md` (the build contract — read it first). After this
@@ -27,7 +29,7 @@ npm start            # PORT=3000 by default
 curl localhost:3000/health
 ```
 
-With a database (see `RENDER-DEPLOY.md`):
+With a database (see `RENDER-DEPLOY.md` for Render, `VERCEL-DEPLOY.md` for Vercel):
 
 ```bash
 npm run db:migrate   # applies drizzle/0001_consolidated.sql
@@ -36,13 +38,14 @@ npm run db:validate  # validate the seed files only (no DB needed)
 npm run smoke        # pure-function smoke test (no DB needed)
 ```
 
-## Environment variables (only three — never put values in the repo)
+## Environment variables (only four — never put values in the repo)
 
 | Variable | Meaning |
 |---|---|
 | `DATABASE_URL` | Supabase Postgres connection string (URI mode). Collected securely, never in chat. |
 | `SUPABASE_URL` | `https://rbqigtowumasoopebtyc.supabase.co` |
-| `SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key (`sb_publishable_…`, public by design). Set as a Render env var. |
+| `SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key (`sb_publishable_…`, public by design). Set as a deploy env var. |
+| `RUN_MIGRATIONS_ON_BOOT` | `true` only on Vercel: the first request of a cold start runs `db:migrate` + `db:seed`. Leave unset (off) on Render. |
 
 See `.env.example`. No key, token, password or credential value appears
 anywhere in this repo.
@@ -60,9 +63,12 @@ src/
               index.ts (lazy pool — boots without DATABASE_URL)
               seed.ts (idempotent seed; --validate needs no DB)
               migrate.ts (drizzle migrator)
+              boot-migrate.ts (optional Vercel boot migration, advisory-locked)
   server/     index.ts (Express app, pages, /health)
               api.ts (REST endpoints mirroring spec §5 actions)
               views.ts (server-rendered HTML, navy/blue/amber theme)
+api/          index.js (Vercel serverless entry — reuses the compiled app)
+vercel.json   Vercel build, rewrites and function config
 public/       css/style.css, js/app.js
               images/products/ (48 sample product photos, self-contained)
               images/payments/ (Easypaisa, JazzCash, Visa, Mastercard logos)

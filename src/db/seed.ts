@@ -216,24 +216,20 @@ async function setSequences(db: any, tables: string[]) {
   }
 }
 
-async function main() {
-  const args = process.argv.slice(2);
-  if (args.includes("--validate")) {
-    const v = validateSeed();
-    console.log(JSON.stringify({ ok: v.ok, counts: v.counts, problems: v.problems }, null, 2));
-    process.exit(v.ok ? 0 : 1);
-  }
-  const force = args.includes("--force");
+// Seed the database from seed/*.json. Reusable as runSeed() for the optional
+// Vercel boot migration (src/db/boot-migrate.ts) — that path never calls
+// process.exit, so the library function throws instead of exiting and
+// returns early (instead of exiting) when the data is already seeded.
+export async function runSeed(force = false): Promise<void> {
   const db = getDb();
   if (!db) {
-    console.error("DATABASE_URL is not set — cannot seed. Run with a live Postgres (see RENDER-DEPLOY.md).");
-    process.exit(1);
+    throw new Error("DATABASE_URL is not set — cannot seed. Run with a live Postgres (see RENDER-DEPLOY.md).");
   }
   const d = loadSeedData();
   const existing = await db.select({ id: s.products.id }).from(s.products).limit(1);
   if (existing.length > 0 && !force) {
     console.log("Products already seeded — skipping (idempotent). Use --force to reseed (owner-gated).");
-    process.exit(0);
+    return;
   }
   if (force) {
     console.log("FORCE reseed: wiping seeded tables…");
@@ -376,6 +372,17 @@ async function main() {
   await setSequences(db, ["categories","staff","products","orders","order_items","order_events","cart_items","wishlist_items","tickets","returns","reviews","questions","notifications","coupons","customers","product_images","customer_sessions","customer_addresses","inventory_movements","payment_transactions","shipments","audit_logs","demo_merchants","hero_banners","home_collections","home_sections","saved_searches"]);
   console.log("Seed complete:", JSON.stringify(d.counts));
   console.log("Customers seeded with NO usable password (passwordHash NULL, mustResetPassword=true). Owner sets passwords via the reset flow — see README.");
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  if (args.includes("--validate")) {
+    const v = validateSeed();
+    console.log(JSON.stringify({ ok: v.ok, counts: v.counts, problems: v.problems }, null, 2));
+    process.exit(v.ok ? 0 : 1);
+  }
+  const force = args.includes("--force");
+  await runSeed(force);
   process.exit(0);
 }
 

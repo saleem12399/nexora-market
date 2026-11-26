@@ -12,7 +12,8 @@ export async function runMigrations(): Promise<void> {
   if (!process.env.DATABASE_URL) {
     throw new Error("DATABASE_URL is not set — migrations cannot run.");
   }
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+  // Supabase requires SSL; see src/db/index.ts for why this is set here.
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2, ssl: { rejectUnauthorized: false } });
   const db = drizzle(pool);
   await migrate(db, { migrationsFolder: path.resolve(__dirname, "../../drizzle") });
   console.log("Migrations applied.");

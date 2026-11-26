@@ -43,7 +43,8 @@ async function runBootMigration(): Promise<void> {
     console.log("[boot-migrate] RUN_MIGRATIONS_ON_BOOT=true but DATABASE_URL is not set — skipping.");
     return;
   }
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
+  // Supabase requires SSL; see src/db/index.ts for why this is set here.
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2, ssl: { rejectUnauthorized: false } });
   const client = await pool.connect();
   try {
     let locked = (await client.query("SELECT pg_try_advisory_lock($1) AS locked", [LOCK_KEY])).rows[0].locked as boolean;

@@ -16,7 +16,12 @@ export function isDbConfigured(): boolean {
 export function getDb(): NodePgDatabase<typeof schema> | null {
   if (db) return db;
   if (!process.env.DATABASE_URL) return null;
-  pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
+  // Supabase Postgres (direct and pooler) requires SSL, and the
+  // connection string from its dashboard carries no sslmode, so SSL must
+  // be enabled here. rejectUnauthorized:false is the standard Supabase
+  // pooler setting: the pooler certificate does not verify against the
+  // default CA store. Without this, every query fails at connect time.
+  pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, ssl: { rejectUnauthorized: false } });
   pool.on("error", (err) => console.error("[db] pool error", err.message));
   db = drizzle(pool, { schema });
   return db;

@@ -114,6 +114,16 @@ async function loadCart() {
 async function updateQty(id, qty) { const r = await api("updateCartItem", { id, qty: Number(qty) }); if (r.note) alert(r.note); loadCart(); refreshCartCount(); }
 async function removeLine(id) { if (!confirm("Remove this item? Yes / Keep")) return; await api("removeCartItem", { id }); loadCart(); refreshCartCount(); }
 
+// ---- Support ticket (B15) ----
+async function doCreateTicket(e) {
+  e.preventDefault();
+  const r = await api("createTicket", { customerName: document.getElementById("tkName").value, subject: document.getElementById("tkSubject").value, category: document.getElementById("tkCategory").value, orderNumber: document.getElementById("tkOrder").value, description: document.getElementById("tkDesc").value });
+  const el = document.getElementById("ticketResult");
+  if (!r.ok) { if (el) el.innerHTML = "<p>" + esc(r.error || "Could not open the case.") + "</p>"; return false; }
+  if (el) el.innerHTML = "<p><strong>Case opened: " + esc(r.ticket.ticketNumber) + "</strong> — status Open. The team will reply on this ticket.</p>";
+  return false;
+}
+
 // ---- Wishlist page (B2) ----
 async function loadWishlist() {
   const root = document.getElementById("wishlistRoot"); if (!root) return;
@@ -379,7 +389,7 @@ async function loadAccount() {
 <div class="stat"><b>${st.wishlistItems}</b><span><a href="/wishlist" style="color:#fff">Wishlist Items</a></span></div></div>
 <h3 style="color:#fff">Recent Orders</h3>
 ${recent.length ? recent.map((o) => `<p>${esc(o.orderNumber)} — ${esc(o.status)} — ${money(o.total)} <a href="/track" style="color:#fff">Track</a></p>`).join("") : "<p class='muted'>No orders yet.</p>"}
-<p><a href="/account" style="color:#fff">View All →</a></p>
+<p><a href="#" onclick="showAllOrders(event)" style="color:#fff">View All →</a></p>
 <h3 style="color:#fff">Quick Services</h3><div class="qgrid">
 <a class="qcard" href="/shop">🛍 Shop</a><a class="qcard" href="/track">📦 Track Order</a><a class="qcard" href="/cart">🛒 Cart</a>
 <a class="qcard" href="#" onclick="showReturns(event)">↩️ My Returns</a><a class="qcard" href="#" onclick="showRefunds(event)">💸 My Refunds</a><a class="qcard" href="#" onclick="showPayments(event)">💳 Payments</a>
@@ -392,7 +402,33 @@ function acctPanel(html) { const el = document.getElementById("acctPanel"); if (
 async function showReturns(e) { e.preventDefault(); const r = await api("listReturns", { mine: true }); acctPanel("<h3>My Returns</h3>" + (r.returns || []).map((x) => `<p>${esc(x.returnNumber)} — ${esc(dispName(x.productName))} — ${money(x.refundAmount)} — stage ${x.refundStage}: ${esc(cleanDemo(x.stageLabel))}${x.stageLabelsVerified ? "" : " (label to verify)"}</p>`).join("") || "<p>No returns.</p>"); }
 async function showRefunds(e) { e.preventDefault(); const r = await api("listReturns", { mine: true }); acctPanel("<h3>My Refunds — 9-stage tracker</h3>" + (r.returns || []).map((x) => `<p>${esc(x.returnNumber)}: stage ${x.refundStage}/8 — ${esc(cleanDemo(x.stageLabel))}</p>`).join("") || "<p>No refunds in progress.</p>"); }
 async function showPayments(e) { e.preventDefault(); const r = await api("listPaymentTransactions", {}); const my = await api("listMyOrders", {}); const nums = new Set((my.orders || []).map((o) => o.orderNumber)); acctPanel("<h3>Payment History</h3>" + (r.transactions || []).filter((t) => nums.has(t.orderNumber)).map((t) => `<p>${esc(t.orderNumber)} — ${esc(cleanDemo(t.method))} — ${esc(t.account || "")} — ${esc(t.reference || "")} — ${esc(cleanDemo(t.status))} — ${money(t.amount)}</p>`).join("") || "<p>No payments yet.</p>"); }
-async function showAddresses(e) { e.preventDefault(); const r = await api("listAddresses", {}); acctPanel("<h3>Saved Addresses</h3>" + (r.addresses || []).map((a) => `<p><strong>${esc(a.label)}</strong> — ${esc(a.recipient)}, ${esc(a.address)}, ${esc(a.city)} ${esc(a.postalCode)} ${a.isDefault ? "(Default)" : ""}</p>`).join("") || "<p>No saved address yet.</p>"); }
+async function showAddresses(e) { e.preventDefault(); const r = await api("listAddresses", {}); acctPanel("<h3>Saved Addresses</h3><div id=\"addrForm\"></div><p><button class=\"btn small\" onclick=\"addressForm()\">+ Add address</button></p>" + (r.addresses || []).map((a) => `<p><strong>${esc(a.label)}</strong> — ${esc(a.recipient)}, ${esc(a.address)}, ${esc(a.city)} ${esc(a.postalCode)} ${a.isDefault ? "(Default)" : ""} <button class="btn ghost small" onclick="addressForm(${a.id})">Edit</button> <button class="btn ghost small" onclick="deleteAddress(${a.id})">Delete</button></p>`).join("") || "<p>No saved address yet.</p>"); }
+let lastAddresses = [];
+async function addressForm(id) {
+  const r = await api("listAddresses", {}); lastAddresses = r.addresses || [];
+  const a = id ? lastAddresses.find((x) => x.id === id) : null;
+  const el = document.getElementById("addrForm"); if (!el) return;
+  el.innerHTML = `<form onsubmit="return doSaveAddress(event, ${id || "null"})" class="card" style="padding:12px;margin:10px 0">
+<label>Label <input id="adLabel" value="${esc(a?.label || "Home")}" required></label>
+<label>Recipient <input id="adRecipient" value="${esc(a?.recipient || "")}" required></label>
+<label>Phone <input id="adPhone" value="${esc(a?.phone || "")}" required></label>
+<label>Address <input id="adAddress" value="${esc(a?.address || "")}" required></label>
+<label>City <input id="adCity" value="${esc(a?.city || "")}"></label>
+<label>Province <input id="adProvince" value="${esc(a?.province || "")}"></label>
+<label>Postal code <input id="adPostal" value="${esc(a?.postalCode || "")}"></label>
+<label><input id="adDefault" type="checkbox" ${a?.isDefault ? "checked" : ""}> Default address</label>
+<button class="btn">${id ? "Save changes" : "Add address"}</button></form>`;
+}
+async function doSaveAddress(e, id) {
+  e.preventDefault();
+  const r = await api("saveAddress", { id: id || undefined, label: document.getElementById("adLabel").value, recipient: document.getElementById("adRecipient").value, phone: document.getElementById("adPhone").value, address: document.getElementById("adAddress").value, city: document.getElementById("adCity").value, province: document.getElementById("adProvince").value, postalCode: document.getElementById("adPostal").value, isDefault: document.getElementById("adDefault").checked });
+  if (!r.ok) { alert(r.error || "Could not save address."); return false; }
+  alert("Address saved."); showAddresses(e); return false;
+}
+async function deleteAddress(id) {
+  if (!confirm("Delete this address?")) return;
+  await api("deleteAddress", { id }); showAddresses(new Event("submit"));
+}
 async function showNotifs(e) { e.preventDefault(); const r = await api("listNotifications", {}); await api("markNotificationsRead", {}); acctPanel("<h3>Notifications</h3><p class='note'>Opening notifications marks them all read.</p>" + (r.notifications || []).slice(0, 10).map((n) => `<p><strong>${esc(cleanDemo(n.title))}</strong> — ${esc(cleanDemo(n.body))}</p>`).join("")); }
 function changeName(e) { e.preventDefault(); const n = prompt("New name:"); if (!n) return; api("updateCustomerProfile", { name: n }).then(() => loadAccount()); }
 function changeAddress(e) { e.preventDefault(); showAddresses(e); }
@@ -413,7 +449,66 @@ async function doChangePassword(e) {
   alert(r.ok ? "Password changed." : (r.error || "Could not change password."));
   return false;
 }
-function notifPrefs(e) { e.preventDefault(); alert("Notification preferences: order updates and support replies are on."); }
+async function showAllOrders(e) { if (e) e.preventDefault(); const my = await api("listMyOrders", {}); acctPanel("<h3>My Orders (" + (my.orders || []).length + ")</h3>" + (my.orders || []).map((o) => `<p><strong>${esc(o.orderNumber)}</strong> — ${esc(o.status)} — ${money(o.total)} <button class="btn ghost small" onclick="showOrderDetailCust('${esc(o.orderNumber)}','${esc(o.trackingNumber)}',${o.id},'${esc(o.status)}')">Details</button></p>`).join("") || "<p>No orders yet.</p>"); }
+async function showOrderDetailCust(orderNumber, trackingNumber, orderId, status) {
+  const r = await api("getOrderTracking", { orderNumber, trackingNumber });
+  if (!r.ok) { acctPanel("<p>" + esc(r.error || "Not found.") + "</p>"); return; }
+  const o = r.order;
+  const canCancel = !["Delivered", "Cancelled"].includes(o.status);
+  const canReturn = o.status === "Delivered";
+  acctPanel(`<h3>${esc(o.orderNumber)} — ${esc(o.status)}</h3>
+<p>${esc(o.customerName)} · ${esc(o.address)}, ${esc(o.city)} ${esc(o.province)}</p>
+<p>Items: ${(r.items || []).map((it) => esc(it.productName) + " × " + it.qty + " — " + money(it.price * it.qty)).join("; ")}</p>
+<p>Total ${money(o.total)} · Payment: ${esc(o.paymentMethod)} — ${esc(o.paymentStatus)} · Courier: ${esc(o.courier)}</p>
+<p>Tracking: ${(r.events || []).map((ev) => esc(ev.status)).join(" → ") || "none"}</p>
+${canCancel ? `<p><button class="btn ghost" onclick="doCancelOrder(${o.id})">Cancel this order</button></p>` : ""}
+${canReturn ? `<div id="returnForm"></div><p><button class="btn ghost" onclick="showReturnForm('${esc(o.orderNumber)}')">Request a return</button></p>` : ""}
+<p><a href="#" onclick="showAllOrders(event)">← Back to all orders</a></p>`);
+}
+async function doCancelOrder(orderId) {
+  if (!confirm("Cancel this order? Stock is released and a refund is marked pending if you already paid.")) return;
+  const r = await api("cancelOrder", { orderId, reason: "Cancelled by customer from My Orders" });
+  if (!r.ok) { alert(r.error || "Could not cancel."); return; }
+  alert(r.refused ? r.message : "Order cancelled.");
+  loadAccount();
+}
+async function showReturnForm(orderNumber) {
+  const el = document.getElementById("returnForm"); if (!el) return;
+  const r = await api("getOrderTracking", { orderNumber, trackingNumber: "" });
+  const names = (r.items || []).map((it) => it.productName);
+  if (!names.length) { el.innerHTML = "<p>No items on this order.</p>"; return; }
+  el.innerHTML = `<form onsubmit="return doCreateReturnCust(event,'${esc(orderNumber)}')" class="card" style="padding:12px;margin:10px 0"><h3>Request a return</h3>
+<label>Product <select id="rtProduct">${names.map((n) => `<option>${esc(n)}</option>`).join("")}</select></label>
+<label>Quantity <input id="rtQty" type="number" min="1" value="1"></label>
+<label>Refund amount (Rs) <input id="rtAmount" type="number" min="1" required></label>
+<label>Reason <input id="rtReason" required placeholder="e.g. Wrong size"></label>
+<label>Pickup <select id="rtPickup"><option>Home Pickup</option><option>Drop-off</option></select></label>
+<button class="btn">Submit return request</button></form>`;
+}
+async function doCreateReturnCust(e, orderNumber) {
+  e.preventDefault();
+  const r = await api("createReturn", { orderNumber, productName: document.getElementById("rtProduct").value, qty: Number(document.getElementById("rtQty").value || 1), refundAmount: Number(document.getElementById("rtAmount").value), reason: document.getElementById("rtReason").value, pickupMethod: document.getElementById("rtPickup").value });
+  if (!r.ok) { alert(r.error || "Could not request a return."); return false; }
+  alert("Return requested: " + r.return.returnNumber + " (stage 0 — Requested).");
+  loadAccount(); return false;
+}
+function notifPrefs(e) { e.preventDefault(); showNotifPrefs(e); }
+async function showNotifPrefs(e) {
+  const r = await api("getNotifPrefs", {});
+  if (!r.ok) { acctPanel("<p>" + esc(r.error || "Sign in to manage preferences.") + "</p>"); return; }
+  const p = r.prefs || {};
+  acctPanel(`<h3>Notification Preferences</h3><form onsubmit="return doSaveNotifPrefs(event)">
+<label><input id="npOrder" type="checkbox" ${p.orderUpdates ? "checked" : ""}> Order updates (placed, shipped, delivered, cancelled)</label>
+<label><input id="npPromo" type="checkbox" ${p.promotions ? "checked" : ""}> Promotions and flash-sale alerts</label>
+<label><input id="npSupport" type="checkbox" ${p.supportReplies ? "checked" : ""}> Support replies</label>
+<button class="btn">Save preferences</button></form><p class="note">Saved on your account — they apply to your notifications only.</p>`);
+}
+async function doSaveNotifPrefs(e) {
+  e.preventDefault();
+  const r = await api("saveNotifPrefs", { prefs: { orderUpdates: document.getElementById("npOrder").checked, promotions: document.getElementById("npPromo").checked, supportReplies: document.getElementById("npSupport").checked } });
+  if (!r.ok) { alert(r.error || "Could not save."); return false; }
+  alert("Preferences saved."); return false;
+}
 function privacySec(e) { e.preventDefault(); if (confirm("Request account deletion? This only records the request — the owner reviews it first.")) api("requestAccountDeletion", {}).then((r) => alert(r.note || "Requested.")); }
 
 // ---- Admin ----
@@ -449,6 +544,118 @@ async function resetStaffPw(id, name) {
   showOneTimeToken("New setup token for " + name, r.setupToken, "Valid 24 hours, one use. " + name + " opens /staff/setup and activates again with this token.");
 }
 
+// ---- Admin edit forms (B13) ----
+let lastProducts = [], lastCategories = [], lastCoupons = [];
+function reloadAdminTab(i) { adminTab(i, document.querySelectorAll("#adminTabs .tab")[i]); }
+function editProductForm(id) {
+  const p = lastProducts.find((x) => x.id === id); if (!p) return;
+  const el = document.getElementById("prodForm"); if (!el) return;
+  el.innerHTML = `<form onsubmit="return doSaveProduct(event, ${p.id})" class="card" style="border:2px solid #315EFB;padding:12px;margin:10px 0"><h3>Edit ${esc(p.sku)} — ${esc(p.name)}</h3>
+<label>Name <input id="epName" value="${esc(p.name)}" required></label>
+<label>Price (Rs) <input id="epPrice" type="number" min="0" value="${p.price}" required></label>
+<label>Sale price (blank = none) <input id="epSale" type="number" min="0" value="${p.salePrice ?? ""}"></label>
+<label>Stock <input id="epStock" type="number" min="0" value="${p.stock}"></label>
+<label>Category <input id="epCat" value="${esc(p.category)}"></label>
+<label>Subcategory <input id="epSub" value="${esc(p.subcategory || "")}"></label>
+<label>Status <select id="epStatus"><option ${p.status === "Published" ? "selected" : ""}>Published</option><option ${p.status === "Draft" ? "selected" : ""}>Draft</option></select></label>
+<label><input id="epFlash" type="checkbox" ${p.isFlash ? "checked" : ""}> Flash deal</label>
+<label><input id="epFeat" type="checkbox" ${p.isFeatured ? "checked" : ""}> Featured</label>
+<button class="btn">Save product</button> <button type="button" class="btn ghost" onclick="document.getElementById('prodForm').innerHTML=''">Cancel</button></form>`;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+async function doSaveProduct(e, id) {
+  e.preventDefault();
+  const p = lastProducts.find((x) => x.id === id); if (!p) return false;
+  const sale = document.getElementById("epSale").value;
+  const r = await api("saveProduct", { ...p, name: document.getElementById("epName").value, price: Number(document.getElementById("epPrice").value), salePrice: sale === "" ? null : Number(sale), stock: Number(document.getElementById("epStock").value), category: document.getElementById("epCat").value, subcategory: document.getElementById("epSub").value, status: document.getElementById("epStatus").value, isFlash: document.getElementById("epFlash").checked, isFeatured: document.getElementById("epFeat").checked });
+  if (!r.ok) { alert(r.error || "Could not save."); return false; }
+  alert("Product saved."); reloadAdminTab(1); return false;
+}
+async function doAddProduct(e) {
+  e.preventDefault();
+  const r = await api("saveProduct", { sku: document.getElementById("npSku").value.trim(), name: document.getElementById("npName").value, category: document.getElementById("npCat").value, price: Number(document.getElementById("npPrice").value), stock: Number(document.getElementById("npStock").value || 0), status: "Published" });
+  if (!r.ok) { alert(r.error || "Could not add product."); return false; }
+  alert("Product added."); reloadAdminTab(1); return false;
+}
+function editCategoryForm(id) {
+  const c = lastCategories.find((x) => x.id === id); if (!c) return;
+  const el = document.getElementById("catForm"); if (!el) return;
+  el.innerHTML = `<form onsubmit="return doSaveCategory(event, ${c.id})" class="card" style="border:2px solid #315EFB;padding:12px;margin:10px 0"><h3>Edit category</h3>
+<label>Name <input id="ecName" value="${esc(c.name)}" required></label><label>Parent <input id="ecParent" value="${esc(c.parent || "")}"></label>
+<label><input id="ecActive" type="checkbox" ${c.active ? "checked" : ""}> Active</label>
+<button class="btn">Save category</button> <button type="button" class="btn ghost" onclick="document.getElementById('catForm').innerHTML=''">Cancel</button></form>`;
+}
+async function doSaveCategory(e, id) {
+  e.preventDefault();
+  const body = id
+    ? { id, name: document.getElementById("ecName").value, parent: document.getElementById("ecParent").value, active: document.getElementById("ecActive").checked }
+    : { name: document.getElementById("ncName").value, parent: document.getElementById("ncParent").value, active: document.getElementById("ncActive").checked };
+  const r = await api("saveCategory", body);
+  if (!r.ok) { alert(r.error || "Could not save category."); return false; }
+  alert("Category saved."); reloadAdminTab(2); return false;
+}
+async function deleteCategory(id, name) {
+  if (!confirm("Delete category \"" + name + "\"? Products in it are not deleted.")) return;
+  const r = await api("deleteCategory", { id });
+  if (!r.ok) { alert(r.error || "Could not delete."); return; }
+  reloadAdminTab(2);
+}
+async function showOrderDetail(orderNumber, trackingNumber) {
+  const el = document.getElementById("orderDetail"); if (!el) return;
+  const r = await api("getOrderTracking", { orderNumber, trackingNumber });
+  if (!r.ok) { el.innerHTML = "<p>" + esc(r.error || "Not found.") + "</p>"; return; }
+  const o = r.order;
+  el.innerHTML = `<div class="card" style="border:2px solid #315EFB;padding:12px;margin:10px 0"><h3>${esc(o.orderNumber)} — ${esc(o.status)}</h3>
+<p>${esc(o.customerName)} · ${esc(o.customerEmail)} · ${esc(o.customerPhone)}<br>${esc(o.address)}, ${esc(o.city)} ${esc(o.province)}</p>
+<p>Items: ${(r.items || []).map((it) => esc(it.productName) + " × " + it.qty + " — " + money(it.price * it.qty)).join("; ")}</p>
+<p>Payment: ${esc(o.paymentMethod)} — ${esc(o.paymentStatus)} · Courier: ${esc(o.courier)} · Tracking: ${esc(o.trackingNumber)}</p>
+<p>Events: ${(r.events || []).map((ev) => esc(ev.status)).join(" → ") || "none"}</p></div>`;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+async function setReturnStage(id) {
+  const sel = document.getElementById("rs-" + id); if (!sel) return;
+  const r = await api("updateReturn", { id, refundStage: Number(sel.value) });
+  if (!r.ok) { alert(r.error || "Could not update."); return; }
+  alert("Return stage set to " + r.stage + " — " + (r.label || "") + ".");
+  reloadAdminTab(6);
+}
+function editCouponForm(code) {
+  const c = lastCoupons.find((x) => x.code === code); if (!c) return;
+  const el = document.getElementById("couponForm"); if (!el) return;
+  el.innerHTML = `<form onsubmit="return doSaveCoupon(event, ${c.id})" class="card" style="border:2px solid #315EFB;padding:12px;margin:10px 0"><h3>Edit ${esc(c.code)}</h3>
+<label>Type <select id="ecpType"><option value="percent" ${c.discountType === "percent" ? "selected" : ""}>Percent %</option><option value="fixed" ${c.discountType === "fixed" ? "selected" : ""}>Fixed Rs</option></select></label>
+<label>Value <input id="ecpValue" type="number" min="0" value="${c.value}"></label>
+<label>Min order (Rs) <input id="ecpMin" type="number" min="0" value="${c.minOrder}"></label>
+<label>Status <select id="ecpStatus"><option ${c.status === "Active" ? "selected" : ""}>Active</option><option ${c.status === "Inactive" ? "selected" : ""}>Inactive</option></select></label>
+<label>Expires (YYYY-MM-DD, blank = none) <input id="ecpExp" value="${esc(c.expiresAt || "")}"></label>
+<label>Usage limit (0 = unlimited) <input id="ecpLimit" type="number" min="0" value="${c.usageLimit}"></label>
+<label>Per-customer limit (0 = unlimited) <input id="ecpPerCust" type="number" min="0" value="${c.perCustomerLimit}"></label>
+<button class="btn">Save coupon</button> <button type="button" class="btn ghost" onclick="document.getElementById('couponForm').innerHTML=''">Cancel</button></form>`;
+}
+async function doSaveCoupon(e, id) {
+  e.preventDefault();
+  const body = id
+    ? { id, code: lastCoupons.find((x) => x.id === id).code, discountType: document.getElementById("ecpType").value, value: Number(document.getElementById("ecpValue").value), minOrder: Number(document.getElementById("ecpMin").value || 0), status: document.getElementById("ecpStatus").value, expiresAt: document.getElementById("ecpExp").value, usageLimit: Number(document.getElementById("ecpLimit").value || 0), perCustomerLimit: Number(document.getElementById("ecpPerCust").value || 0) }
+    : { code: document.getElementById("ncpCode").value.trim().toUpperCase(), discountType: document.getElementById("ncpType").value, value: Number(document.getElementById("ncpValue").value), minOrder: Number(document.getElementById("ncpMin").value || 0), status: "Active", expiresAt: document.getElementById("ncpExp").value, usageLimit: Number(document.getElementById("ncpLimit").value || 0), perCustomerLimit: Number(document.getElementById("ncpPerCust").value || 0) };
+  const r = await api("saveCoupon", body);
+  if (!r.ok) { alert(r.error || "Could not save coupon."); return false; }
+  alert("Coupon saved."); reloadAdminTab(11); return false;
+}
+async function toggleCoupon(id, status) {
+  const r = await api("setCouponStatus", { id, status });
+  if (!r.ok) { alert(r.error || "Could not update."); return; }
+  reloadAdminTab(11);
+}
+async function doSaveSettings(e) {
+  e.preventDefault();
+  const form = e.target;
+  const settings = {};
+  for (const el of form.querySelectorAll("input[name]")) settings[el.name] = el.value;
+  const r = await api("saveSettings", { settings });
+  if (!r.ok) { alert(r.error || "Could not save settings."); return false; }
+  alert("Settings saved."); return false;
+}
+
 async function adminTab(i, btn) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.remove("on"));
   if (btn) btn.classList.add("on");
@@ -456,17 +663,26 @@ async function adminTab(i, btn) {
   root.innerHTML = "<p>Loading " + esc(ADMIN_TABS[i]) + "…</p>";
   try {
     if (i === 0) { const r = await api("getAnalytics", {}); const b = await api("getBootstrap", {}); root.innerHTML = `<h2>Dashboard</h2><p>Published products: <strong>${b.publishedProductCount}</strong> · Orders: ${b.orderCount} (legacy-test: ${b.legacyTestOrderCount}) · GMV (real records only): <strong>${money(r.gmv)}</strong> · Avg order: ${money(r.avgOrderValue)} · Refunds requested ${money(r.refundsRequested)} · Refunds completed ${money(r.refundsTotal)}</p><p>Daily sales (Asia/Karachi, zero days = 0): ${r.dailySales.map((d) => d.day.slice(0, 3) + " " + money(d.total)).join(" · ")}</p><p>By status: ${Object.entries(r.byStatus).map(([k, v]) => k + " " + v).join(", ")}</p>`; }
-    else if (i === 1) { const r = await api("listProducts", { limit: 100 }); root.innerHTML = `<h2>Products (${r.total})</h2><div class="tablewrap"><table><tr><th>SKU</th><th>Name</th><th>Price</th><th>Sale</th><th>Stock</th><th>Flash</th><th>Status</th></tr>${r.products.map((p) => `<tr><td>${esc(p.sku)}</td><td>${esc(p.name)}${p.imageIsSample ? " • Sample" : ""}</td><td>${money(p.price)}</td><td>${p.salePrice ? money(p.salePrice) : "—"}</td><td>${p.stock}</td><td>${p.isFlash ? "✓" : ""}</td><td>${esc(p.status)}</td></tr>`).join("")}</table></div><p class="note">Product Photos manager: every product carries one sample photo ("• Sample" tag). Uploads replace samples via uploadProductImage; the sample seeder never overwrites a product that already has any photo.</p>`; }
-    else if (i === 2) { const r = await api("listCategories", {}); root.innerHTML = `<h2>Categories (${r.categories.length})</h2><p>9 active top categories + 99 active subcategories + 6 deactivated legacy top categories.</p><div class="tablewrap"><table><tr><th>Name</th><th>Parent</th><th>Active</th><th>Products</th></tr>${r.categories.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.parent || "—")}</td><td>${c.active ? "✓" : "✗"}</td><td>${c.productCount}</td></tr>`).join("")}</table></div>`; }
+    else if (i === 1) { const r = await api("listProducts", { limit: 100 }); lastProducts = r.products; root.innerHTML = `<h2>Products (${r.total})</h2>
+<div id="prodForm"></div>
+<form onsubmit="return doAddProduct(event)"><h3>Add product</h3><label>SKU <input id="npSku" required></label><label>Name <input id="npName" required></label><label>Category <input id="npCat" required></label><label>Price (Rs) <input id="npPrice" type="number" min="0" required></label><label>Stock <input id="npStock" type="number" min="0" value="0"></label><button class="btn">Add product</button></form>
+<div class="tablewrap"><table><tr><th>SKU</th><th>Name</th><th>Price</th><th>Sale</th><th>Stock</th><th>Flash</th><th>Status</th><th></th></tr>${r.products.map((p) => `<tr><td>${esc(p.sku)}</td><td>${esc(p.name)}${p.imageIsSample ? " • Sample" : ""}</td><td>${money(p.price)}</td><td>${p.salePrice ? money(p.salePrice) : "—"}</td><td>${p.stock}</td><td>${p.isFlash ? "✓" : ""}</td><td>${esc(p.status)}</td><td><button class="btn ghost small" onclick="editProductForm(${p.id})">Edit</button></td></tr>`).join("")}</table></div><p class="note">Product Photos manager: every product carries one sample photo ("• Sample" tag). Uploads replace samples via uploadProductImage; the sample seeder never overwrites a product that already has any photo.</p>`; }
+    else if (i === 2) { const r = await api("listCategories", {}); lastCategories = r.categories; root.innerHTML = `<h2>Categories (${r.categories.length})</h2><p>9 active top categories + 99 active subcategories + 6 deactivated legacy top categories.</p>
+<div id="catForm"></div>
+<form onsubmit="return doSaveCategory(event)"><h3>Add category</h3><label>Name <input id="ncName" required></label><label>Parent (blank = top category) <input id="ncParent" placeholder=""></label><label><input id="ncActive" type="checkbox" checked> Active</label><button class="btn">Add category</button></form>
+<div class="tablewrap"><table><tr><th>Name</th><th>Parent</th><th>Active</th><th>Products</th><th></th></tr>${r.categories.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.parent || "—")}</td><td>${c.active ? "✓" : "✗"}</td><td>${c.productCount}</td><td><button class="btn ghost small" onclick="editCategoryForm(${c.id})">Edit</button> <button class="btn ghost small" onclick="deleteCategory(${c.id},'${esc(c.name)}')">Delete</button></td></tr>`).join("")}</table></div>`; }
     else if (i === 3) { const r = await api("listInventoryMovements", {}); root.innerHTML = `<h2>Inventory ledger (${r.movements.length})</h2><div class="tablewrap"><table><tr><th>SKU</th><th>Type</th><th>Qty</th><th>Balance</th><th>Reference</th></tr>${r.movements.map((m) => `<tr><td>${esc(m.sku)}</td><td>${esc(m.type)}</td><td>${m.qty}</td><td>${m.balanceAfter}</td><td>${esc(m.reference)}</td></tr>`).join("")}</table></div>`; }
-    else if (i === 4) { const r = await api("listOrders", {}); if (!r.ok) { root.innerHTML = "<p>" + esc(r.error || "Denied.") + "</p>"; return; } root.innerHTML = `<h2>Orders (${r.orders.length})</h2><p class="note">Tracking manager lives here too (12-step validated — free-text statuses are rejected).</p><div class="tablewrap"><table><tr><th>Order</th><th>Status</th><th>Total</th><th>Payment</th><th>Legacy</th><th></th></tr>${r.orders.map((o) => `<tr><td>${esc(o.orderNumber)}</td><td>${esc(o.status)}</td><td>${money(o.total)}</td><td>${esc(o.paymentStatus)}</td><td>${o.legacyTest ? "legacy-test" : ""}</td><td><button class="btn ghost small" onclick="simulateDelivery(${o.id})">Advance (Demo)</button></td></tr>`).join("")}</table></div>`; }
+    else if (i === 4) { const r = await api("listOrders", {}); if (!r.ok) { root.innerHTML = "<p>" + esc(r.error || "Denied.") + "</p>"; return; } root.innerHTML = `<h2>Orders (${r.orders.length})</h2><p class="note">Tracking manager lives here too (12-step validated — free-text statuses are rejected). Advance moves an order one step forward; Details shows items, payment and tracking events.</p><div id="orderDetail"></div><div class="tablewrap"><table><tr><th>Order</th><th>Status</th><th>Total</th><th>Payment</th><th>Legacy</th><th></th></tr>${r.orders.map((o) => `<tr><td>${esc(o.orderNumber)}</td><td>${esc(o.status)}</td><td>${money(o.total)}</td><td>${esc(o.paymentStatus)}</td><td>${o.legacyTest ? "legacy-test" : ""}</td><td><button class="btn ghost small" onclick="showOrderDetail('${esc(o.orderNumber)}','${esc(o.trackingNumber)}')">Details</button> <button class="btn ghost small" onclick="simulateDelivery(${o.id})">Advance (Demo)</button></td></tr>`).join("")}</table></div>`; }
     else if (i === 5) { const r = await api("listPaymentTransactions", {}); root.innerHTML = `<h2>Payments — ledger (${r.transactions.length})</h2><p class="note">Demo Simulation — no gateway connected. Bank transfers start "Awaiting Verification (Demo)".</p><div class="tablewrap"><table><tr><th>Order</th><th>Method</th><th>Account</th><th>Ref</th><th>Amount</th><th>Status</th></tr>${r.transactions.map((t) => `<tr><td>${esc(t.orderNumber)}</td><td>${esc(t.method)}</td><td>${esc(t.account)}</td><td>${esc(t.reference)}</td><td>${money(t.amount)}</td><td>${esc(t.status)}</td></tr>`).join("")}</table></div>`; }
-    else if (i === 6) { const r = await api("listReturns", {}); root.innerHTML = `<h2>Returns / Refunds (${r.returns.length})</h2><p class="note">9-stage tracker (cap 8, restock at stage 4). Stage labels 1–7 are working labels, to verify against the Muse copy's returns UI.</p><div class="tablewrap"><table><tr><th>Return</th><th>Order</th><th>Product</th><th>Refund</th><th>Stage</th><th>Status</th></tr>${r.returns.map((x) => `<tr><td>${esc(x.returnNumber)}</td><td>${esc(x.orderNumber)}</td><td>${esc(x.productName)}</td><td>${money(x.refundAmount)}</td><td>${x.refundStage} — ${esc(x.stageLabel)}</td><td>${esc(x.status)}</td></tr>`).join("")}</table></div>`; }
+    else if (i === 6) { const r = await api("listReturns", {}); root.innerHTML = `<h2>Returns / Refunds (${r.returns.length})</h2><p class="note">9-stage tracker (cap 8, restock at stage 4). Stage labels 1–7 are working labels, to verify against the Muse copy's returns UI. Set a stage and Apply — the move is validated server-side.</p><div class="tablewrap"><table><tr><th>Return</th><th>Order</th><th>Product</th><th>Refund</th><th>Stage</th><th>Status</th><th>Set stage</th></tr>${r.returns.map((x) => `<tr><td>${esc(x.returnNumber)}</td><td>${esc(x.orderNumber)}</td><td>${esc(x.productName)}</td><td>${money(x.refundAmount)}</td><td>${x.refundStage} — ${esc(x.stageLabel)}</td><td>${esc(x.status)}</td><td><select id="rs-${x.id}">${["Requested", "Under Review", "Approved", "Pickup Scheduled", "Item Received — Restocked", "Refund Processing", "Refund Approved", "Refund Sent", "Refunded (Demo)"].map((l, s) => `<option value="${s}" ${s === x.refundStage ? "selected" : ""}>${s} — ${esc(l)}</option>`).join("")}</select> <button class="btn ghost small" onclick="setReturnStage(${x.id})">Apply</button></td></tr>`).join("")}</table></div>`; }
     else if (i === 7) { const r = await api("listRegisteredCustomers", {}); root.innerHTML = `<h2>Registered customers</h2><div class="tablewrap"><table><tr><th>Name</th><th>Email</th><th>Phone</th><th>Verified</th><th>Password</th></tr>${(r.customers || []).map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.email)}</td><td>${esc(c.phone)}</td><td>${c.emailVerified ? "Email ✓" : "Email ✗"} / ${c.phoneVerified ? "Phone ✓" : "Phone ✗"}</td><td>${c.mustResetPassword ? "No password yet — ask owner" : "PBKDF2"}</td></tr>`).join("")}</table></div>`; }
     else if (i === 8) { const r = await api("listTickets", {}); root.innerHTML = `<h2>Support tickets</h2><div class="tablewrap"><table><tr><th>Ticket</th><th>Subject</th><th>Status</th><th>Agent</th><th>Last reply</th></tr>${r.tickets.map((t) => `<tr><td>${esc(t.ticketNumber)}</td><td>${esc(t.subject)}</td><td>${esc(t.status)}</td><td>${esc(t.agent)}</td><td>${esc(t.lastReply || "—")}</td></tr>`).join("")}</table></div>`; }
     else if (i === 9) { const r = await api("listReviews", {}); root.innerHTML = `<h2>Reviews (${r.reviews.length})</h2>` + r.reviews.map((x) => `<p><strong>${esc(x.productName)}</strong> ${"★".repeat(x.rating)} — ${esc(x.text)} <small>(${esc(x.customerName)})</small></p>`).join(""); }
     else if (i === 10) { const r = await api("listNotifications", {}); root.innerHTML = `<h2>Notifications (${r.notifications.length}, ${r.unread} unread)</h2>` + r.notifications.slice(0, 15).map((n) => `<p><strong>${esc(n.title)}</strong> — ${esc(n.body)} ${n.isRead ? "" : "(unread)"}</p>`).join(""); }
-    else if (i === 11) { const r = await api("getBootstrap", {}); root.innerHTML = `<h2>Coupons / Promotions</h2><div class="tablewrap"><table><tr><th>Code</th><th>Type</th><th>Value</th><th>Min</th><th>Status</th><th>Expires</th><th>Limit</th><th>Uses</th></tr>${r.coupons.map((c) => `<tr><td>${esc(c.code)}</td><td>${esc(c.discountType)}</td><td>${c.value}${c.discountType === "percent" ? "%" : ""}</td><td>${money(c.minOrder)}</td><td>${esc(c.status)}</td><td>${esc(c.expiresAt || "— (unbounded)")}</td><td>${c.usageLimit || "unbounded"}</td><td>${c.uses}</td></tr>`).join("")}</table></div><p class="note">Production expiry/limit values for 000 / WELCOME10 / FLASH500 are owner inputs — deliberately not invented. BIGTEST5 is a temporary test coupon (expires 2026-12-25, limit 20, per-customer 3).</p>`; }
+    else if (i === 11) { const r = await api("getBootstrap", {}); lastCoupons = r.coupons; root.innerHTML = `<h2>Coupons / Promotions</h2>
+<div id="couponForm"></div>
+<form onsubmit="return doSaveCoupon(event)"><h3>Add coupon</h3><label>Code <input id="ncpCode" required placeholder="SAVE10"></label><label>Type <select id="ncpType"><option value="percent">Percent %</option><option value="fixed">Fixed Rs</option></select></label><label>Value <input id="ncpValue" type="number" min="0" required></label><label>Min order (Rs) <input id="ncpMin" type="number" min="0" value="0"></label><label>Expires (YYYY-MM-DD, blank = none) <input id="ncpExp" placeholder="2026-12-31"></label><label>Usage limit (0 = unlimited) <input id="ncpLimit" type="number" min="0" value="0"></label><label>Per-customer limit (0 = unlimited) <input id="ncpPerCust" type="number" min="0" value="0"></label><button class="btn">Add coupon</button></form>
+<div class="tablewrap"><table><tr><th>Code</th><th>Type</th><th>Value</th><th>Min</th><th>Status</th><th>Expires</th><th>Limit</th><th>Uses</th><th></th></tr>${r.coupons.map((c) => `<tr><td>${esc(c.code)}</td><td>${esc(c.discountType)}</td><td>${c.value}${c.discountType === "percent" ? "%" : ""}</td><td>${money(c.minOrder)}</td><td>${esc(c.status)}</td><td>${esc(c.expiresAt || "— (unbounded)")}</td><td>${c.usageLimit || "unbounded"}</td><td>${c.uses}</td><td><button class="btn ghost small" onclick="editCouponForm('${esc(c.code)}')">Edit</button> <button class="btn ghost small" onclick="toggleCoupon(${c.id},'${c.status === "Active" ? "Inactive" : "Active"}')">${c.status === "Active" ? "Deactivate" : "Activate"}</button></td></tr>`).join("")}</table></div><p class="note">Production expiry/limit values for 000 / WELCOME10 / FLASH500 are owner inputs — deliberately not invented. BIGTEST5 is a temporary test coupon (expires 2026-12-25, limit 20, per-customer 3).</p>`; }
     else if (i === 12) { const r = await api("listStaff", {}); const m = await api("getRoleMatrix", {}); const t = await api("runRoleSelfTest", {}); root.innerHTML = `<h2>Staff &amp; Permissions</h2>
 <form onsubmit="return doCreateStaff(event)"><h3>Add staff member</h3><p class="note">New staff start with NO password — the owner then issues them a one-time setup token (24 h) so they set their own password + authenticator at /staff/setup. Only the Owner can grant the Owner role.</p>
 <label>Name <input id="nsName" required></label><label>Email <input id="nsEmail" type="email" required></label>
@@ -476,7 +692,9 @@ async function adminTab(i, btn) {
 <div id="tokenPanel"></div>
 <div class="tablewrap"><table><tr><th>Name</th><th>Role</th><th>Department</th><th>Email</th><th>Status</th><th>Password</th><th>Authenticator</th><th>Setup</th><th>Actions</th></tr>${r.staff.map((x) => `<tr><td>${esc(x.name)}</td><td>${esc(x.role)}</td><td>${esc(x.department)}</td><td>${esc(x.email)}</td><td>${esc(x.status)}</td><td>${x.hasPassword ? "Set" : "Not set"}</td><td>${x.totpEnabled ? "On" : "Off"}</td><td>${x.setupPending ? "Token issued" : "—"}</td><td><button class="btn ghost small" onclick="issueStaffToken(${x.id},'${esc(x.name)}')">Issue setup token</button> <button class="btn ghost small" onclick="resetStaffPw(${x.id},'${esc(x.name)}')">Reset password</button></td></tr>`).join("")}</table></div><p>Role self-test: <strong>${t.allowed} allowed / ${t.denied} denied</strong> (110 checks; reference 52/58). Live probes: ${t.liveDenied.join("; ")}; ${t.liveAllowed.join("; ")}.</p><p class="note">Matrix: ${m.roles.map((x) => esc(x.role) + " → " + x.permissions.join(", ")).join(" | ")}</p>`; }
     else if (i === 13) { const r = await api("getAnalytics", {}); root.innerHTML = `<h2>Reports / Analytics</h2><p>GMV ${money(r.gmv)} · Avg order ${money(r.avgOrderValue)} · Legacy orders excluded: ${r.legacyOrders}</p><p>CSV export: <button class="btn ghost small" onclick="exportCsv()">Download orders CSV</button></p>`; }
-    else if (i === 14) { const r = await api("getBootstrap", {}); root.innerHTML = `<h2>Settings</h2><pre>${esc(JSON.stringify(r.config, null, 2))}</pre><p class="note">Brand: NEXORA MARKET — navy #101828, blue #315EFB, amber #F59E0B. Demo mode ON.</p>`; }
+    else if (i === 14) { const r = await api("getBootstrap", {}); const cfg = r.config || {}; const editable = ["brandName", "tagline", "country", "currency", "currencySymbol", "language", "secondaryLanguage", "timezone", "freeShippingThreshold", "standardShippingFee", "expressShippingFee", "flashRowSize", "flashRotateDays", "flashRowAnchor", "flashSaleEndsAt", "supportEmail", "supportPhone"]; root.innerHTML = `<h2>Settings</h2>
+<form onsubmit="return doSaveSettings(event)"><p class="note">Only these keys are editable here — reports, snapshots, commission and verification markers are rejected by the server (B22).</p>${editable.map((k) => `<label>${esc(k)} <input name="${esc(k)}" value="${esc(cfg[k] || "")}"></label>`).join("")}<button class="btn">Save settings</button></form>
+<p class="note">Brand: NEXORA MARKET — navy #101828, blue #315EFB, amber #F59E0B. Demo mode ON.</p>`; }
     else if (i === 15) { const r = await api("getHomepageAdmin", {}); root.innerHTML = `<h2>Homepage</h2><p>Flash row: size ${r.flashRowSize} (4–5), new set every ${r.flashRotateDays} day(s), anchor ${r.flashRowAnchor}. Campaign end: ${esc(r.flashEndsAt || "not set — no countdown")}</p><p>Banners: ${r.banners.map((b) => esc(b.headline)).join(" · ")}</p><p>Collections: ${r.collections.map((c) => esc(c.name)).join(" · ")}</p><p>Sections: ${r.sections.map((s) => esc(s.key) + (s.visible ? "" : " (hidden)")).join(", ")}</p>`; }
     else if (i === 16) { const r = await api("listDemoMerchants", {}); root.innerHTML = `<h2>Demo Merchants (display only)</h2>` + r.merchants.map((m) => `<p><strong>${esc(m.storeName)}</strong> — ${esc(m.city)} · ★ ${m.rating} · ${esc(m.verification)}</p>`).join(""); }
     else if (i === 17) { root.innerHTML = `<h2>Demo Manager / Reset</h2><p><strong>Browser seeding was removed in Phase 1 (A4).</strong> No public endpoint can reseed or wipe the database anymore — seeding is CLI-only (<code>npm run db:seed</code>, idempotent) or via boot migration on deploy.</p><p><button class="btn ghost" onclick="reauthAndRetry('cleanupInvalidReturns',{}).then(r=>alert(r.ok?('Removed '+r.removed+' invalid returns. Legacy-flagged rows preserved.'):(r.error||'Failed')))">Clean up invalid returns</button> <span class="note">Needs a fresh password + authenticator confirmation.</span></p>`; }

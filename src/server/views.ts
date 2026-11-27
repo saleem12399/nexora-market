@@ -273,11 +273,26 @@ export function merchantsView(merchants: any[]): string {
 }
 
 export function helpView(): string {
-  const tiles = ["Track my order", "Cancel an order", "Return a product", "Refund status", "Payment methods", "Delivery options", "Coupons", "My account & password", "Addresses", "Wishlist", "Product photos", "Merchants", "Contact support", "Give feedback"];
-  return layout("Help Center", `<h1>Help Center</h1><div class="tiles">${tiles.map((t) => `<a class="tilecard" href="/track">${esc(t)}</a>`).join("")}</div>
+  // B15: every tile goes to its real destination — nothing points at /track
+  // unless it is actually about tracking.
+  const tiles: [string, string][] = [
+    ["Track my order", "/track"], ["Cancel an order", "/account"], ["Return a product", "/account"], ["Refund status", "/account"],
+    ["Payment methods", "/account"], ["Delivery options", "/policies/shipping"], ["Coupons", "/shop?onDiscount=1"],
+    ["My account & password", "/account"], ["Addresses", "/account"], ["Wishlist", "/wishlist"],
+    ["Product photos", "/shop"], ["Merchants", "/merchants"], ["Contact support", "#support"], ["Give feedback", "#support"],
+  ];
+  return layout("Help Center", `<h1>Help Center</h1><div class="tiles">${tiles.map(([t, href]) => `<a class="tilecard" href="${esc(href)}">${esc(t)}</a>`).join("")}</div>
 <h2>FAQs</h2><div class="card light-panel"><p><strong>How do I pay?</strong> Pay Cash on Delivery, or choose a wallet/card at Step 5 and confirm before placing your order.</p>
 <p><strong>Are the product photos final?</strong> The photos are representative images; real product photos will replace them.</p>
 <p><strong>How do I track an order?</strong> Use Track with your order number (NX-DEMO-…) and tracking number (TRK-DEMO-…).</p></div>
+<h2 id="support">Contact support</h2>
+<form class="card light-panel" onsubmit="return doCreateTicket(event)"><p class="note">Open a support case — the team replies on your ticket. Sign in first so the reply reaches your account.</p>
+<label>Your name <input id="tkName" required></label>
+<label>Subject <input id="tkSubject" required placeholder="e.g. My order is late"></label>
+<label>Category <select id="tkCategory"><option>General</option><option>Order</option><option>Payment</option><option>Return</option><option>Delivery</option></select></label>
+<label>Order number (optional) <input id="tkOrder" placeholder="NX-DEMO-…"></label>
+<label>Describe the problem <textarea id="tkDesc" required rows="4"></textarea></label>
+<button class="btn">Open support case</button></form><div id="ticketResult"></div>
 <p><a class="btn" href="/track">Track an order</a> <a class="btn ghost" href="/account">Open a support case</a></p>`);
 }
 

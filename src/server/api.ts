@@ -331,13 +331,33 @@ export function registerApi(app: Express) {
   // is no browser-reachable reseed path anymore; grep for execFile /
   // child_process in src/ must stay empty.
 
+  // B22: saveSettings has a server-side allow-list. Anything not on it
+  // is REJECTED (400, listing the rejected keys) — especially
+  // bigTestReport, backupSnapshot, globalCommission, exportedAt/source
+  // and the profile verification/member-since markers, which must never
+  // be writable through this endpoint. provider_*_status keys stay
+  // settings-area-only (the wrapper already enforces the area).
+  const SETTINGS_EDITABLE = new Set([
+    "brandName", "tagline", "accentColor", "primaryColor", "secondaryColor",
+    "country", "currency", "currencySymbol", "language", "secondaryLanguage",
+    "timezone", "freeShippingThreshold", "standardShippingFee",
+    "expressShippingFee", "flashRowSize", "flashRotateDays", "flashRowAnchor",
+    "flashSaleEndsAt", "supportEmail", "supportPhone",
+    "profileName", "profileEmail", "profilePhone", "profileAddress",
+    "profileCity", "profileProvince", "profileLanguage",
+    "demoMode", "catalogV2",
+  ]);
   a("saveSettings", async (req, res, db) => {
     const entries = req.body?.settings || req.body || {};
+    const rejected: string[] = [];
     for (const [k, v] of Object.entries(entries)) {
       if (typeof v !== "string") continue;
+      const okKey = SETTINGS_EDITABLE.has(k) || /^provider_[a-z]+_status$/.test(k);
+      if (!okKey) { rejected.push(k); continue; }
       if (k.startsWith("provider_")) enforce(req, "settings");
       await db.insert(s.settings).values({ key: k, value: v }).onConflictDoUpdate({ target: s.settings.key, set: { value: v } });
     }
+    if (rejected.length) { res.status(400).json({ ok: false, error: `These settings keys are not editable through this endpoint: ${rejected.join(", ")}` }); return; }
     await audit(db, "Settings saved", staffRoleLabel(req), Object.keys(entries).join(", "));
     res.json({ ok: true });
   }, { area: "settings" });
@@ -836,13 +856,15 @@ export function registerApi(app: Express) {
     const order = (await db.select().from(s.orders).where(eq(s.orders.id, Number(req.body?.orderId))))[0];
     if (!order) { res.status(404).json({ ok: false, error: "Order not found." }); return; }
     if (cust && order.customerEmail.toLowerCase() !== cust.email.toLowerCase()) { res.status(403).json({ ok: false, error: "This order belongs to another customer." }); return; }
+    // B19: cancellation notifications belong to the ordering customer.
+    const notifCust = (await db.select().from(s.customers).where(sql`lower(${s.customers.email}) = lower(${order.customerEmail})`))[0] || null;
     const reason = String(req.body?.reason || "Cancelled by customer");
     const now = Date.now();
     if (order.status === "Cancelled") { res.status(400).json({ ok: false, error: "This order is already cancelled." }); return; }
     if (order.status === "Delivered") { res.status(400).json({ ok: false, error: "A delivered order cannot be cancelled — please request a return instead." }); return; }
     if (["Shipped", "In Transit", "Arrived at Sorting Facility", "Arrived in Destination City", "Out for Delivery"].includes(order.status)) {
       await db.insert(s.orderEvents).values({ orderId: order.id, status: order.status, note: `Cancellation requested while ${order.status} — refusal workflow: courier return requested. Reason: ${reason}`, location: "NEXORA Express", actor: "System", createdAt: now });
-      await db.insert(s.notifications).values({ title: "Cancellation requested", body: `${order.orderNumber} is already ${order.status}; a courier return has been requested.`, type: "Order", isRead: false, createdAt: now });
+      await db.insert(s.notifications).values({ title: "Cancellation requested", body: `${order.orderNumber} is already ${order.status}; a courier return has been requested.`, type: "Order", isRead: false, customerId: notifCust?.id ?? null, createdAt: now });
       await audit(db, "Order cancellation requested (shipped)", actor, `${order.orderNumber} — ${order.status}`);
       res.json({ ok: true, refused: true, message: "The order has already shipped — a courier return was requested instead of an instant cancellation." });
       return;
@@ -863,7 +885,7 @@ export function registerApi(app: Express) {
     if (prepaid) {
       await db.insert(s.paymentTransactions).values({ orderId: order.id, orderNumber: order.orderNumber, method: order.paymentMethod, provider: order.paymentMethod.replace(" (Demo)", ""), account: order.paymentAccount, reference: order.paymentRef, amount: order.total, status: "Refund Pending", mode: PAYMENT_MODE_DEMO, createdAt: now });
     }
-    await db.insert(s.notifications).values({ title: "Order cancelled", body: `${order.orderNumber} was cancelled. ${prepaid ? "Refund Pending." : ""}`, type: "Order", isRead: false, createdAt: now });
+    await db.insert(s.notifications).values({ title: "Order cancelled", body: `${order.orderNumber} was cancelled. ${prepaid ? "Refund Pending." : ""}`, type: "Order", isRead: false, customerId: notifCust?.id ?? null, createdAt: now });
     await audit(db, "Order cancelled", actor, `${order.orderNumber} — ${reason}`);
     res.json({ ok: true, cancelled: true, refundPending: prepaid });
   });
@@ -1361,6 +1383,29 @@ export function registerApi(app: Express) {
     const cust = await requireCustomer(db, req, res); if (!cust) return;
     await db.update(s.customers).set({ deletionRequested: true }).where(eq(s.customers.id, cust.id));
     res.json({ ok: true, note: "Account deletion requested. The owner reviews deletion requests before any data is removed." });
+  });
+
+  // B14: real notification preferences, persisted on the customer row
+  // (customers.notif_prefs, JSON). The account panel reads/writes these.
+  const DEFAULT_NOTIF_PREFS = { orderUpdates: true, promotions: true, supportReplies: true };
+  function parseNotifPrefs(raw: string | null | undefined) {
+    try { const p = JSON.parse(raw || "{}"); return { ...DEFAULT_NOTIF_PREFS, orderUpdates: p.orderUpdates !== false, promotions: p.promotions !== false, supportReplies: p.supportReplies !== false }; }
+    catch { return { ...DEFAULT_NOTIF_PREFS }; }
+  }
+  a("getNotifPrefs", async (req, res, db) => {
+    const cust = await requireCustomer(db, req, res); if (!cust) return;
+    res.json({ ok: true, prefs: parseNotifPrefs(cust.notifPrefs) });
+  });
+  a("saveNotifPrefs", async (req, res, db) => {
+    const cust = await requireCustomer(db, req, res); if (!cust) return;
+    const b = req.body?.prefs || req.body || {};
+    const prefs = {
+      orderUpdates: b.orderUpdates !== false,
+      promotions: b.promotions !== false,
+      supportReplies: b.supportReplies !== false,
+    };
+    await db.update(s.customers).set({ notifPrefs: JSON.stringify(prefs) }).where(eq(s.customers.id, cust.id));
+    res.json({ ok: true, prefs });
   });
 
   a("listAddresses", async (req, res, db) => {

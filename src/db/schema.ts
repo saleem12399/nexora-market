@@ -415,4 +415,16 @@ export const savedSearches = pgTable("saved_searches", {
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
+/**
+ * newsletter_signups (Phase 3, D6) — footer newsletter list. No mailing
+ * provider is connected yet, so no marketing email is ever sent from it;
+ * the rows exist so the owner can see who asked to hear from the store.
+ * Email is unique (one row per address).
+ */
+export const newsletterSignups = pgTable("newsletter_signups", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
 void ms;

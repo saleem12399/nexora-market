@@ -36,6 +36,13 @@
       "when": 1795766439500,
       "tag": "0005_phase2_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795768000000,
+      "tag": "0006_phase3_newsletter",
+      "breakpoints": true
     }
   ]
 }

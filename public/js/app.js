@@ -55,6 +55,29 @@ async function addToWishlist(id) {
   if (r.ok) showToast("Added to wishlist.", "View wishlist", "/wishlist");
   else showToast(r.error || "Could not add.");
 }
+// D1: gallery thumbnail swap (main photo) — tap the main photo to zoom.
+function swapMainPhoto(url, el) {
+  const main = document.getElementById("mainPhoto"); if (!main) return;
+  main.src = url;
+  document.querySelectorAll(".thumbs img").forEach((t) => t.classList.remove("on"));
+  if (el) el.classList.add("on");
+}
+// D3: compare list (up to 3 products, localStorage). The /compare page
+// renders ?ids=... server-side; this only tracks the selection.
+function getCompareIds() { try { const v = JSON.parse(localStorage.getItem("nx_compare") || "[]"); return Array.isArray(v) ? v.filter((n) => Number.isInteger(n)).slice(0, 3) : []; } catch { return []; } }
+function saveCompareIds(ids) { try { localStorage.setItem("nx_compare", JSON.stringify(ids)); } catch {} refreshCompareCount(); }
+function refreshCompareCount() { const el = document.getElementById("compareCount"); if (el) el.textContent = String(getCompareIds().length); }
+function toggleCompare(id) {
+  let ids = getCompareIds();
+  if (ids.includes(id)) { ids = ids.filter((x) => x !== id); saveCompareIds(ids); showToast("Removed from compare."); }
+  else {
+    if (ids.length >= 3) { showToast("Compare holds up to 3 products — remove one first.", "View compare", "/compare"); return; }
+    ids.push(id); saveCompareIds(ids); showToast("Added to compare (" + ids.length + "/3).", "View compare", "/compare");
+  }
+  if (location.pathname === "/compare") location.href = "/compare" + (ids.length ? "?ids=" + ids.join(",") : "");
+}
+function removeFromCompare(id) { const ids = getCompareIds().filter((x) => x !== id); saveCompareIds(ids); location.href = "/compare" + (ids.length ? "?ids=" + ids.join(",") : ""); }
+function clearCompare() { saveCompareIds([]); location.href = "/compare"; }
 function shareProduct(id, name) {
   const url = location.origin + "/product/" + id;
   if (navigator.share) navigator.share({ title: name, url }).catch(() => {});
@@ -86,6 +109,20 @@ setInterval(() => {
     heroGo((cur + 1) % slides.length);
   }
 }, 6000);
+// D7: live flash-sale countdown — renders ONLY when a real campaign end
+// date is set (data-end from settings.flashSaleEndsAt); until then the
+// page keeps the honest "no campaign end is set" state.
+function updateFlashCountdown() {
+  const el = document.getElementById("flashCountdown"); if (!el) return;
+  const end = new Date(el.dataset.end);
+  if (isNaN(end.getTime())) return;
+  const ms = end.getTime() - Date.now();
+  if (ms <= 0) { el.textContent = "Sale has ended."; return; }
+  const d = Math.floor(ms / 86400000), h = Math.floor(ms % 86400000 / 3600000), m = Math.floor(ms % 3600000 / 60000), sec = Math.floor(ms % 60000 / 1000);
+  el.textContent = "Sale ends in " + d + "d " + h + "h " + m + "m " + sec + "s — ends " + el.dataset.end + ".";
+}
+setInterval(updateFlashCountdown, 1000);
+updateFlashCountdown();
 (function () {
   const hero = document.getElementById("hero");
   if (!hero) return;
@@ -164,6 +201,17 @@ async function doCreateTicket(e) {
   return false;
 }
 
+// D6: footer newsletter — the API saves the address and sends nothing
+// (no mailing provider exists yet); the note under the form says so.
+async function doSubscribeNewsletter(e) {
+  e.preventDefault();
+  const email = document.getElementById("nlEmail").value.trim();
+  const r = await api("subscribeNewsletter", { email });
+  const msg = document.getElementById("nlMsg");
+  if (msg) msg.textContent = r.ok ? (r.note || "Subscribed.") : (r.error || "Could not subscribe.");
+  if (r.ok) showToast(r.note || "Subscribed.");
+  return false;
+}
 // ---- Wishlist page (B2) ----
 async function loadWishlist() {
   const root = document.getElementById("wishlistRoot"); if (!root) return;
@@ -421,7 +469,7 @@ async function loadAccount() {
 <a href="#" onclick="changeName(event)">Change Name</a><a href="#" onclick="changeAddress(event)">Change Address</a><a href="#" onclick="changePayment(event)">Change Payment Method</a>
 <a href="#" onclick="changePassword(event)">Change Password</a><a href="#" onclick="notifPrefs(event)">Notification Preferences</a><a href="#" onclick="privacySec(event)">Privacy &amp; Security</a>
 <a href="/help">Customer Support</a><a href="#" onclick="signOut();return false" style="color:#DC2626">Sign Out</a></div></div></div>
-<p><span class="badge">Signed in</span> <span class="badge">Email: ${c.emailVerified ? "Verified" : "Not Verified"}</span> <span class="badge">Phone: ${c.phoneVerified ? "Verified" : "Not Verified"}</span> <span class="badge">Profile ${r.profileCompletion}% complete</span> <span class="badge">🔔 ${r.unreadNotifications} unread</span></p>
+<p><span class="badge">Signed in</span> <span class="badge">Email: ${c.emailVerified ? "Verified" : "Verification unavailable"}</span> <span class="badge">Phone: ${c.phoneVerified ? "Verified" : "Verification unavailable"}</span> <span class="badge">Email/phone verification needs a provider — none is connected yet</span> <span class="badge">Profile ${r.profileCompletion}% complete</span> <span class="badge">🔔 ${r.unreadNotifications} unread</span></p>
 <div class="statgrid">
 <div class="stat"><b>${st.totalOrders}</b><span>Total Orders</span></div>
 <div class="stat"><b>${st.inProgress}</b><span>Orders In Progress</span></div>
@@ -433,7 +481,7 @@ ${recent.length ? recent.map((o) => `<p>${esc(o.orderNumber)} — ${esc(o.status
 <h3 style="color:#fff">Quick Services</h3><div class="qgrid">
 <a class="qcard" href="/shop">🛍 Shop</a><a class="qcard" href="/track">📦 Track Order</a><a class="qcard" href="/cart">🛒 Cart</a>
 <a class="qcard" href="#" onclick="showReturns(event)">↩️ My Returns</a><a class="qcard" href="#" onclick="showRefunds(event)">💸 My Refunds</a><a class="qcard" href="#" onclick="showPayments(event)">💳 Payments</a>
-<a class="qcard" href="#" onclick="showAddresses(event)">📍 Saved Addresses</a><a class="qcard" href="/help">💬 Help Center</a><a class="qcard" href="#" onclick="showNotifs(event)">🔔 Notifications</a></div>
+<a class="qcard" href="#" onclick="showAddresses(event)">📍 Saved Addresses</a><a class="qcard" href="/help">💬 Help Center</a><a class="qcard" href="#" onclick="showNotifs(event)">🔔 Notifications</a><a class="qcard" href="#" onclick="showSavedSearches(event)">🔖 Saved Searches</a></div>
 <div id="acctPanel"></div>
 <p class="muted">My Orders status strip — To Pay ${my.buckets?.toPay || 0} · To Ship ${my.buckets?.toShip || 0} · To Receive ${my.buckets?.toReceive || 0} · To Review ${my.buckets?.toReview || 0}</p>
 </div>`;
@@ -470,6 +518,17 @@ async function deleteAddress(id) {
   await api("deleteAddress", { id }); showAddresses(new Event("submit"));
 }
 async function showNotifs(e) { e.preventDefault(); const r = await api("listNotifications", {}); await api("markNotificationsRead", {}); acctPanel("<h3>Notifications</h3><p class='note'>Opening notifications marks them all read.</p>" + (r.notifications || []).slice(0, 10).map((n) => `<p><strong>${esc(cleanDemo(n.title))}</strong> — ${esc(cleanDemo(n.body))}</p>`).join("")); }
+// D12: save the current shop search; list/delete from My Account.
+async function saveCurrentSearch() {
+  const input = document.querySelector('input[name="search"]');
+  const q = (input ? input.value : "").trim();
+  if (!q) { showToast("Type a search first, then save it."); return; }
+  const r = await api("saveSearch", { query: q });
+  if (!r.ok) { showToast(r.error || "Sign in to save searches."); return; }
+  showToast(r.saved ? "Search saved — find it in My Account → Saved Searches." : (r.note || "Already saved."));
+}
+async function showSavedSearches(e) { if (e) e.preventDefault(); const r = await api("listSavedSearches", {}); if (!r.ok) { acctPanel("<p>" + esc(r.error || "Sign in to see saved searches.") + "</p>"); return; } acctPanel("<h3>Saved Searches</h3>" + ((r.searches || []).map((x) => `<p><a href="/shop?search=${encodeURIComponent(x.query)}">${esc(x.query)}</a> <button class="btn ghost small" onclick="deleteSavedSearch(${x.id})">Delete</button></p>`).join("") || "<p>No saved searches yet. Search the shop, then tap “Save this search”.</p>")); }
+async function deleteSavedSearch(id) { await api("deleteSavedSearch", { id }); showSavedSearches(); }
 function changeName(e) { e.preventDefault(); const n = prompt("New name:"); if (!n) return; api("updateCustomerProfile", { name: n }).then(() => loadAccount()); }
 function changeAddress(e) { e.preventDefault(); showAddresses(e); }
 function changePayment(e) { e.preventDefault(); showPayments(e); }
@@ -551,6 +610,28 @@ async function doSaveNotifPrefs(e) {
 }
 function privacySec(e) { e.preventDefault(); if (confirm("Request account deletion? This only records the request — the owner reviews it first.")) api("requestAccountDeletion", {}).then((r) => alert(r.note || "Requested.")); }
 
+// D16: review form (verified-purchase flag is computed server-side) and
+// Q&A ask form on product pages.
+async function doSubmitReview(e, productId) {
+  e.preventDefault();
+  const r = await api("submitReview", { productId, rating: Number(document.getElementById("rvRating").value), text: document.getElementById("rvText").value });
+  const el = document.getElementById("rvMsg");
+  if (!r.ok) { if (el) el.innerHTML = "<p>" + esc(r.error || "Could not submit.") + "</p>"; return false; }
+  if (el) el.innerHTML = "<p><strong>Review submitted" + (r.review.verified ? " — Verified purchase ✓" : "") + ".</strong> It appears below after reload.</p>";
+  showToast("Review submitted" + (r.review.verified ? " (Verified purchase)." : "."));
+  setTimeout(() => location.reload(), 1200);
+  return false;
+}
+async function doAskQuestion(e, productId) {
+  e.preventDefault();
+  const r = await api("askQuestion", { productId, question: document.getElementById("qaText").value });
+  const el = document.getElementById("qaMsg");
+  if (!r.ok) { if (el) el.innerHTML = "<p>" + esc(r.error || "Could not ask.") + "</p>"; return false; }
+  if (el) el.innerHTML = "<p><strong>Question posted.</strong> The store will answer it here.</p>";
+  showToast("Question posted.");
+  setTimeout(() => location.reload(), 1200);
+  return false;
+}
 // ---- Admin ----
 const ADMIN_TABS = ["Dashboard", "Products", "Categories", "Inventory", "Orders", "Payments", "Returns / Refunds", "Customers", "Support", "Reviews", "Notifications", "Coupons", "Staff & Permissions", "Reports", "Settings", "Homepage", "Demo Merchants", "Demo Manager", "Phase 2", "Audit Log"];
 // ---- Staff activation (owner / Super Admin only) ----
@@ -712,7 +793,7 @@ async function adminTab(i, btn) {
 <form onsubmit="return doSaveCategory(event)"><h3>Add category</h3><label>Name <input id="ncName" required></label><label>Parent (blank = top category) <input id="ncParent" placeholder=""></label><label><input id="ncActive" type="checkbox" checked> Active</label><button class="btn">Add category</button></form>
 <div class="tablewrap"><table><tr><th>Name</th><th>Parent</th><th>Active</th><th>Products</th><th></th></tr>${r.categories.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.parent || "—")}</td><td>${c.active ? "✓" : "✗"}</td><td>${c.productCount}</td><td><button class="btn ghost small" onclick="editCategoryForm(${c.id})">Edit</button> <button class="btn ghost small" onclick="deleteCategory(${c.id},'${esc(c.name)}')">Delete</button></td></tr>`).join("")}</table></div>`; }
     else if (i === 3) { const r = await api("listInventoryMovements", {}); root.innerHTML = `<h2>Inventory ledger (${r.movements.length})</h2><div class="tablewrap"><table><tr><th>SKU</th><th>Type</th><th>Qty</th><th>Balance</th><th>Reference</th></tr>${r.movements.map((m) => `<tr><td>${esc(m.sku)}</td><td>${esc(m.type)}</td><td>${m.qty}</td><td>${m.balanceAfter}</td><td>${esc(m.reference)}</td></tr>`).join("")}</table></div>`; }
-    else if (i === 4) { const r = await api("listOrders", {}); if (!r.ok) { root.innerHTML = "<p>" + esc(r.error || "Denied.") + "</p>"; return; } root.innerHTML = `<h2>Orders (${r.orders.length})</h2><p class="note">Tracking manager lives here too (12-step validated — free-text statuses are rejected). Advance moves an order one step forward; Details shows items, payment and tracking events.</p><div id="orderDetail"></div><div class="tablewrap"><table><tr><th>Order</th><th>Status</th><th>Total</th><th>Payment</th><th>Legacy</th><th></th></tr>${r.orders.map((o) => `<tr><td>${esc(o.orderNumber)}</td><td>${esc(o.status)}</td><td>${money(o.total)}</td><td>${esc(o.paymentStatus)}</td><td>${o.legacyTest ? "legacy-test" : ""}</td><td><button class="btn ghost small" onclick="showOrderDetail('${esc(o.orderNumber)}','${esc(o.trackingNumber)}')">Details</button> <button class="btn ghost small" onclick="simulateDelivery(${o.id})">Advance (Demo)</button></td></tr>`).join("")}</table></div>`; }
+    else if (i === 4) { loadAdminOrders(0, "", ""); }
     else if (i === 5) { const r = await api("listPaymentTransactions", {}); root.innerHTML = `<h2>Payments — ledger (${r.transactions.length})</h2><p class="note">Demo Simulation — no gateway connected. Bank transfers start "Awaiting Verification (Demo)".</p><div class="tablewrap"><table><tr><th>Order</th><th>Method</th><th>Account</th><th>Ref</th><th>Amount</th><th>Status</th></tr>${r.transactions.map((t) => `<tr><td>${esc(t.orderNumber)}</td><td>${esc(t.method)}</td><td>${esc(t.account)}</td><td>${esc(t.reference)}</td><td>${money(t.amount)}</td><td>${esc(t.status)}</td></tr>`).join("")}</table></div>`; }
     else if (i === 6) { const r = await api("listReturns", {}); root.innerHTML = `<h2>Returns / Refunds (${r.returns.length})</h2><p class="note">9-stage tracker (cap 8, restock at stage 4). Stage labels 1–7 are PROVISIONAL working labels, to verify against the original returns UI — they are marked PROVISIONAL wherever shown until the owner verifies them. Set a stage and Apply — the move is validated server-side.</p><div class="tablewrap"><table><tr><th>Return</th><th>Order</th><th>Product</th><th>Refund</th><th>Stage</th><th>Status</th><th>Set stage</th></tr>${r.returns.map((x) => `<tr><td>${esc(x.returnNumber)}</td><td>${esc(x.orderNumber)}</td><td>${esc(x.productName)}</td><td>${money(x.refundAmount)}</td><td>${x.refundStage} — ${esc(x.stageLabel)}${x.stageLabelsVerified ? "" : " (PROVISIONAL)"}</td><td>${esc(x.status)}</td><td><select id="rs-${x.id}">${["Requested", "Under Review", "Approved", "Pickup Scheduled", "Item Received — Restocked", "Refund Processing", "Refund Approved", "Refund Sent", "Refunded (Demo)"].map((l, s) => `<option value="${s}" ${s === x.refundStage ? "selected" : ""}>${s} — ${esc(l)}</option>`).join("")}</select> <button class="btn ghost small" onclick="setReturnStage(${x.id})">Apply</button></td></tr>`).join("")}</table></div>`; }
     else if (i === 7) { const r = await api("listRegisteredCustomers", {}); root.innerHTML = `<h2>Registered customers</h2><div class="tablewrap"><table><tr><th>Name</th><th>Email</th><th>Phone</th><th>Verified</th><th>Password</th></tr>${(r.customers || []).map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.email)}</td><td>${esc(c.phone)}</td><td>${c.emailVerified ? "Email ✓" : "Email ✗"} / ${c.phoneVerified ? "Phone ✓" : "Phone ✗"}</td><td>${c.mustResetPassword ? "No password yet — ask owner" : "PBKDF2"}</td></tr>`).join("")}</table></div>`; }
@@ -734,13 +815,69 @@ async function adminTab(i, btn) {
     else if (i === 13) { const r = await api("getAnalytics", {}); root.innerHTML = `<h2>Reports / Analytics</h2><p>GMV ${money(r.gmv)} · Avg order ${money(r.avgOrderValue)} · Legacy orders excluded: ${r.legacyOrders}</p><p>CSV export: <button class="btn ghost small" onclick="exportCsv()">Download orders CSV</button></p>`; }
     else if (i === 14) { const r = await api("getBootstrap", {}); const cfg = r.config || {}; const editable = ["brandName", "tagline", "country", "currency", "currencySymbol", "language", "secondaryLanguage", "timezone", "freeShippingThreshold", "standardShippingFee", "expressShippingFee", "flashRowSize", "flashRotateDays", "flashRowAnchor", "flashSaleEndsAt", "supportEmail", "supportPhone"]; root.innerHTML = `<h2>Settings</h2>
 <form onsubmit="return doSaveSettings(event)"><p class="note">Only these keys are editable here — reports, snapshots, commission and verification markers are rejected by the server (B22).</p>${editable.map((k) => `<label>${esc(k)} <input name="${esc(k)}" value="${esc(cfg[k] || "")}"></label>`).join("")}<button class="btn">Save settings</button></form>
-<p class="note">Brand: NEXORA MARKET — navy #101828, blue #315EFB, amber #F59E0B. Demo mode ON.</p>`; }
-    else if (i === 15) { const r = await api("getHomepageAdmin", {}); root.innerHTML = `<h2>Homepage</h2><p>Flash row: size ${r.flashRowSize} (4–5), new set every ${r.flashRotateDays} day(s), anchor ${r.flashRowAnchor}. Campaign end: ${esc(r.flashEndsAt || "not set — no countdown")}</p><p>Banners: ${r.banners.map((b) => esc(b.headline)).join(" · ")}</p><p>Collections: ${r.collections.map((c) => esc(c.name)).join(" · ")}</p><p>Sections: ${r.sections.map((s) => esc(s.key) + (s.visible ? "" : " (hidden)")).join(", ")}</p>`; }
+<p class="note">Brand: NEXORA MARKET — navy #101828, blue #315EFB, amber #F59E0B. Demo mode ON.</p>
+<h3>Backup &amp; Restore</h3><p class="note">Export downloads a full JSON snapshot (no passwords, no session tokens). Restore is Owner-only, needs a fresh password + authenticator confirmation, takes a fresh backup first (saved as settings key backupSnapshotAuto), and only runs when you type RESTORE.</p>
+<p><button class="btn ghost" onclick="doExportBackup()">Export backup (download JSON)</button></p>
+<form onsubmit="return doRestoreBackup(event)"><label>Backup JSON file <input id="bkFile" type="file" accept=".json,application/json" required></label><label>Type RESTORE to confirm <input id="bkConfirm" required placeholder="RESTORE"></label><button class="btn">Restore backup</button></form><div id="bkMsg"></div>`; }
+    else if (i === 15) { const r = await api("getHomepageAdmin", {}); root.innerHTML = `<h2>Homepage</h2><p>Flash row: size ${r.flashRowSize} (4–5), new set every ${r.flashRotateDays} day(s), anchor ${r.flashRowAnchor}. Campaign end: ${esc(r.flashEndsAt || "not set — no countdown")}</p><p>Banners: ${r.banners.map((b) => esc(b.headline)).join(" · ")}</p><p>Collections: ${r.collections.map((c) => esc(c.name)).join(" · ")}</p><p>Sections: ${r.sections.map((s) => esc(s.key) + (s.visible ? "" : " (hidden)")).join(", ")}</p><p class="note">Flash Sale countdown: set the campaign end date in Admin → Settings → flashSaleEndsAt (YYYY-MM-DD) — the homepage then shows a live countdown. Until then it honestly says no campaign end is set.</p>`; }
     else if (i === 16) { const r = await api("listDemoMerchants", {}); root.innerHTML = `<h2>Demo Merchants (display only)</h2>` + r.merchants.map((m) => `<p><strong>${esc(m.storeName)}</strong> — ${esc(m.city)} · ★ ${m.rating} · ${esc(m.verification)}</p>`).join(""); }
     else if (i === 17) { root.innerHTML = `<h2>Demo Manager / Reset</h2><p><strong>Browser seeding was removed in Phase 1 (A4).</strong> No public endpoint can reseed or wipe the database anymore — seeding is CLI-only (<code>npm run db:seed</code>, idempotent) or via boot migration on deploy.</p><p><button class="btn ghost" onclick="reauthAndRetry('cleanupInvalidReturns',{}).then(r=>alert(r.ok?('Removed '+r.removed+' invalid returns. Legacy-flagged rows preserved.'):(r.error||'Failed')))">Clean up invalid returns</button> <span class="note">Needs a fresh password + authenticator confirmation.</span></p>`; }
     else if (i === 18) { const r = await api("getPhase2Status", {}); const lg = await api("getLegacyReview", {}); const bt = await api("getBigTestReport", {}); root.innerHTML = `<h2>Phase 2</h2><p><strong>Finance decision:</strong> ${esc(r.financeDecision)}</p><p><strong>Providers:</strong></p><ul>${r.providers.map((p) => `<li>${esc(p.key)} — ${esc(p.status)}</li>`).join("")}</ul><p><strong>Pending owner inputs:</strong></p><ul>${r.pendingOwnerInputs.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p><strong>Legacy returns (decision pending):</strong></p><ul>${lg.discrepancies.map((d) => `<li>${esc(d.returnNumber)} — ${esc(d.fault)}. Offered: ${esc(d.offeredCorrection)}</li>`).join("")}</ul><p><strong>Big Test journey:</strong> ${bt.hasReport ? esc(JSON.stringify(bt.report).slice(0, 400)) : "no report stored"}</p>`; }
-    else if (i === 19) { const r = await api("listAudit", {}); root.innerHTML = `<h2>Audit Log (${r.logs.length})</h2><div class="tablewrap"><table><tr><th>#</th><th>Action</th><th>Actor</th><th>Detail</th></tr>${r.logs.slice(0, 50).map((l) => `<tr><td>${l.id}</td><td>${esc(l.action)}</td><td>${esc(l.actor)}</td><td>${esc(l.detail)}</td></tr>`).join("")}</table></div>`; }
+    else if (i === 19) { loadAdminAudit(0, ""); }
   } catch (e) { root.innerHTML = "<p>Failed to load " + esc(ADMIN_TABS[i]) + ": " + esc(e.message || e) + "</p><p><button class=\"btn\" onclick=\"adminTab(" + i + ")\">Retry</button></p>"; }
+}
+// D10/D11: admin Orders — server-side search/filter + paging (10/page).
+let adminOrdersState = { offset: 0, search: "", status: "" };
+async function loadAdminOrders(offset, search, status) {
+  if (search === undefined) search = adminOrdersState.search;
+  if (status === undefined) status = adminOrdersState.status;
+  adminOrdersState = { offset, search, status };
+  const root = document.getElementById("adminRoot"); if (!root) return;
+  root.innerHTML = "<p>Loading Orders…</p>";
+  const r = await api("listOrders", { limit: 10, offset, search: search || undefined, status: status || undefined });
+  if (!r.ok) { root.innerHTML = "<p>" + esc(r.error || "Denied.") + "</p>"; return; }
+  const total = r.total || 0, limit = r.limit || 10;
+  const statuses = ["", "Pending", "Confirmed", "Payment Confirmed", "Processing", "Packed", "Ready for Dispatch", "Shipped", "In Transit", "Arrived at Sorting Facility", "Arrived in Destination City", "Out for Delivery", "Delivered", "Cancelled"];
+  root.innerHTML = `<h2>Orders (${total})</h2><p class="note">Tracking manager lives here too (12-step validated — free-text statuses are rejected). Advance moves an order one step forward; Details shows items, payment and tracking events.</p>
+<form onsubmit="return doAdminOrderSearch(event)"><label>Search <input id="aoSearch" value="${esc(search)}" placeholder="Order no, email or name"></label><label>Status <select id="aoStatus">${statuses.map((x) => `<option value="${esc(x)}" ${x === status ? "selected" : ""}>${x || "All statuses"}</option>`).join("")}</select></label><button class="btn small">Search</button></form>
+<div id="orderDetail"></div><div class="tablewrap"><table><tr><th>Order</th><th>Status</th><th>Total</th><th>Payment</th><th>Legacy</th><th></th></tr>${(r.orders || []).map((o) => `<tr><td>${esc(o.orderNumber)}</td><td>${esc(o.status)}</td><td>${money(o.total)}</td><td>${esc(o.paymentStatus)}</td><td>${o.legacyTest ? "legacy-test" : ""}</td><td><button class="btn ghost small" onclick="showOrderDetail('${esc(o.orderNumber)}','${esc(o.trackingNumber)}')">Details</button> <button class="btn ghost small" onclick="simulateDelivery(${o.id})">Advance (Demo)</button></td></tr>`).join("")}</table></div>
+<p>${offset > 0 ? `<button class="btn ghost small" onclick="loadAdminOrders(${Math.max(0, offset - limit)})">← Previous</button> ` : ""}${offset + (r.orders || []).length < total ? `<button class="btn ghost small" onclick="loadAdminOrders(${offset + limit})">Next →</button>` : ""} <span class="note">Showing ${total ? offset + 1 : 0}–${offset + (r.orders || []).length} of ${total}</span></p>`;
+}
+function doAdminOrderSearch(e) { e.preventDefault(); loadAdminOrders(0, document.getElementById("aoSearch").value.trim(), document.getElementById("aoStatus").value); return false; }
+// D11: admin Audit Log — server-side search + paging (50/page).
+let adminAuditState = { offset: 0, search: "" };
+async function loadAdminAudit(offset, search) {
+  if (search === undefined) search = adminAuditState.search;
+  adminAuditState = { offset, search };
+  const root = document.getElementById("adminRoot"); if (!root) return;
+  root.innerHTML = "<p>Loading Audit Log…</p>";
+  const r = await api("listAudit", { limit: 50, offset, search: search || undefined });
+  if (!r.ok) { root.innerHTML = "<p>" + esc(r.error || "Denied.") + "</p>"; return; }
+  const total = r.total || 0, limit = r.limit || 50;
+  root.innerHTML = `<h2>Audit Log (${total})</h2><form onsubmit="return doAdminAuditSearch(event)"><label>Search <input id="aaSearch" value="${esc(search)}" placeholder="Action, actor or detail"></label><button class="btn small">Search</button></form><div class="tablewrap"><table><tr><th>#</th><th>Action</th><th>Actor</th><th>Detail</th></tr>${(r.logs || []).map((l) => `<tr><td>${l.id}</td><td>${esc(l.action)}</td><td>${esc(l.actor)}</td><td>${esc(l.detail)}</td></tr>`).join("")}</table></div><p>${offset > 0 ? `<button class="btn ghost small" onclick="loadAdminAudit(${Math.max(0, offset - limit)})">← Previous</button> ` : ""}${offset + (r.logs || []).length < total ? `<button class="btn ghost small" onclick="loadAdminAudit(${offset + limit)})">Next →</button>` : ""} <span class="note">Showing ${total ? offset + 1 : 0}–${offset + (r.logs || []).length} of ${total}</span></p>`;
+}
+function doAdminAuditSearch(e) { e.preventDefault(); loadAdminAudit(0, document.getElementById("aaSearch").value.trim()); return false; }
+// D13: backup export (download) + restore (Owner-only, re-auth, type RESTORE).
+async function doExportBackup() {
+  const r = await reauthAndRetry("exportBackup", {});
+  if (!r.ok) { alert(r.error || "Backup failed."); return; }
+  const blob = new Blob([JSON.stringify(r.backup, null, 2)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "nexora-backup-" + String(r.backup.exportedAt || "now").slice(0, 10) + ".json"; a.click();
+  showToast("Backup downloaded.");
+}
+async function doRestoreBackup(e) {
+  e.preventDefault();
+  const file = document.getElementById("bkFile").files[0];
+  if (!file) return false;
+  const confirmWord = document.getElementById("bkConfirm").value.trim();
+  let snapshot;
+  try { snapshot = JSON.parse(await file.text()); } catch { alert("That file is not valid backup JSON."); return false; }
+  const msg = document.getElementById("bkMsg");
+  if (msg) msg.textContent = "Restoring — a fresh backup is taken first…";
+  const r = await reauthAndRetry("restoreBackup", { snapshot, confirm: confirmWord });
+  if (msg) msg.textContent = r.ok ? "Restore complete. Pre-restore backup saved as settings key backupSnapshotAuto." : (r.error || "Restore failed.");
+  if (!r.ok) alert(r.error || "Restore failed.");
+  return false;
 }
 async function exportCsv() {
   const r = await api("listOrders", {});
@@ -754,6 +891,12 @@ async function exportCsv() {
 // defined. Works whether this script loads at end of body or deferred in
 // <head>; no page depends on script order anymore.
 function initPage() {
+  refreshCompareCount();
+  // D3: /compare with no ids replays the stored selection.
+  if (location.pathname === "/compare" && !new URLSearchParams(location.search).get("ids")) {
+    const ids = getCompareIds();
+    if (ids.length) { location.replace("/compare?ids=" + ids.join(",")); return; }
+  }
   if (document.getElementById("cartRoot")) { loadCart(); return; }
   if (document.getElementById("wishlistRoot")) { loadWishlist(); return; }
   const co = document.getElementById("checkoutRoot");

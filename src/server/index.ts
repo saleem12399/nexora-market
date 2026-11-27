@@ -4,12 +4,13 @@
 // "database not configured" state instead of crash-looping.
 
 import express from "express";
+import compression from "compression";
 import path from "node:path";
 import { checkDb, getDb, isDbConfigured } from "../db";
 import { getBootStatus } from "../db/boot-migrate";
 import * as s from "../db/schema";
-import { asc, desc, eq } from "drizzle-orm";
-import { callApiAction, registerApi } from "./api";
+import { asc, desc, eq, inArray } from "drizzle-orm";
+import { callApiAction, productsWithImages, registerApi } from "./api";
 import * as views from "./views";
 
 const app = express();
@@ -28,6 +29,8 @@ app.use((_req, res, next) => {
   res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'");
   next();
 });
+// F7: gzip/deflate compression for HTML + JSON responses (pool stays max 1).
+app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.static(path.resolve(__dirname, "../../public"), { maxAge: "1d" }));
 
@@ -134,7 +137,18 @@ app.get("/account", async (_req, res) => res.send(views.accountView(await detail
 app.get("/admin", async (_req, res) => res.send(views.adminView(await detailsOrUndefined())));
 app.get("/login", async (_req, res) => res.send(views.authView("login", await detailsOrUndefined())));
 app.get("/register", async (_req, res) => res.send(views.authView("register", await detailsOrUndefined())));
-app.get("/compare", async (_req, res) => res.send(views.compareView(await detailsOrUndefined())));
+app.get("/compare", async (req, res) => {
+  // D3: real compare — up to 3 products by ?ids=1,2,3, side-by-side spec table.
+  const db = getDb();
+  const ids = String(req.query.ids || "").split(",").map((x) => Number(x)).filter((n) => Number.isInteger(n) && n > 0).slice(0, 3);
+  let products: any[] = [];
+  if (db && ids.length) {
+    const rows = await db.select().from(s.products).where(inArray(s.products.id, ids));
+    const ordered = ids.map((id) => rows.find((r: any) => r.id === id)).filter(Boolean);
+    products = await productsWithImages(db, ordered);
+  }
+  res.send(views.compareView(products, await detailsOrUndefined()));
+});
 app.get("/help", async (_req, res) => res.send(views.helpView(await detailsOrUndefined())));
 app.get("/policies/:page", async (req, res) => {
   if (!["privacy", "terms", "shipping", "returns"].includes(req.params.page)) { res.status(404).send(views.layout("Not found", "<p>Policy not found.</p>")); return; }

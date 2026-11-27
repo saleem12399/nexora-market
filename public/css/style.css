@@ -118,3 +118,13 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{border-bottom:1px
   .flash-arrow{display:none}
   .headersearch{order:3;width:100%;margin-left:0}.headersearch input{flex:1}
 }
+
+/* Batch C: gallery, compare, newsletter, countdown */
+.pgallery .mainphoto img{cursor:zoom-in}
+.pgallery .mainphoto img.zoomed{cursor:zoom-out;max-height:none}
+.thumbs{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.thumbs img{width:72px;height:72px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent}
+.thumbs img.on{border-color:var(--amber)}
+.newsform{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:12px 0}
+.newsform label{font-size:13px;display:flex;flex-direction:column;gap:4px}
+#flashCountdown{font-weight:700;color:#92400E}

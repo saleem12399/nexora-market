@@ -75,13 +75,14 @@ export function layout(title: string, body: string, opts?: { active?: string; no
 <button class="menu-btn" onclick="document.getElementById('nav').classList.toggle('open')" aria-label="Menu">☰ Menu</button>
 <nav id="nav" class="nav">
 <a href="/">Home</a><a href="/shop">Shop</a><a href="/merchants">Merchants</a><a href="/help">Help Center</a><a href="/policies/shipping">Policies</a>
-<a href="/cart">Cart <span class="badge" id="cartCount">0</span></a><a href="/wishlist">Wishlist</a><a href="/account">My Account</a><a href="/admin">Admin</a>
+<a href="/cart">Cart <span class="badge" id="cartCount">0</span></a><a href="/wishlist">Wishlist</a><a href="/compare">Compare <span class="badge" id="compareCount">0</span></a><a href="/account">My Account</a><a href="/admin">Admin</a>
 </nav></header>
 ${opts?.admin ? `<div class="demo-banner">DEMO / TRIAL MODE — No live payment gateway, courier or messaging provider is connected. Every payment, shipment and tracking step is a simulation.</div>` : ""}
 <main class="wrap">${body}</main>
 <footer class="footer"><p><strong>NEXORA MARKET</strong> — Shop Smarter. Live Better.</p>
 <p>All prices in PKR. Cash on Delivery is collected only at delivery. 14-day return window.</p>
 ${detailsBlock(opts?.details)}
+<form class="newsform" onsubmit="return doSubscribeNewsletter(event)"><label>Offers by email <input id="nlEmail" type="email" required placeholder="you@example.com"></label><button class="btn small">Subscribe</button></form><p class="note" id="nlMsg">No mailing provider is connected yet — your email is saved on the store's list and no marketing email is sent until one is connected.</p>
 <p><a href="/about">About</a> · <a href="/contact">Contact</a> · <a href="/policies/privacy">Privacy</a> · <a href="/policies/terms">Terms</a> · <a href="/policies/shipping">Shipping</a> · <a href="/policies/returns">Returns &amp; Refunds</a></p></footer>
 <nav class="bottomnav"><a href="/">Home</a><a href="/shop">Shop</a><a href="/wishlist">Wishlist</a><a href="/cart">Cart</a><a href="/track">Track</a><a href="/account">Account</a></nav>
 <script src="/js/app.js"></script></body></html>`;
@@ -102,7 +103,8 @@ export function productCard(p: any): string {
 <div class="price">${formatPkr(price)} ${off ? `<s>${formatPkr(p.price)}</s>` : ""}</div>
 <div class="stock">${p.stock <= 0 ? `<span class="oos">Out of stock</span>` : p.stock <= 10 ? `Only ${p.stock} left` : "In stock"}</div></a>
 <div class="row"><button class="btn small" onclick="addToCart(${p.id},1)" ${p.stock <= 0 ? "disabled" : ""}>Add to Cart</button>
-<button class="btn ghost small" onclick="addToWishlist(${p.id})">♡ Wishlist</button></div>
+<button class="btn ghost small" onclick="addToWishlist(${p.id})">♡ Wishlist</button>
+<button class="btn ghost small" onclick="toggleCompare(${p.id})">⇄ Compare</button></div>
 <p class="soldby">Sold by NEXORA Official Store</p></article>`;
 }
 
@@ -123,7 +125,7 @@ ${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-te
     } else if (sec.key === "flash") {
       const fr = h.flashRow || {};
       html += `<section><h2>⚡ Flash Sale</h2>
-<p class="note">Rotating deals — ${fr.poolSize || 0} flash products, ${fr.rowSize || 5} in this set, new set every ${fr.rotateDays || 2} day(s). Next refresh: ${esc(fr.nextRotationAt || "")}. ${h.flashEndsAt ? `Sale ends ${esc(h.flashEndsAt)}.` : "No countdown — no campaign end is set."}</p>
+<p class="note">Rotating deals — ${fr.poolSize || 0} flash products, ${fr.rowSize || 5} in this set, new set every ${fr.rotateDays || 2} day(s). Next refresh: ${esc(fr.nextRotationAt || "")}. ${h.flashEndsAt ? `<span id="flashCountdown" data-end="${esc(h.flashEndsAt)}">Sale ends ${esc(h.flashEndsAt)}.</span>` : "No countdown — no campaign end is set."}</p>
 <div class="flashwrap"><button class="flash-arrow left" onclick="flashScroll(-1)" aria-label="Scroll flash deals left">‹</button><div class="flashrow" id="flashRow">${(fr.products || []).map(productCard).join("")}</div><button class="flash-arrow right" onclick="flashScroll(1)" aria-label="Scroll flash deals right">›</button></div>
 <p><a class="btn ghost" href="/shop?flash=1">See all flash deals →</a></p></section>`;
     } else if (sec.key === "collections") {
@@ -189,7 +191,7 @@ ${q.flash ? `<input type="hidden" name="flash" value="1">` : ""}
 <label>Min rating <select name="minRating"><option value="">Any</option>${[4.5, 4, 3.5, 3].map((r) => `<option value="${r}" ${String(q.minRating) === String(r) ? "selected" : ""}>${r}★ &amp; up</option>`).join("")}</select></label>
 <label><input type="checkbox" name="inStock" value="1" ${q.inStock ? "checked" : ""}> In stock only</label>
 <label><input type="checkbox" name="onDiscount" value="1" ${q.onDiscount ? "checked" : ""}> On discount</label>
-<button class="btn small">Apply</button> <a class="btn ghost small" href="/shop">Clear all</a>
+<button class="btn small">Apply</button> <button type="button" class="btn ghost small" onclick="saveCurrentSearch()">Save this search</button> <a class="btn ghost small" href="/shop">Clear all</a>
 ${q.category && data.hasSmartwatches ? `<a class="btn ghost small" href="/shop?category=${encodeURIComponent(q.category)}&subcategory=Smartwatches">Smartwatches only →</a>` : ""}
 </form>
 <p class="note">${data.total} product(s)${q.flash ? " — full flash list" : ""}</p>
@@ -205,7 +207,7 @@ export function productView(p: any, reviews: any[], questions: any[], related: a
   if (p.sizes) variantLines.push(`Sizes: ${esc(p.sizes)}`);
   if (p.warranty) variantLines.push(`Warranty: ${esc(p.warranty)}`);
   return layout(dispName(p.name), `<div class="pdetail light-panel">
-<div class="pgallery">${p.images?.length ? p.images.map((i: any) => `<figure><img src="${esc(i.url)}" alt="${esc(dispName(p.name))}"></figure>`).join("") : `<div class="tile big">${esc(p.tile || "🛍")}</div><p>No photo yet.</p>`}
+<div class="pgallery">${p.images?.length ? `<div class="mainphoto"><img id="mainPhoto" src="${esc(p.images[0].url)}" alt="${esc(dispName(p.name))}" onclick="this.classList.toggle('zoomed')" title="Tap to zoom"></div><div class="thumbs">${p.images.map((i: any, ix: number) => `<img src="${esc(i.url)}" alt="Photo ${ix + 1} of ${esc(dispName(p.name))}" class="${ix === 0 ? "on" : ""}" onclick="swapMainPhoto('${esc(i.url)}', this)">`).join("")}</div>` : `<div class="tile big">${esc(p.tile || "🛍")}</div><p>No photo yet.</p>`}
 </div>
 <div class="pinfo"><h1>${esc(dispName(p.name))}</h1><p class="stars">★ ${p.rating} (${p.reviewsCount} reviews) · ${p.sold} sold</p>
 <p class="price big">${formatPkr(price)} ${p.salePrice != null && p.salePrice < p.price ? `<s>${formatPkr(p.price)}</s> <span class="off">−${Math.round(((p.price - p.salePrice) / p.price) * 100)}%</span>` : ""}</p>
@@ -215,7 +217,8 @@ export function productView(p: any, reviews: any[], questions: any[], related: a
 <p><button class="btn" onclick="addToCart(${p.id},1)" ${p.stock <= 0 ? "disabled" : ""}>Add to Cart</button>
 <button class="btn ghost" onclick="buyNow(${p.id})">Buy Now</button>
 <button class="btn ghost" onclick="addToWishlist(${p.id})">♡ Wishlist</button>
-<button class="btn ghost" onclick="shareProduct(${p.id}, '${esc(dispName(p.name))}')">Share</button></p>
+<button class="btn ghost" onclick="shareProduct(${p.id}, '${esc(dispName(p.name))}')">Share</button>
+<button class="btn ghost" onclick="toggleCompare(${p.id})">⇄ Compare</button></p>
 <h3>Specifications</h3><p class="specs">${esc(dispDesc(p.specs || "—"))}</p>
 ${variantLines.length ? `<p>${variantLines.join(" · ")}</p>` : ""}
 ${p.category === "Mobile Phones" ? "<p>PTA note: check PTA approval status for this device before use in Pakistan.</p>" : ""}
@@ -223,6 +226,8 @@ ${(p.subcategory || "").includes("Glasses") ? "<p>Smart-glasses note: frame, len
 </div></div>
 <section><h2>Reviews</h2>${reviews.map((r: any) => `<div class="review"><strong>${esc(dispName(r.customerName))}</strong> ${"★".repeat(r.rating)}<p>${esc(cleanText(r.text))}</p>${r.sellerReply ? `<p class="reply">NEXORA reply: ${esc(r.sellerReply)}</p>` : ""}</div>`).join("") || "<p>No reviews yet.</p>"}</section>
 <section><h2>Questions &amp; Answers</h2>${questions.map((x: any) => `<div class="review"><p><strong>Q:</strong> ${esc(cleanText(x.question))} — ${esc(dispName(x.customerName))}</p><p><strong>A:</strong> ${esc(cleanText(x.answer || "Not answered yet."))}</p></div>`).join("") || "<p>No questions yet.</p>"}</section>
+<section><h2>Write a Review</h2><form class="card light-panel" onsubmit="return doSubmitReview(event, ${p.id})"><p class="note">Sign in to have your review marked "Verified purchase" — the flag is set only when you actually bought this product.</p><label>Rating <select id="rvRating"><option value="5">★★★★★ (5)</option><option value="4">★★★★ (4)</option><option value="3">★★★ (3)</option><option value="2">★★ (2)</option><option value="1">★ (1)</option></select></label><label>Your review <textarea id="rvText" required rows="3" placeholder="What did you think of this product?"></textarea></label><button class="btn">Submit review</button></form><div id="rvMsg"></div></section>
+<section><h2>Ask a Question</h2><form class="card light-panel" onsubmit="return doAskQuestion(event, ${p.id})"><label>Your question <input id="qaText" required placeholder="e.g. Is this PTA approved?"></label><button class="btn">Ask</button></form><div id="qaMsg"></div></section>
 ${related.length ? `<section><h2>You May Also Like</h2><div class="grid">${related.map(productCard).join("")}</div></section>` : ""}`, { details });
 }
 
@@ -339,8 +344,24 @@ export function helpView(details?: BusinessDetails): string {
 <p><a class="btn" href="/track">Track an order</a> <a class="btn ghost" href="/account">Open a support case</a></p>`, { details });
 }
 
-export function compareView(details?: BusinessDetails): string {
-  return layout("Compare", `<h1>Compare Products</h1><div class="card light-panel"><p><strong>Clearly-marked stub.</strong> The Compare page exists in the Muse copy (named among its inspected views) but no flow details appear in any source (REBUILD-SPEC.md §14.11), so its contents were not invented here. Add products from the Shop and this page will compare them once the behaviour is verified against the Muse copy during acceptance.</p><p><a class="btn" href="/shop">Browse the Shop</a></p></div>`, { details });
+export function compareView(products: any[] = [], details?: BusinessDetails): string {
+  if (!products.length) {
+    return layout("Compare", `<h1>Compare Products</h1><div class="card light-panel"><p>No products selected yet. Add up to 3 products to compare from the Shop or a product page (⇄ Compare button), and they will appear here side by side.</p><p><a class="btn" href="/shop">Browse the Shop</a></p></div>`, { details });
+  }
+  const eff = (p: any) => (p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price);
+  const row = (label: string, fn: (p: any) => string) => `<tr><th>${label}</th>${products.map((p) => `<td>${fn(p)}</td>`).join("")}</tr>`;
+  return layout("Compare", `<h1>Compare Products</h1><div class="card light-panel"><div class="tablewrap"><table>
+<tr><th></th>${products.map((p) => `<th>${p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="" style="width:120px;height:90px;object-fit:cover;border-radius:8px">` : ""}<br><a href="/product/${p.id}">${esc(dispName(p.name))}</a><br><button class="btn ghost small" onclick="removeFromCompare(${p.id})">Remove</button></th>`).join("")}</tr>
+${row("Price", (p) => formatPkr(eff(p)) + (p.salePrice != null && p.salePrice < p.price ? ` <s>${formatPkr(p.price)}</s>` : ""))}
+${row("Rating", (p) => `★ ${p.rating} (${p.reviewsCount} reviews)`)}
+${row("Stock", (p) => p.stock <= 0 ? "Out of stock" : String(p.stock))}
+${row("Brand", (p) => esc(p.brand || "—"))}
+${row("Category", (p) => esc(p.category || "—"))}
+${row("Colours", (p) => esc(p.colors || "—"))}
+${row("Sizes", (p) => esc(p.sizes || "—"))}
+${row("Warranty", (p) => esc(p.warranty || "—"))}
+${row("Specifications", (p) => esc(dispDesc(p.specs || "—")))}
+</table></div><p><a class="btn ghost" href="/shop">Add more from the Shop</a> <button class="btn ghost" onclick="clearCompare()">Clear all</button></p></div>`, { details });
 }
 
 // C7/D6: About + Contact page shells — they render whatever business

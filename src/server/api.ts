@@ -231,7 +231,7 @@ async function productWithImages(db: Db, p: any) {
 // for a whole page/list, instead of one SELECT per product (N+1). The
 // shape is identical to productWithImages; images stay ordered by
 // sortOrder within each product.
-async function productsWithImages(db: Db, products: any[]) {
+export async function productsWithImages(db: Db, products: any[]) {
   if (!products.length) return [];
   const ids = products.map((p: any) => p.id);
   const imgs = await db.select().from(s.productImages).where(inArray(s.productImages.productId, ids)).orderBy(asc(s.productImages.sortOrder));
@@ -260,6 +260,15 @@ function txnRef(): string { return `TXN-DEMO-${Math.floor(10000000 + Math.random
 function parseStoredReport(v: string | undefined): any {
   if (!v) return null;
   try { return JSON.parse(v); } catch { return null; }
+}
+
+// D11: standard limit/offset + total on every list action. Default 50,
+// capped at 100. Callers that pass no limit keep working — they get the
+// first page plus the total.
+function pageParams(b: any, def = 50): { limit: number; offset: number } {
+  const limit = Math.min(100, Math.max(1, Number(b?.limit ?? def) || def));
+  const offset = Math.max(0, Number(b?.offset || 0) || 0);
+  return { limit, offset };
 }
 
 async function settingsMap(db: Db): Promise<Record<string, string>> {
@@ -312,6 +321,8 @@ export function registerApi(app: Express) {
   const a = (name: string, handler: (req: Request, res: Response, db: Db) => Promise<void>, opts?: { auth?: "customer" | "none"; area?: RoleArea }) => {
     actionHandlers.set(name, { handler, opts });
     app.post(`/api/${name}`, async (req, res) => {
+      // F7: API responses are live data — never cached by browsers/CDN.
+      res.setHeader("Cache-Control", "no-store");
       const db = dbOr503(res); if (!db) return;
       try {
         // Resolve the staff session once per request (no token => null,
@@ -462,6 +473,104 @@ export function registerApi(app: Express) {
     res.json({ ok: true, alreadyRan: true, report, reportUnparseable: !!cfg.bigTestReport && report === null, note: "Idempotent: re-runs return the stored report. This action must NOT be re-runnable into duplicate data; the journey is re-proven by placing a fresh order through createOrder/advanceOrder in the rebuilt service." });
   }, { area: "reports" });
 
+  // ---- D13: backup / restore ----
+  // A backup is a full JSON snapshot of every business table, downloaded
+  // by staff (settings area + fresh password/authenticator re-auth).
+  // Credentials are NEVER in a backup: no password hashes, TOTP secrets,
+  // setup tokens or session tokens; sessions are excluded entirely, so a
+  // restore never resurrects a dead session and never wipes a password.
+  // Restore is OWNER-only + re-auth + an explicit confirm word, and it
+  // ALWAYS takes a fresh backup first (stored as settings key
+  // backupSnapshotAuto) before touching anything. Restore upserts rows
+  // by id (never deletes): a row deleted after the backup comes back,
+  // rows created after the backup are left alone.
+  async function buildBackupSnapshot(db: Db): Promise<{ exportedAt: string; counts: Record<string, number>; tables: Record<string, any[]> }> {
+    const stripCustomer = (c: any) => { const { passwordHash, resetTokenHash, ...rest } = c; return rest; };
+    const stripStaff = (st: any) => { const { passwordHash, totpSecret, setupTokenHash, ...rest } = st; return rest; };
+    const tables: Record<string, any[]> = {};
+    tables.settings = await db.select().from(s.settings);
+    tables.categories = await db.select().from(s.categories);
+    tables.products = await db.select().from(s.products);
+    tables.productImages = await db.select().from(s.productImages);
+    tables.customers = (await db.select().from(s.customers)).map(stripCustomer);
+    tables.customerAddresses = await db.select().from(s.customerAddresses);
+    tables.coupons = await db.select().from(s.coupons);
+    tables.orders = await db.select().from(s.orders);
+    tables.orderItems = await db.select().from(s.orderItems);
+    tables.orderEvents = await db.select().from(s.orderEvents);
+    tables.paymentTransactions = await db.select().from(s.paymentTransactions);
+    tables.shipments = await db.select().from(s.shipments);
+    tables.returns = await db.select().from(s.returns);
+    tables.tickets = await db.select().from(s.tickets);
+    tables.notifications = await db.select().from(s.notifications);
+    tables.reviews = await db.select().from(s.reviews);
+    tables.questions = await db.select().from(s.questions);
+    tables.heroBanners = await db.select().from(s.heroBanners);
+    tables.homeCollections = await db.select().from(s.homeCollections);
+    tables.homeSections = await db.select().from(s.homeSections);
+    tables.staff = (await db.select().from(s.staff)).map(stripStaff);
+    tables.inventoryMovements = await db.select().from(s.inventoryMovements);
+    tables.savedSearches = await db.select().from(s.savedSearches);
+    tables.newsletterSignups = await db.select().from(s.newsletterSignups);
+    tables.cartItems = await db.select().from(s.cartItems);
+    tables.wishlistItems = await db.select().from(s.wishlistItems);
+    tables.demoMerchants = await db.select().from(s.demoMerchants);
+    tables.auditLogs = await db.select().from(s.auditLogs);
+    const counts: Record<string, number> = {};
+    for (const [k, v] of Object.entries(tables)) counts[k] = v.length;
+    return { exportedAt: new Date().toISOString(), counts, tables };
+  }
+  const BACKUP_TABLES: [string, any, string][] = [
+    ["settings", s.settings, "key"], ["categories", s.categories, "id"], ["products", s.products, "id"],
+    ["productImages", s.productImages, "id"], ["customers", s.customers, "id"], ["customerAddresses", s.customerAddresses, "id"],
+    ["coupons", s.coupons, "id"], ["orders", s.orders, "id"], ["orderItems", s.orderItems, "id"], ["orderEvents", s.orderEvents, "id"],
+    ["paymentTransactions", s.paymentTransactions, "id"], ["shipments", s.shipments, "id"], ["returns", s.returns, "id"],
+    ["tickets", s.tickets, "id"], ["notifications", s.notifications, "id"], ["reviews", s.reviews, "id"], ["questions", s.questions, "id"],
+    ["heroBanners", s.heroBanners, "id"], ["homeCollections", s.homeCollections, "id"], ["homeSections", s.homeSections, "id"],
+    ["staff", s.staff, "id"], ["inventoryMovements", s.inventoryMovements, "id"], ["savedSearches", s.savedSearches, "id"],
+    ["newsletterSignups", s.newsletterSignups, "id"], ["cartItems", s.cartItems, "id"], ["wishlistItems", s.wishlistItems, "id"],
+    ["demoMerchants", s.demoMerchants, "id"], ["auditLogs", s.auditLogs, "id"],
+  ];
+  a("exportBackup", async (req, res, db) => {
+    if (!await requireStaffReauth(db, req, res, "exportBackup")) return;
+    const snap = await buildBackupSnapshot(db);
+    await audit(db, "Backup exported", staffRoleLabel(req), `tables: ${Object.entries(snap.counts).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+    res.json({ ok: true, backup: snap });
+  }, { area: "settings" });
+  a("restoreBackup", async (req, res, db) => {
+    // Owner-only: only the Owner may restore a backup.
+    if ((req as any).staff?.role !== OWNER_ROLE) { res.status(403).json({ ok: false, error: "Only the Owner can restore a backup." }); return; }
+    if (!await requireStaffReauth(db, req, res, "restoreBackup")) return;
+    const snap = req.body?.snapshot || req.body?.backup;
+    if (!snap || typeof snap !== "object" || !snap.tables || typeof snap.tables !== "object") { res.status(400).json({ ok: false, error: "A backup snapshot (the JSON from Export backup) is required." }); return; }
+    if (req.body?.confirm !== "RESTORE") { res.status(400).json({ ok: false, error: "Type RESTORE to confirm — restoring overwrites live rows with the snapshot's rows." }); return; }
+    // 1. Fresh backup FIRST, stored as settings.backupSnapshotAuto, so the
+    // pre-restore state is always recoverable.
+    const before = await buildBackupSnapshot(db);
+    await db.insert(s.settings).values({ key: "backupSnapshotAuto", value: JSON.stringify(before) }).onConflictDoUpdate({ target: s.settings.key, set: { value: JSON.stringify(before) } });
+    // 2. Upsert every snapshot row (parents first), in one transaction.
+    const restored: Record<string, number> = {};
+    await db.transaction(async (tx) => {
+      for (const [name, table, keyCol] of BACKUP_TABLES) {
+        const rows: any[] = Array.isArray(snap.tables[name]) ? snap.tables[name] : [];
+        for (const row of rows) {
+          const { [keyCol]: _k, ...rest } = row;
+          await tx.insert(table).values(row).onConflictDoUpdate({ target: table[keyCol], set: rest });
+        }
+        restored[name] = rows.length;
+      }
+    });
+    // 3. Best-effort sequence repair (so new inserts after a restore do
+    // not collide with restored ids). Each is independent — a failure
+    // here must not roll back the restore, so it runs after the commit.
+    const serialTables = ["categories", "products", "product_images", "customers", "customer_addresses", "coupons", "orders", "order_items", "order_events", "payment_transactions", "shipments", "returns", "tickets", "notifications", "reviews", "questions", "hero_banners", "home_collections", "home_sections", "staff", "inventory_movements", "saved_searches", "newsletter_signups", "cart_items", "wishlist_items", "demo_merchants", "audit_logs"];
+    for (const t of serialTables) {
+      try { await db.execute(sql.raw(`SELECT setval(pg_get_serial_sequence('${t}', 'id'), COALESCE((SELECT MAX("id") FROM "${t}"), 0))`)); } catch (e) { console.error(`[restoreBackup] setval failed for ${t}:`, (e as Error).message); }
+    }
+    await audit(db, "Backup restored", staffRoleLabel(req), `from snapshot exported ${snap.exportedAt || "unknown"}; rows: ${Object.entries(restored).map(([k, v]) => `${k}=${v}`).join(", ")}; pre-restore backup saved as settings.backupSnapshotAuto`);
+    res.json({ ok: true, restored, backupFirst: "backupSnapshotAuto", note: "Restore complete. The pre-restore state was saved first as settings key backupSnapshotAuto — restore that snapshot to undo this restore." });
+  }, { area: "settings" });
+
   // ---- 5.2 Catalogue ----
   a("listProducts", async (req, res, db) => {
     const b = req.body || {};
@@ -522,6 +631,24 @@ export function registerApi(app: Express) {
 
   a("setProductStatus", async (req, res, db) => {
     await db.update(s.products).set({ status: req.body.status }).where(eq(s.products.id, req.body.id));
+    res.json({ ok: true });
+  }, { area: "products" });
+
+  // D10: delete a product — BLOCKED when any order item references it
+  // (deleting it would orphan order history). Product images cascade
+  // via the F6 FK (product_images.product_id ON DELETE CASCADE).
+  a("deleteProduct", async (req, res, db) => {
+    const id = Number(req.body?.id);
+    if (!id) { res.status(400).json({ ok: false, error: "Product id is required." }); return; }
+    const prod = (await db.select().from(s.products).where(eq(s.products.id, id)))[0];
+    if (!prod) { res.status(404).json({ ok: false, error: "Product not found." }); return; }
+    const used = await db.select({ n: sql<number>`count(*)` }).from(s.orderItems).where(eq(s.orderItems.productId, id));
+    if (Number(used[0]?.n || 0) > 0) {
+      res.status(400).json({ ok: false, error: "This product is on existing orders and cannot be deleted — set its status to Draft instead." });
+      return;
+    }
+    await db.delete(s.products).where(eq(s.products.id, id));
+    await audit(db, "Product deleted", staffRoleLabel(req), `${prod.sku} ${prod.name}`);
     res.json({ ok: true });
   }, { area: "products" });
 
@@ -978,8 +1105,18 @@ export function registerApi(app: Express) {
   });
 
   a("listOrders", async (req, res, db) => {
-    const rows = await db.select().from(s.orders).orderBy(desc(s.orders.createdAt));
-    res.json({ ok: true, orders: rows });
+    // D10/D11: server-side search (order number / customer email / name),
+    // status filter, limit/offset + total.
+    const b = req.body || {};
+    const { limit, offset } = pageParams(b);
+    const escLike = (v: string) => String(v).replace(/[%_\\]/g, "\\$&");
+    const conds: any[] = [];
+    if (b.search) conds.push(like(sql`lower(${s.orders.orderNumber} || ' ' || ${s.orders.customerEmail} || ' ' || ${s.orders.customerName})`, `%${escLike(String(b.search).toLowerCase())}%`));
+    if (b.status) conds.push(eq(s.orders.status, String(b.status)));
+    const where = conds.length ? and(...conds) : undefined;
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.orders).where(where))[0]?.n || 0);
+    const rows = await db.select().from(s.orders).where(where).orderBy(desc(s.orders.createdAt)).limit(limit).offset(offset);
+    res.json({ ok: true, orders: rows, total, limit, offset });
   }, { area: "orders" });
 
   a("listMyOrders", async (req, res, db) => {
@@ -1013,9 +1150,11 @@ export function registerApi(app: Express) {
     res.json({ ok: true, removed: cancelled.length });
   }, { area: "orders" });
 
-  a("listRegisteredCustomers", async (_req, res, db) => {
-    const rows = await db.select().from(s.customers).orderBy(asc(s.customers.id));
-    res.json({ ok: true, customers: rows.map((c: any) => ({ ...c, passwordHash: undefined, resetTokenHash: undefined })) });
+  a("listRegisteredCustomers", async (req, res, db) => {
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.customers))[0]?.n || 0);
+    const rows = await db.select().from(s.customers).orderBy(asc(s.customers.id)).limit(limit).offset(offset);
+    res.json({ ok: true, customers: rows.map((c: any) => ({ ...c, passwordHash: undefined, resetTokenHash: undefined })), total, limit, offset });
   }, { area: "customers" });
 
   // ---- 5.4 Customers & auth ----
@@ -1554,8 +1693,10 @@ export function registerApi(app: Express) {
     // account Payment History panel). Anyone else gets 401.
     if (staffRole(req)) {
       if (!await enforceOr401(db, req, res, "payments", "listPaymentTransactions")) return;
-      const rows = await db.select().from(s.paymentTransactions).orderBy(desc(s.paymentTransactions.createdAt));
-      res.json({ ok: true, transactions: rows });
+      const { limit, offset } = pageParams(req.body);
+      const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.paymentTransactions))[0]?.n || 0);
+      const rows = await db.select().from(s.paymentTransactions).orderBy(desc(s.paymentTransactions.createdAt)).limit(limit).offset(offset);
+      res.json({ ok: true, transactions: rows, total, limit, offset });
       return;
     }
     const cust = await sessionCustomer(db, req);
@@ -1627,12 +1768,16 @@ export function registerApi(app: Express) {
       const myOrders = await db.select().from(s.orders).where(sql`lower(${s.orders.customerEmail}) = lower(${cust.email})`);
       const nums = new Set(myOrders.map((o: any) => o.orderNumber));
       const rows = (await db.select().from(s.returns).orderBy(desc(s.returns.createdAt))).filter((r: any) => nums.has(r.orderNumber));
-      res.json({ ok: true, returns: mapRows(rows) });
+      const mapped = mapRows(rows);
+      const { limit, offset } = pageParams(req.body);
+      res.json({ ok: true, returns: mapped.slice(offset, offset + limit), total: mapped.length, limit, offset });
       return;
     }
     if (!await enforceOr401(db, req, res, "refunds", "listReturns")) return;
-    const rows = await db.select().from(s.returns).orderBy(desc(s.returns.createdAt));
-    res.json({ ok: true, returns: mapRows(rows) });
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.returns))[0]?.n || 0);
+    const rows = await db.select().from(s.returns).orderBy(desc(s.returns.createdAt)).limit(limit).offset(offset);
+    res.json({ ok: true, returns: mapRows(rows), total, limit, offset });
   });
 
   a("getLegacyReview", async (_req, res, db) => {
@@ -1698,9 +1843,11 @@ export function registerApi(app: Express) {
   }, { area: "settings" });
 
   // ---- 5.7 Support, reviews, Q&A, notifications ----
-  a("listTickets", async (_req, res, db) => {
-    const rows = await db.select().from(s.tickets).orderBy(desc(s.tickets.createdAt));
-    res.json({ ok: true, tickets: rows });
+  a("listTickets", async (req, res, db) => {
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.tickets))[0]?.n || 0);
+    const rows = await db.select().from(s.tickets).orderBy(desc(s.tickets.createdAt)).limit(limit).offset(offset);
+    res.json({ ok: true, tickets: rows, total, limit, offset });
   }, { area: "customers" });
   a("createTicket", async (req, res, db) => {
     const b = req.body || {};
@@ -1721,14 +1868,44 @@ export function registerApi(app: Express) {
   }, { area: "customers" });
 
   a("listReviews", async (req, res, db) => {
-    const rows = await db.select().from(s.reviews).orderBy(desc(s.reviews.id));
-    res.json({ ok: true, reviews: rows });
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.reviews))[0]?.n || 0);
+    const rows = await db.select().from(s.reviews).orderBy(desc(s.reviews.id)).limit(limit).offset(offset);
+    res.json({ ok: true, reviews: rows, total, limit, offset });
   }, { area: "customers" });
   a("submitReview", async (req, res, db) => {
     const b = req.body || {};
+    // D16: the verified-purchase flag is computed SERVER-side — it is true
+    // ONLY when the signed-in buyer actually bought this product (a
+    // non-cancelled order containing it). It is never taken from the client.
     const p = (await db.select().from(s.products).where(eq(s.products.id, Number(b.productId))))[0];
-    const row = (await db.insert(s.reviews).values({ productId: Number(b.productId), productName: p?.name || "", customerName: b.customerName || "Customer", rating: Math.min(5, Math.max(1, Number(b.rating || 5))), text: b.text || "", verified: false, helpful: 0, sellerReply: "", createdAt: Date.now() }).returning())[0];
+    if (!p) { res.status(404).json({ ok: false, error: "Product not found." }); return; }
+    const text = String(b.text || "").trim();
+    if (!text) { res.status(400).json({ ok: false, error: "Please write your review." }); return; }
+    const cust = await sessionCustomer(db, req);
+    let verified = false;
+    if (cust) {
+      const myOrders = await db.select().from(s.orders).where(and(sql`lower(${s.orders.customerEmail}) = lower(${cust.email})`, ne(s.orders.status, "Cancelled")));
+      const myIds = new Set(myOrders.map((o: any) => o.id));
+      if (myIds.size) {
+        const items = await db.select().from(s.orderItems).where(inArray(s.orderItems.orderId, [...myIds]));
+        verified = items.some((it: any) => it.productId === p.id);
+      }
+    }
+    const row = (await db.insert(s.reviews).values({ productId: p.id, productName: p?.name || "", customerName: cust?.name || b.customerName || "Customer", rating: Math.min(5, Math.max(1, Number(b.rating || 5))), text, verified, helpful: 0, sellerReply: "", createdAt: Date.now() }).returning())[0];
     res.json({ ok: true, review: row });
+  });
+  a("askQuestion", async (req, res, db) => {
+    // D16: Q&A ask form — signed-in customers use their account name;
+    // guests give a name. Answers come from staff (answerQuestion).
+    const b = req.body || {};
+    const p = (await db.select().from(s.products).where(eq(s.products.id, Number(b.productId))))[0];
+    if (!p) { res.status(404).json({ ok: false, error: "Product not found." }); return; }
+    const question = String(b.question || "").trim();
+    if (!question) { res.status(400).json({ ok: false, error: "Please write your question." }); return; }
+    const cust = await sessionCustomer(db, req);
+    const row = (await db.insert(s.questions).values({ productId: p.id, productName: p.name, customerName: cust?.name || b.customerName || "Customer", question, answer: "" }).returning())[0];
+    res.json({ ok: true, question: row });
   });
   a("replyReview", async (req, res, db) => {
     await db.update(s.reviews).set({ sellerReply: String(req.body?.reply || "") }).where(eq(s.reviews.id, req.body.id));
@@ -1740,12 +1917,58 @@ export function registerApi(app: Express) {
   }, { area: "customers" });
 
   a("listQuestions", async (req, res, db) => {
-    const rows = await db.select().from(s.questions).orderBy(asc(s.questions.id));
-    res.json({ ok: true, questions: rows });
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.questions))[0]?.n || 0);
+    const rows = await db.select().from(s.questions).orderBy(asc(s.questions.id)).limit(limit).offset(offset);
+    res.json({ ok: true, questions: rows, total, limit, offset });
   });
   a("answerQuestion", async (req, res, db) => {
     await db.update(s.questions).set({ answer: String(req.body?.answer || "") }).where(eq(s.questions.id, req.body.id));
     res.json({ ok: true });
+  }, { area: "customers" });
+
+  // ---- D12: saved searches (the saved_searches table already existed;
+  // the feature did not). Signed-in customers save a search string and
+  // re-run it from My Account. DECISION: implemented, not dropped.
+  a("saveSearch", async (req, res, db) => {
+    const cust = await requireCustomer(db, req, res); if (!cust) return;
+    const query = String(req.body?.query || "").trim();
+    if (!query) { res.status(400).json({ ok: false, error: "Nothing to save — type a search first." }); return; }
+    const existing = (await db.select().from(s.savedSearches).where(and(eq(s.savedSearches.customerEmail, cust.email.toLowerCase()), eq(s.savedSearches.query, query))))[0];
+    if (existing) { res.json({ ok: true, saved: false, note: "That search is already saved." }); return; }
+    const row = (await db.insert(s.savedSearches).values({ customerEmail: cust.email.toLowerCase(), query, createdAt: Date.now() }).returning())[0];
+    res.json({ ok: true, saved: true, search: row });
+  });
+  a("listSavedSearches", async (req, res, db) => {
+    const cust = await requireCustomer(db, req, res); if (!cust) return;
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.savedSearches).where(eq(s.savedSearches.customerEmail, cust.email.toLowerCase())))[0]?.n || 0);
+    const rows = await db.select().from(s.savedSearches).where(eq(s.savedSearches.customerEmail, cust.email.toLowerCase())).orderBy(desc(s.savedSearches.createdAt)).limit(limit).offset(offset);
+    res.json({ ok: true, searches: rows, total, limit, offset });
+  });
+  a("deleteSavedSearch", async (req, res, db) => {
+    const cust = await requireCustomer(db, req, res); if (!cust) return;
+    await db.delete(s.savedSearches).where(and(eq(s.savedSearches.id, Number(req.body?.id)), eq(s.savedSearches.customerEmail, cust.email.toLowerCase())));
+    res.json({ ok: true });
+  });
+
+  // ---- D6: footer newsletter. No mailing provider is connected yet, so
+  // subscribing saves the address on the store's list and sends NOTHING —
+  // the response says so honestly. Staff can list signups (customers area).
+  a("subscribeNewsletter", async (req, res, db) => {
+    if (rateLimited("newsletter:ip:" + clientIp(req), 5, 60 * 60 * 1000)) { res.status(429).json(rateLimitBody()); return; }
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!isValidEmail(email)) { res.status(400).json({ ok: false, error: "Please enter a valid email address." }); return; }
+    const existing = (await db.select().from(s.newsletterSignups).where(eq(s.newsletterSignups.email, email)))[0];
+    if (existing) { res.json({ ok: true, subscribed: false, note: "That email is already on the list." }); return; }
+    await db.insert(s.newsletterSignups).values({ email, createdAt: Date.now() });
+    res.json({ ok: true, subscribed: true, note: "You're on the list. No mailing provider is connected yet, so no marketing email is sent — the store will email you once a provider is connected." });
+  });
+  a("listNewsletterSignups", async (req, res, db) => {
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.newsletterSignups))[0]?.n || 0);
+    const rows = await db.select().from(s.newsletterSignups).orderBy(desc(s.newsletterSignups.createdAt)).limit(limit).offset(offset);
+    res.json({ ok: true, signups: rows, total, limit, offset });
   }, { area: "customers" });
 
   a("listNotifications", async (req, res, db) => {
@@ -1755,13 +1978,17 @@ export function registerApi(app: Express) {
     // else gets 401. This used to return every notification to anyone.
     if (staffRole(req)) {
       if (!await enforceOr401(db, req, res, "customers", "listNotifications")) return;
-      const rows = await db.select().from(s.notifications).orderBy(desc(s.notifications.createdAt));
-      res.json({ ok: true, notifications: rows, unread: rows.filter((n: any) => !n.isRead).length });
+      const { limit, offset } = pageParams(req.body);
+      const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.notifications))[0]?.n || 0);
+      const rows = await db.select().from(s.notifications).orderBy(desc(s.notifications.createdAt)).limit(limit).offset(offset);
+      res.json({ ok: true, notifications: rows, unread: rows.filter((n: any) => !n.isRead).length, total, limit, offset });
       return;
     }
     const cust = await requireCustomer(db, req, res); if (!cust) return;
-    const rows = await db.select().from(s.notifications).where(eq(s.notifications.customerId, cust.id)).orderBy(desc(s.notifications.createdAt));
-    res.json({ ok: true, notifications: rows, unread: rows.filter((n: any) => !n.isRead).length, mine: true });
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.notifications).where(eq(s.notifications.customerId, cust.id)))[0]?.n || 0);
+    const rows = await db.select().from(s.notifications).where(eq(s.notifications.customerId, cust.id)).orderBy(desc(s.notifications.createdAt)).limit(limit).offset(offset);
+    res.json({ ok: true, notifications: rows, unread: rows.filter((n: any) => !n.isRead).length, mine: true, total, limit, offset });
   });
   a("addNotification", async (req, res, db) => {
     // B9: creating a notification is a staff action (customers area).
@@ -1813,14 +2040,18 @@ export function registerApi(app: Express) {
     res.json({ ok: true, stock: newStock });
   }, { area: "inventory" });
 
-  a("listInventoryMovements", async (_req, res, db) => {
-    const rows = await db.select().from(s.inventoryMovements).orderBy(desc(s.inventoryMovements.createdAt));
-    res.json({ ok: true, movements: rows });
+  a("listInventoryMovements", async (req, res, db) => {
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.inventoryMovements))[0]?.n || 0);
+    const rows = await db.select().from(s.inventoryMovements).orderBy(desc(s.inventoryMovements.createdAt)).limit(limit).offset(offset);
+    res.json({ ok: true, movements: rows, total, limit, offset });
   }, { area: "inventory" });
 
-  a("listShipments", async (_req, res, db) => {
-    const rows = await db.select().from(s.shipments).orderBy(desc(s.shipments.createdAt));
-    res.json({ ok: true, shipments: rows, note: "Shipments stay labelled simulated — no courier API connected; tracking shows the last verified event only." });
+  a("listShipments", async (req, res, db) => {
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.shipments))[0]?.n || 0);
+    const rows = await db.select().from(s.shipments).orderBy(desc(s.shipments.createdAt)).limit(limit).offset(offset);
+    res.json({ ok: true, shipments: rows, total, limit, offset, note: "Shipments stay labelled simulated — no courier API connected; tracking shows the last verified event only." });
   }, { area: "shipments" });
 
   a("getAnalytics", async (_req, res, db) => {
@@ -1860,9 +2091,11 @@ export function registerApi(app: Express) {
     res.json({ ok: true, gmv, avgOrderValue: live.length ? Math.round(gmv / live.length) : 0, orderCount: live.length, dailySales, byStatus, byPayment, refundsTotal, refundsRequested, legacyOrders: legacy.length, topProducts, legacyTopQty, note: "Real records only — zero days report 0; cancelled and legacy-test orders excluded from revenue. Daily sales are the last 30 days (date-keyed); topProducts excludes legacy unresolved items (productId 0/NULL), counted separately as legacyTopQty." });
   }, { area: "reports" });
 
-  a("listStaff", async (_req, res, db) => {
-    const rows = await db.select().from(s.staff).orderBy(asc(s.staff.id));
-    res.json({ ok: true, staff: rows.map(publicStaffRow) });
+  a("listStaff", async (req, res, db) => {
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.staff))[0]?.n || 0);
+    const rows = await db.select().from(s.staff).orderBy(asc(s.staff.id)).limit(limit).offset(offset);
+    res.json({ ok: true, staff: rows.map(publicStaffRow), total, limit, offset });
   }, { area: "staff" });
   a("saveStaff", async (req, res, db) => {
     const b = req.body || {};
@@ -1886,7 +2119,8 @@ export function registerApi(app: Express) {
     const rows = await db.select().from(s.auditLogs).orderBy(desc(s.auditLogs.id));
     const q = String(req.body?.search || "").toLowerCase();
     const filtered = q ? rows.filter((r: any) => (r.action + " " + r.actor + " " + r.detail).toLowerCase().includes(q)) : rows;
-    res.json({ ok: true, logs: filtered });
+    const { limit, offset } = pageParams(req.body);
+    res.json({ ok: true, logs: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset });
   }, { area: "reports" });
 
   a("saveCoupon", async (req, res, db) => {

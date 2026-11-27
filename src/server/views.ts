@@ -152,7 +152,7 @@ export function trackView(): string {
 
 export function accountView(): string {
   return layout("My Account", `<div class="dash" id="accountRoot"><p>Loading your dashboard…</p></div>
-<script>loadAccount();</script>`);
+`);
 }
 
 export function adminView(): string {
@@ -161,19 +161,19 @@ export function adminView(): string {
 <p class="note">20 modules (spec §7.7). The Phase 1 lab test observed 21 admin tabs — the extra tab was the Phase 2 tab added later; the actual list below is the 20-module list, with Orders and Tracking kept as one Orders tab (tracking manager inside it). Staff role for this demo session: <select id="staffRole" onchange="localStorage.setItem('nx_staff_role',this.value)"><option>Super Admin</option><option>Admin</option><option>Product Manager</option><option>Inventory Manager</option><option>Order Manager</option><option>Finance Officer</option><option>Customer Support Agent</option><option>Warehouse Staff</option><option>Delivery Manager</option></select> — permissions are enforced server-side and denials are audit-logged.</p>
 <div class="tabs">${tabs.map((t, i) => `<button class="tab ${i === 0 ? "on" : ""}" onclick="adminTab(${i},this)">${esc(t)}</button>`).join("")}</div>
 <div id="adminRoot" class="card light-panel"><p>Loading…</p></div>
-<script>adminTab(0);document.getElementById('staffRole').value=localStorage.getItem('nx_staff_role')||'Super Admin';</script>`);
+`);
 }
 
 export function checkoutView(step: number): string {
   const steps = ["Cart Review", "Customer Info", "Delivery Address", "Shipping", "Payment", "Summary", "Confirm"];
   return layout(`Checkout — ${steps[step - 1]}`, `<h1>Checkout <span class="demo-tag">DEMO</span></h1>
 <ol class="steps">${steps.map((s, i) => `<li class="${i + 1 === step ? "on" : i + 1 < step ? "done" : ""}">${i + 1}. ${s}</li>`).join("")}</ol>
-<div id="checkoutRoot" class="card light-panel"><p>Loading step ${step}…</p></div>
-<script>loadCheckout(${step});</script>`);
+<div id="checkoutRoot" class="card light-panel" data-step="${step}"><p>Loading step ${step}…</p></div>
+`);
 }
 
 export function cartView(): string {
-  return layout("Cart", `<h1>Your Cart</h1><div id="cartRoot"><p>Loading cart…</p></div><script>loadCart();</script>`);
+  return layout("Cart", `<h1>Your Cart</h1><div id="cartRoot"><p>Loading cart…</p></div>`);
 }
 
 export function authView(kind: "login" | "register"): string {

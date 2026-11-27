@@ -92,9 +92,14 @@ function signOut() {
 }
 
 // ---- Cart ----
+// A5: a failed load shows a visible error + retry instead of "Loading…" forever.
+function loadErrorHtml(msg, retryFn) {
+  return `<div class="card light-panel"><p><strong>Couldn't load this page.</strong></p><p>${esc(msg)}</p><p><button class="btn" onclick="${retryFn}">Retry</button> <a class="btn ghost" href="/">Back to Home</a></p></div>`;
+}
 async function loadCart() {
   const root = document.getElementById("cartRoot"); if (!root) return;
-  const r = await api("getCart", {});
+  let r;
+  try { r = await api("getCart", {}); } catch (e) { root.innerHTML = loadErrorHtml("Network error: " + (e.message || e), "loadCart()"); return; }
   if (!r.ok) { root.innerHTML = "<p>Cart is unavailable: " + esc(r.error || "") + "</p>"; return; }
   if (!r.items.length) { root.innerHTML = "<p>Your cart is empty.</p><p><a class='btn' href='/shop'>Browse the Shop</a></p>"; return; }
   let total = 0;
@@ -108,10 +113,27 @@ async function updateQty(id, qty) { const r = await api("updateCartItem", { id, 
 async function removeLine(id) { if (!confirm("Remove this item? Yes / Keep")) return; await api("removeCartItem", { id }); loadCart(); refreshCartCount(); }
 
 // ---- Checkout (7 steps) ----
-let checkoutData = {};
+// B4: checkout state persists across the full-page step navigations in
+// sessionStorage (per browser tab session). Rehydrated on every step load;
+// cleared after a successful order. Nothing here is a price or a charge —
+// totals are recomputed server-side at order time.
+const CHECKOUT_KEY = "nx_checkout";
+function loadCheckoutData() {
+  try { const raw = sessionStorage.getItem(CHECKOUT_KEY); if (raw) { const d = JSON.parse(raw); if (d && typeof d === "object") return d; } } catch {}
+  return {};
+}
+function saveCheckoutData() {
+  try { sessionStorage.setItem(CHECKOUT_KEY, JSON.stringify(checkoutData)); } catch {}
+}
+function clearCheckoutData() {
+  try { sessionStorage.removeItem(CHECKOUT_KEY); } catch {}
+  checkoutData = {};
+}
+let checkoutData = loadCheckoutData();
 async function loadCheckout(step) {
   const root = document.getElementById("checkoutRoot"); if (!root) return;
-  const cart = await api("getCart", {});
+  let cart;
+  try { cart = await api("getCart", {}); } catch (e) { root.innerHTML = loadErrorHtml("Network error: " + (e.message || e), "loadCheckout(" + step + ")"); return; }
   const items = cart.items || [];
   if (!items.length && step === 1) { root.innerHTML = "<p>Your cart is empty.</p><p><a class='btn' href='/shop'>Browse the Shop</a></p>"; return; }
   const lines = items.map((i) => { const p = i.product; const pr = p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price; return { productId: p.id, qty: i.qty, price: pr, name: p.name, imageUrl: i.imageUrl }; });
@@ -122,30 +144,30 @@ async function loadCheckout(step) {
 <label>Coupon code <input id="coCoupon" placeholder="e.g. 000" value="${esc(checkoutData.couponCode || "")}"></label>
 <button class="btn ghost" onclick="applyCoupon(${subtotal})">Apply</button> <span id="coMsg"></span>
 <p class="note">A typed coupon is sent with the order even without pressing Apply. Tax Rs. 0, shown not hidden.</p>
-<p><a class="btn" href="/checkout?step=2">Continue to Customer Info →</a></p>`,
+<p><button class="btn" onclick="saveStep1()">Continue to Customer Info →</button></p>`,
     2: `<h2>Step 2 — Customer Info</h2><form onsubmit="saveStep2(event)">
-<label>Full name <input id="coName" required></label><label>Email <input id="coEmail" type="email" required></label>
-<label>Mobile <input id="coPhone" required placeholder="03XXXXXXXXX"></label>
+<label>Full name <input id="coName" required value="${esc(checkoutData.customerName || "")}"></label><label>Email <input id="coEmail" type="email" required value="${esc(checkoutData.customerEmail || "")}"></label>
+<label>Mobile <input id="coPhone" required placeholder="03XXXXXXXXX" value="${esc(checkoutData.customerPhone || "")}"></label>
 <p class="note">Server-side email + Pakistani-mobile validation applies.</p><button class="btn">Continue →</button></form>`,
     3: `<h2>Step 3 — Delivery Address</h2><form onsubmit="saveStep3(event)">
-<label>Recipient name <input id="coRecipient" required></label><label>Address <input id="coAddress" required></label>
-<label>Area <input id="coArea"></label><label>City <input id="coCity" required></label><label>Province <input id="coProvince" value="Sindh"></label>
-<label>Postal code <input id="coPostal"></label><label>Landmark <input id="coLandmark"></label>
-<label>Delivery instructions <input id="coInstr"></label>
+<label>Recipient name <input id="coRecipient" required value="${esc(checkoutData.recipientName || "")}"></label><label>Address <input id="coAddress" required value="${esc(checkoutData.address || "")}"></label>
+<label>Area <input id="coArea" value="${esc(checkoutData.area || "")}"></label><label>City <input id="coCity" required value="${esc(checkoutData.city || "")}"></label><label>Province <input id="coProvince" value="${esc(checkoutData.province || "Sindh")}"></label>
+<label>Postal code <input id="coPostal" value="${esc(checkoutData.postalCode || "")}"></label><label>Landmark <input id="coLandmark" value="${esc(checkoutData.landmark || "")}"></label>
+<label>Delivery instructions <input id="coInstr" value="${esc(checkoutData.deliveryInstructions || "")}"></label>
 <p><button class="btn ghost" type="button" onclick="loadSavedAddress()">Use my saved address</button></p>
 <button class="btn">Continue →</button></form>`,
     4: `<h2>Step 4 — Shipping</h2><form onsubmit="saveStep4(event)">
-<label><input type="radio" name="ship" value="Standard" checked> Standard — Rs. 250 (free at Rs. 5,000+ after discount)</label><br>
-<label><input type="radio" name="ship" value="Express"> Express — Rs. 450</label><br>
-<label><input type="radio" name="ship" value="Scheduled"> Scheduled — Rs. 450 (pick a date + time window below)</label><br>
-<label><input type="radio" name="ship" value="Pickup"> Pickup — Rs. 0</label><br>
+<label><input type="radio" name="ship" value="Standard" ${!checkoutData.shippingMethod || checkoutData.shippingMethod === "Standard" ? "checked" : ""}> Standard — Rs. 250 (free at Rs. 5,000+ after discount)</label><br>
+<label><input type="radio" name="ship" value="Express" ${checkoutData.shippingMethod === "Express" ? "checked" : ""}> Express — Rs. 450</label><br>
+<label><input type="radio" name="ship" value="Scheduled" ${checkoutData.shippingMethod === "Scheduled" ? "checked" : ""}> Scheduled — Rs. 450 (pick a date + time window below)</label><br>
+<label><input type="radio" name="ship" value="Pickup" ${checkoutData.shippingMethod === "Pickup" ? "checked" : ""}> Pickup — Rs. 0</label><br>
 <label>Scheduled date <input id="coSlotDate" type="date"></label><label>Time window <select id="coSlotTime"><option>9am–12pm</option><option>12pm–3pm</option><option>3pm–6pm</option><option>6pm–9pm</option></select></label>
 <label>Pickup point <select id="coPickup"><option value="">—</option><option>Karachi Central</option><option>Ghotki Store</option></select></label>
 <p><button class="btn ghost" type="button" onclick="useGps()">📍 Use my device GPS (permission-based; deliveries remain simulated)</button> <span id="gpsOut"></span></p>
 <button class="btn">Continue →</button></form>`,
     5: `<h2>Step 5 — Payment <span class="demo-tag">DEMO</span></h2><p class="note">Demo Simulation — no gateway connected. "Simulate Demo Payment" is required before placing a non-COD order.</p>
 <div id="payMethods"></div><p><button class="btn" onclick="simulatePayment()">Simulate Demo Payment</button> <span id="payOut"></span></p>
-<p><a class="btn" href="/checkout?step=6">Continue to Summary →</a></p>`,
+<p><button class="btn" onclick="saveStep5()">Continue to Summary →</button></p>`,
     6: `<h2>Step 6 — Summary</h2><div id="summaryBox"><p>Loading summary…</p></div><p><a class="btn" href="/checkout?step=7">Continue to Confirm →</a></p>`,
     7: `<h2>Step 7 — Confirm</h2><div id="confirmBox"><p>Review your order and place it. This is idempotent — a duplicate submission creates no second order.</p></div>
 <button class="btn" onclick="placeOrder()">Place Order (Demo)</button><div id="orderOut"></div>`,
@@ -165,7 +187,7 @@ function renderPayMethods() {
     { name: "Cash on Delivery", tile: "COD", line: "Pay on delivery. COD stays unpaid until delivery collection is recorded (demo)." },
     { name: "Digital Wallet (Demo)", tile: "WALLET", line: "Demo wallet — 3-stage demo flow." },
   ];
-  el.innerHTML = rows.map((m) => `<label class="payrow"><input type="radio" name="pay" value="${esc(m.name)}" ${m.name === "Cash on Delivery" ? "checked" : ""}>
+  el.innerHTML = rows.map((m) => `<label class="payrow"><input type="radio" name="pay" value="${esc(m.name)}" ${m.name === (checkoutData.paymentMethod || "Cash on Delivery") ? "checked" : ""}>
 ${m.logo ? `<span class="paylogo"><img src="${m.logo}" alt="${esc(m.name)}"></span>${m.logo2 ? `<span class="paylogo"><img src="${m.logo2}" alt="Mastercard"></span>` : ""}` : `<span class="paytile">${m.tile}</span>`}
 <span><strong>${esc(m.name)}</strong><br><small>${esc(m.line)}</small></span></label>`).join("");
 }
@@ -173,7 +195,7 @@ async function applyCoupon(subtotal) {
   const code = document.getElementById("coCoupon").value.trim();
   const r = await api("validateCoupon", { code, subtotal });
   document.getElementById("coMsg").textContent = r.ok ? `Applied: −${money(r.discount)}` : (r.error || "Invalid coupon.");
-  if (r.ok) checkoutData.couponCode = code.toUpperCase();
+  if (r.ok) { checkoutData.couponCode = code.toUpperCase(); saveCheckoutData(); }
 }
 async function simulatePayment() {
   const method = (document.querySelector('input[name="pay"]:checked') || {}).value || "Cash on Delivery";
@@ -187,25 +209,35 @@ async function simulatePayment() {
     checkoutData.paymentRef = "TXN-DEMO-" + Math.floor(10000000 + Math.random() * 89999999);
   }
   checkoutData.paymentSimulated = true;
+  saveCheckoutData();
   document.getElementById("payOut").textContent = "Payment Confirmed (Demo Simulation)" + (checkoutData.paymentRef ? " — " + checkoutData.paymentRef : "");
 }
 function useGps() {
   if (!navigator.geolocation) { document.getElementById("gpsOut").textContent = "GPS is not available on this device."; return; }
   navigator.geolocation.getCurrentPosition((pos) => {
     checkoutData.gps = pos.coords.latitude + "," + pos.coords.longitude;
+    saveCheckoutData();
     document.getElementById("gpsOut").textContent = "GPS attached: " + checkoutData.gps + " (deliveries remain simulated).";
   }, () => { document.getElementById("gpsOut").textContent = "GPS permission was not granted."; });
+}
+function saveStep1() {
+  const el = document.getElementById("coCoupon");
+  if (el && el.value.trim()) checkoutData.couponCode = el.value.trim().toUpperCase();
+  saveCheckoutData();
+  location.href = "/checkout?step=2";
 }
 function saveStep2(e) {
   e.preventDefault();
   checkoutData.customerName = document.getElementById("coName").value;
   checkoutData.customerEmail = document.getElementById("coEmail").value;
   checkoutData.customerPhone = document.getElementById("coPhone").value;
+  saveCheckoutData();
   location.href = "/checkout?step=3"; return false;
 }
 function saveStep3(e) {
   e.preventDefault();
   Object.assign(checkoutData, { recipientName: document.getElementById("coRecipient").value, address: document.getElementById("coAddress").value, area: document.getElementById("coArea").value, city: document.getElementById("coCity").value, province: document.getElementById("coProvince").value, postalCode: document.getElementById("coPostal").value, landmark: document.getElementById("coLandmark").value, deliveryInstructions: document.getElementById("coInstr").value });
+  saveCheckoutData();
   location.href = "/checkout?step=4"; return false;
 }
 function saveStep4(e) {
@@ -214,7 +246,18 @@ function saveStep4(e) {
   const d = document.getElementById("coSlotDate").value, t = document.getElementById("coSlotTime").value;
   checkoutData.deliverySlot = checkoutData.shippingMethod === "Scheduled" && d ? `Scheduled — ${d} ${t}` : checkoutData.shippingMethod + " — arrives in 2–4 days (demo)";
   checkoutData.pickupPoint = document.getElementById("coPickup").value || "";
+  saveCheckoutData();
   location.href = "/checkout?step=5"; return false;
+}
+// B4: step 5 Continue saves the selected payment method first. A non-COD
+// method still needs the demo payment confirmed before continuing, matching
+// the placeOrder guard — otherwise the order would fail at step 7.
+function saveStep5() {
+  const method = (document.querySelector('input[name="pay"]:checked') || {}).value || "Cash on Delivery";
+  if (method !== "Cash on Delivery" && !checkoutData.paymentSimulated) { alert("Payment confirmation is required before placing a non-COD order."); return; }
+  checkoutData.paymentMethod = method;
+  saveCheckoutData();
+  location.href = "/checkout?step=6";
 }
 async function loadSavedAddress() {
   const r = await api("listAddresses", {});
@@ -232,7 +275,7 @@ async function loadSavedAddress() {
 async function renderSummary(lines, subtotal) {
   const code = checkoutData.couponCode || (document.getElementById("coCoupon") ? document.getElementById("coCoupon").value : "");
   let discount = 0;
-  if (code) { const r = await api("validateCoupon", { code, subtotal }); if (r.ok) discount = r.discount; }
+  if (code) { try { const r = await api("validateCoupon", { code, subtotal }); if (r.ok) discount = r.discount; } catch (e) { /* coupon revalidation failed — continue without discount */ } }
   const ship = checkoutData.shippingMethod === "Pickup" ? 0 : (checkoutData.shippingMethod === "Express" || checkoutData.shippingMethod === "Scheduled") ? 450 : (subtotal - discount >= 5000 ? 0 : 250);
   const total = subtotal - discount + ship;
   const el = document.getElementById("summaryBox"); if (!el) return;
@@ -242,6 +285,7 @@ async function renderSummary(lines, subtotal) {
 <p>Shipping: ${esc(checkoutData.shippingMethod || "Standard")} · ${esc(checkoutData.deliverySlot || "")}</p>
 <p>Payment: ${esc(checkoutData.paymentMethod || "Cash on Delivery")} ${checkoutData.paymentSimulated ? "(Demo Simulated)" : ""}</p>`;
   checkoutData._summary = { subtotal, discount, ship, total };
+  saveCheckoutData();
 }
 function renderConfirm(lines, subtotal) {
   const el = document.getElementById("confirmBox"); if (!el) return;
@@ -253,15 +297,16 @@ async function placeOrder() {
   if (!items.length) { alert("Your cart is empty."); return; }
   const method = checkoutData.paymentMethod || "Cash on Delivery";
   if (method !== "Cash on Delivery" && !checkoutData.paymentSimulated) { alert('"Simulate Demo Payment" is required before placing a non-COD order.'); return; }
-  if (!checkoutData.idempotencyKey) checkoutData.idempotencyKey = "key-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+  if (!checkoutData.idempotencyKey) { checkoutData.idempotencyKey = "key-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); saveCheckoutData(); }
   const r = await api("createOrder", { ...checkoutData, items, couponCode: checkoutData.couponCode || "", idempotencyKey: checkoutData.idempotencyKey });
   const out = document.getElementById("orderOut");
   if (!r.ok) { out.innerHTML = "<p><strong>Order failed:</strong> " + esc(r.error || JSON.stringify(r.errors || {})) + "</p>"; return; }
-  if (r.duplicateBlocked) { out.innerHTML = "<p>Duplicate submission blocked — your original order stands (idempotency).</p>"; return; }
+  if (r.duplicateBlocked) { clearCheckoutData(); out.innerHTML = "<p>Duplicate submission blocked — your original order stands (idempotency).</p>"; return; }
   out.innerHTML = `<div class="card light-panel"><h3>Order placed (Demo) ✓</h3><p>Order <strong>${esc(r.order.orderNumber)}</strong> · Total <strong>${money(r.order.total)}</strong></p>
 <p>Tracking: ${esc(r.order.trackingNumber)} · Courier: NEXORA Express (Demo) — simulated</p>
 <p>${(r.adjustments || []).map(esc).join("<br>")}</p>
 <p><button class="btn" onclick="simulateDelivery(${r.order.id})">Simulate Delivery (Demo)</button> <a class="btn ghost" href="/track">Track Order</a> <a class="btn ghost" href="/account">My Orders</a></p></div>`;
+  clearCheckoutData();
 }
 async function simulateDelivery(orderId) {
   const r = await api("advanceOrder", { orderId }, { role: true });
@@ -288,7 +333,8 @@ async function trackOrder(e) {
 // ---- Account ----
 async function loadAccount() {
   const root = document.getElementById("accountRoot"); if (!root) return;
-  const r = await api("getCustomer", {});
+  let r;
+  try { r = await api("getCustomer", {}); } catch (e) { root.innerHTML = loadErrorHtml("Network error: " + (e.message || e), "loadAccount()"); return; }
   if (!r.ok || !r.authenticated) {
     root.innerHTML = `<div class="dash"><h1>Welcome back!</h1><p class="muted">Please sign in to see your own orders — signed-out view shows no orders.</p>
 <p><a class="btn" href="/login">Sign In</a> <a class="btn ghost" href="/register">Register</a></p></div>`;
@@ -297,7 +343,8 @@ async function loadAccount() {
   const c = r.customer, st = r.stats;
   const initials = c.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const memberSince = new Date(c.createdAt).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-  const my = await api("listMyOrders", {});
+  let my = { orders: [] };
+  try { my = await api("listMyOrders", {}); } catch (e) { /* orders list failed — dashboard still renders */ }
   const recent = (my.orders || []).slice(0, 3);
   root.innerHTML = `<div class="dash">
 <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
@@ -382,10 +429,29 @@ async function adminTab(i, btn) {
     else if (i === 17) { root.innerHTML = `<h2>Demo Manager / Reset</h2><p><strong>Browser seeding was removed in Phase 1 (A4).</strong> No public endpoint can reseed or wipe the database anymore — seeding is CLI-only (<code>npm run db:seed</code>, idempotent) or via boot migration on deploy.</p><p><button class="btn ghost" onclick="api('cleanupInvalidReturns',{}, {role:true}).then(r=>alert(r.ok?('Removed '+r.removed+' invalid returns. Legacy-flagged rows preserved.'):(r.error||'Failed')))">Clean up invalid returns</button></p>`; }
     else if (i === 18) { const r = await api("getPhase2Status", {}, { role: true }); const lg = await api("getLegacyReview", {}, { role: true }); const bt = await api("getBigTestReport", {}, { role: true }); root.innerHTML = `<h2>Phase 2</h2><p><strong>Finance decision:</strong> ${esc(r.financeDecision)}</p><p><strong>Providers:</strong></p><ul>${r.providers.map((p) => `<li>${esc(p.key)} — ${esc(p.status)}</li>`).join("")}</ul><p><strong>Pending owner inputs:</strong></p><ul>${r.pendingOwnerInputs.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p><strong>Legacy returns (decision pending):</strong></p><ul>${lg.discrepancies.map((d) => `<li>${esc(d.returnNumber)} — ${esc(d.fault)}. Offered: ${esc(d.offeredCorrection)}</li>`).join("")}</ul><p><strong>Big Test journey:</strong> ${bt.hasReport ? esc(JSON.stringify(bt.report).slice(0, 400)) : "no report stored"}</p>`; }
     else if (i === 19) { const r = await api("listAudit", {}, { role: true }); root.innerHTML = `<h2>Audit Log (${r.logs.length})</h2><div class="tablewrap"><table><tr><th>#</th><th>Action</th><th>Actor</th><th>Detail</th></tr>${r.logs.slice(0, 50).map((l) => `<tr><td>${l.id}</td><td>${esc(l.action)}</td><td>${esc(l.actor)}</td><td>${esc(l.detail)}</td></tr>`).join("")}</table></div>`; }
-  } catch (e) { root.innerHTML = "<p>Failed to load: " + esc(e.message) + "</p>"; }
+  } catch (e) { root.innerHTML = "<p>Failed to load " + esc(ADMIN_TABS[i]) + ": " + esc(e.message || e) + "</p><p><button class=\"btn\" onclick=\"adminTab(" + i + ")\">Retry</button></p>"; }
 }
 async function exportCsv() {
   const r = await api("listOrders", {}, { role: true });
   const csv = "orderNumber,status,total,paymentStatus,customerEmail\n" + (r.orders || []).map((o) => [o.orderNumber, o.status, o.total, o.paymentStatus, o.customerEmail].join(",")).join("\n");
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "nexora-orders.csv"; a.click();
 }
+
+// ---- Page auto-init (A5) ----
+// Pages no longer embed inline init calls: the init runs here, after app.js
+// has loaded, so loadCart/loadCheckout/loadAccount/adminTab are always
+// defined. Works whether this script loads at end of body or deferred in
+// <head>; no page depends on script order anymore.
+function initPage() {
+  if (document.getElementById("cartRoot")) { loadCart(); return; }
+  const co = document.getElementById("checkoutRoot");
+  if (co) { loadCheckout(Number(co.dataset.step || 1)); return; }
+  if (document.getElementById("accountRoot")) { loadAccount(); return; }
+  if (document.getElementById("adminRoot")) {
+    const sel = document.getElementById("staffRole");
+    if (sel) sel.value = localStorage.getItem("nx_staff_role") || "Super Admin";
+    adminTab(0);
+  }
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initPage);
+else initPage();

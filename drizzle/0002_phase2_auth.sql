@@ -28,7 +28,9 @@ ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "published_at" bigint;
 -- B7 backfill: staggered by id from 2025-09-01, one day per id, so the
 -- highest id is newest initially. These are seed-order dates, NOT real
 -- publication dates — documented honestly in the progress log.
-UPDATE "products" SET "published_at" = 1756684800000 + "id" * 86400000 WHERE "published_at" IS NULL;
+-- NOTE: the day arithmetic MUST be bigint — id * 86400000 overflows int4
+-- (72 * 86400000 = 6.2B > 2.1B) and aborts the whole migration.
+UPDATE "products" SET "published_at" = 1756684800000::bigint + "id"::bigint * 86400000::bigint WHERE "published_at" IS NULL;
 --> statement-breakpoint
 ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "customer_id" integer;
 --> statement-breakpoint

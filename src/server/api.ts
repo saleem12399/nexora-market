@@ -4,7 +4,6 @@
 // Demo mode: every payment/courier/messaging step is labelled DEMO/simulated;
 // no live gateway, courier or messaging provider is connected.
 
-import { execFile } from "node:child_process"; // A4 removes this with seedDemo (commit 2)
 import crypto from "node:crypto";
 import path from "node:path";
 import type { Express, Request, Response } from "express";
@@ -210,18 +209,12 @@ export function registerApi(app: Express) {
     res.json({ ok: true, config: cfg, categories: cats, staff, coupons, publishedProductCount: Number(published[0]?.n || 0), orderCount: orders.length, legacyTestOrderCount: orders.filter((o: any) => o.legacyTest).length, revenueExcludingLegacy: live.reduce((a: number, o: any) => a + o.total, 0) });
   }, { area: "settings" });
 
-  a("seedDemo", async (req, res) => {
-    const db = getDb()!;
-    const existing = await db.select({ id: s.products.id }).from(s.products).limit(1);
-    if (existing.length > 0 && !req.body?.force) {
-      res.json({ ok: true, seeded: false, reason: "Products already exist — seed is idempotent. Pass force:true (owner-gated) to reseed." });
-      return;
-    }
-    execFile(process.execPath, [path.resolve(__dirname, "../db/seed.js"), ...(req.body?.force ? ["--force"] : [])], { timeout: 120000 }, (err, stdout, stderr) => {
-      if (err) { res.status(500).json({ ok: false, error: stderr || err.message }); return; }
-      res.json({ ok: true, seeded: true, output: stdout });
-    });
-  });
+  // A4 (Phase 1): seedDemo REMOVED from the public API entirely. It used to
+  // run `node dist/db/seed.js --force` via execFile with no auth, so anyone
+  // could wipe all 27 tables. Seeding stays CLI-only (`npm run db:seed`,
+  // idempotent — skips when products exist) and via boot migration. There
+  // is no browser-reachable reseed path anymore; grep for execFile /
+  // child_process in src/ must stay empty.
 
   a("saveSettings", async (req, res, db) => {
     const entries = req.body?.settings || req.body || {};

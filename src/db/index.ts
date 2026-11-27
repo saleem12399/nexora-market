@@ -21,7 +21,16 @@ export function getDb(): NodePgDatabase<typeof schema> | null {
   // be enabled here. rejectUnauthorized:false is the standard Supabase
   // pooler setting: the pooler certificate does not verify against the
   // default CA store. Without this, every query fails at connect time.
-  pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, ssl: { rejectUnauthorized: false } });
+  // Phase 1: idleTimeoutMillis + connectionTimeoutMillis. The Supabase
+  // session pooler kills server connections idle ~10 min, but pg Pool
+  // kept handing those dead clients out — getHomepage (the only handler
+  // firing concurrent queries via Promise.all) then failed mid-chain on
+  // a stale client with "Failed query ... product_images", while fully
+  // sequential handlers (listProducts) never saw it. Closing clients
+  // idle >10 s makes every checkout open a fresh connection; the 10 s
+  // checkout timeout bounds queueing when the pooler is at max clients
+  // (seen live as EMAXCONNSESSION). No query logic changes.
+  pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, idleTimeoutMillis: 10000, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
   pool.on("error", (err) => console.error("[db] pool error", err.message));
   db = drizzle(pool, { schema });
   return db;

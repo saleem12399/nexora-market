@@ -278,17 +278,17 @@ async function loadCheckout(step) {
   const lines = items.map((i) => { const p = i.product; const pr = p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price; return { productId: p.id, qty: i.qty, price: pr, name: p.name, imageUrl: i.imageUrl }; });
   const subtotal = lines.reduce((a, l) => a + l.price * l.qty, 0);
   const stepHtml = {
-    1: `<h2>Step 1 — Cart Review</h2>${lines.map((l) => `<p>${l.imageUrl ? `<img src="${esc(l.imageUrl)}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;vertical-align:middle">` : ""} ${esc(dispName(l.name))} — ${money(l.price)} × ${l.qty} = <strong>${money(l.price * l.qty)}</strong></p>`).join("")}
+    1: `<h2>Step 1 — Cart Review</h2>${lines.map((l) => `<div class="row" style="align-items:center">${l.imageUrl ? `<img src="${esc(l.imageUrl)}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex:none">` : ""}<div><strong>${esc(dispName(l.name))}</strong><br>${money(l.price)} × ${l.qty} = <strong>${money(l.price * l.qty)}</strong></div></div>`).join("")}
 <p>Subtotal: <strong>${money(subtotal)}</strong></p>
 <label>Coupon code <input id="coCoupon" placeholder="e.g. 000" value="${esc(checkoutData.couponCode || "")}"></label>
 <button class="btn ghost" onclick="applyCoupon(${subtotal})">Apply</button> <span id="coMsg"></span>
 <p class="note">A typed coupon is sent with the order even without pressing Apply. Tax Rs. 0, shown not hidden.</p>
 <p><button class="btn" onclick="saveStep1()">Continue to Customer Info →</button></p>`,
-    2: `<h2>Step 2 — Customer Info</h2><form onsubmit="saveStep2(event)">
+    2: `<h2>Step 2 — Customer Info</h2><form class="stack" onsubmit="saveStep2(event)">
 <label>Full name <input id="coName" required value="${esc(checkoutData.customerName || "")}"></label><label>Email <input id="coEmail" type="email" required value="${esc(checkoutData.customerEmail || "")}"></label>
 <label>Mobile <input id="coPhone" required placeholder="03XXXXXXXXX" value="${esc(checkoutData.customerPhone || "")}"></label>
 <p class="note">Server-side email + Pakistani-mobile validation applies.</p><button class="btn">Continue →</button></form>`,
-    3: `<h2>Step 3 — Delivery Address</h2><form onsubmit="saveStep3(event)">
+    3: `<h2>Step 3 — Delivery Address</h2><form class="stack" onsubmit="saveStep3(event)">
 <label>Recipient name <input id="coRecipient" required value="${esc(checkoutData.recipientName || "")}"></label><label>Address <input id="coAddress" required value="${esc(checkoutData.address || "")}"></label>
 <label>Area <input id="coArea" value="${esc(checkoutData.area || "")}"></label><label>City <input id="coCity" required value="${esc(checkoutData.city || "")}"></label><label>Province <input id="coProvince" value="${esc(checkoutData.province || "Sindh")}"></label>
 <label>Postal code <input id="coPostal" value="${esc(checkoutData.postalCode || "")}"></label><label>Landmark <input id="coLandmark" value="${esc(checkoutData.landmark || "")}"></label>
@@ -311,7 +311,7 @@ async function loadCheckout(step) {
 <p><button class="btn" onclick="saveStep5()">Continue to Summary →</button></p>`,
     6: `<h2>Step 6 — Summary</h2><div id="summaryBox"><p>Loading summary…</p></div><p><a class="btn" href="/checkout?step=7">Continue to Confirm →</a></p>`,
     7: `<h2>Step 7 — Confirm</h2><div id="confirmBox"><p>Review your order and place it. This is idempotent — a duplicate submission creates no second order.</p></div>
-<button class="btn" onclick="placeOrder()">Place Order</button><div id="orderOut"></div>`,
+<button class="btn" id="placeOrderBtn" onclick="placeOrder()">Place Order</button><div id="orderOut"></div>`,
   };
   root.innerHTML = stepHtml[step] || "";
   if (step === 5) renderPayMethods();
@@ -433,21 +433,31 @@ function renderConfirm(lines, subtotal) {
   el.innerHTML = `<p>${lines.length} item(s) · Subtotal ${money(subtotal)} · Payment: ${esc(checkoutData.paymentMethod || "Cash on Delivery")}</p>`;
 }
 async function placeOrder() {
+  // FIX PASS (2026-11-27): disable Place Order while the request is in
+  // flight and keep it disabled after success — the button used to stay
+  // visible/enabled above the confirmation, inviting a double-click (the
+  // server idempotency key already blocked true duplicates; this is the UX
+  // half). The header cart badge is refreshed on success too, so it no
+  // longer shows the stale pre-order count until the next navigation.
+  const btn = document.getElementById("placeOrderBtn");
+  if (btn) btn.disabled = true;
   const cart = await api("getCart", {});
   const items = (cart.items || []).map((i) => ({ productId: i.product.id, qty: i.qty }));
-  if (!items.length) { alert("Your cart is empty."); return; }
+  if (!items.length) { alert("Your cart is empty."); if (btn) btn.disabled = false; return; }
   const method = checkoutData.paymentMethod || "Cash on Delivery";
-  if (method !== "Cash on Delivery" && !checkoutData.paymentSimulated) { alert('"Confirm Payment" is required before placing a non-COD order.'); return; }
+  if (method !== "Cash on Delivery" && !checkoutData.paymentSimulated) { alert('"Confirm Payment" is required before placing a non-COD order.'); if (btn) btn.disabled = false; return; }
   if (!checkoutData.idempotencyKey) { checkoutData.idempotencyKey = "key-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); saveCheckoutData(); }
   const r = await api("createOrder", { ...checkoutData, items, couponCode: checkoutData.couponCode || "", idempotencyKey: checkoutData.idempotencyKey });
   const out = document.getElementById("orderOut");
-  if (!r.ok) { out.innerHTML = "<p><strong>Order failed:</strong> " + esc(r.error || JSON.stringify(r.errors || {})) + "</p>"; return; }
-  if (r.duplicateBlocked) { clearCheckoutData(); out.innerHTML = "<p>Duplicate submission blocked — your original order stands (idempotency).</p>"; return; }
+  if (!r.ok) { out.innerHTML = "<p><strong>Order failed:</strong> " + esc(r.error || JSON.stringify(r.errors || {})) + "</p>"; if (btn) btn.disabled = false; return; }
+  if (r.duplicateBlocked) { clearCheckoutData(); refreshCartCount(); if (btn) btn.textContent = "Order placed ✓"; out.innerHTML = "<p>Duplicate submission blocked — your original order stands (idempotency).</p>"; return; }
   out.innerHTML = `<div class="card light-panel"><h3>Order placed ✓</h3><p>Order <strong>${esc(r.order.orderNumber)}</strong> · Total <strong>${money(r.order.total)}</strong></p>
 <p>Tracking: ${esc(r.order.trackingNumber)} · Courier: ${esc(cleanDemo(r.order.courier))}</p>
 <p>${(r.adjustments || []).map(esc).join("<br>")}</p>
 <p><a class="btn" href="/track">Track Order</a> <a class="btn ghost" href="/account">My Orders</a></p></div>`;
   clearCheckoutData();
+  refreshCartCount();
+  if (btn) btn.textContent = "Order placed ✓";
 }
 async function simulateDelivery(orderId) {
   const r = await api("advanceOrder", { orderId });
@@ -476,7 +486,7 @@ async function loadAccount() {
   let r;
   try { r = await api("getCustomer", {}, { timeoutMs: 15000 }); } catch (e) { root.innerHTML = loadErrorHtml("Network error: " + (e.message || e), "loadAccount()"); return; }
   if (!r.ok || !r.authenticated) {
-    root.innerHTML = `<div class="dash"><h1>Welcome back!</h1><p class="muted">Please sign in to see your own orders — signed-out view shows no orders.</p>
+    root.innerHTML = `<div class="dash"><h1>My Account</h1><p class="muted">Please sign in to see your own orders — signed-out view shows no orders.</p>
 <p><a class="btn" href="/login">Sign In</a> <a class="btn ghost" href="/register">Register</a></p></div>`;
     return;
   }
@@ -523,7 +533,7 @@ async function addressForm(id) {
   const r = await api("listAddresses", {}); lastAddresses = r.addresses || [];
   const a = id ? lastAddresses.find((x) => x.id === id) : null;
   const el = document.getElementById("addrForm"); if (!el) return;
-  el.innerHTML = `<form onsubmit="return doSaveAddress(event, ${id || "null"})" class="card" style="padding:12px;margin:10px 0">
+  el.innerHTML = `<form onsubmit="return doSaveAddress(event, ${id || "null"})" class="card stack" style="padding:12px;margin:10px 0">
 <label>Label <input id="adLabel" value="${esc(a?.label || "Home")}" required></label>
 <label>Recipient <input id="adRecipient" value="${esc(a?.recipient || "")}" required></label>
 <label>Phone <input id="adPhone" value="${esc(a?.phone || "")}" required></label>
@@ -561,7 +571,7 @@ function changeAddress(e) { e.preventDefault(); showAddresses(e); }
 function changePayment(e) { e.preventDefault(); showPayments(e); }
 function changePassword(e) {
   e.preventDefault();
-  acctPanel(`<h3>Security — Change Password</h3><form onsubmit="return doChangePassword(event)">
+  acctPanel(`<h3>Security — Change Password</h3><form class="stack" onsubmit="return doChangePassword(event)">
 <label>Current password <span class="pw"><input id="cpCur" type="password" required><button type="button" onclick="togglePw('cpCur',this)">👁️</button></span></label>
 <label>New password <span class="pw"><input id="cpNew" type="password" required minlength="8"><button type="button" onclick="togglePw('cpNew',this)">👁️</button></span></label>
 <label>Confirm new password <input id="cpNew2" type="password" required minlength="8"></label>

@@ -210,13 +210,24 @@ export function productView(p: any, reviews: any[], questions: any[], related: a
   const price = p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price;
   // C5: omit variant lines with no real value — never a bare "—".
   const variantLines: string[] = [];
-  if (p.colors) variantLines.push(`Colours: ${esc(p.colors)}`);
-  if (p.sizes) variantLines.push(`Sizes: ${esc(p.sizes)}`);
-  if (p.warranty) variantLines.push(`Warranty: ${esc(p.warranty)}`);
+  // FIX PASS (2026-11-27): variant values are stored with "(Demo)" in the
+  // live DB (e.g. warranty "1 year (Demo)") — strip at render time via
+  // dispDesc, same as the specs line below. Stored rows are never rewritten.
+  if (p.colors) variantLines.push(`Colours: ${esc(dispDesc(p.colors))}`);
+  if (p.sizes) variantLines.push(`Sizes: ${esc(dispDesc(p.sizes))}`);
+  if (p.warranty) variantLines.push(`Warranty: ${esc(dispDesc(p.warranty))}`);
+  // FIX PASS (2026-11-27): the header review count/rating must match the
+  // ACTUAL review rows for this product, not the stale seeded aggregates
+  // (e.g. product 25 claimed "(214 reviews)" with zero rows; product 53
+  // claimed "(1 reviews)" with two rows). No reviews are invented.
+  const reviewRows = reviews || [];
+  const reviewCount = reviewRows.length;
+  const reviewAvg = reviewCount ? Math.round((reviewRows.reduce((a: any, r: any) => a + (Number(r.rating) || 0), 0) / reviewCount) * 10) / 10 : null;
+  const reviewHead = reviewCount ? `★ ${reviewAvg} (${reviewCount} review${reviewCount === 1 ? "" : "s"})` : "No reviews yet";
   return layout(dispName(p.name), `<div class="pdetail light-panel">
 <div class="pgallery">${p.images?.length ? `<div class="mainphoto"><img id="mainPhoto" src="${esc(p.images[0].url)}" alt="${esc(dispName(p.name))}" onclick="this.classList.toggle('zoomed')" title="Tap to zoom"></div><div class="thumbs">${p.images.map((i: any, ix: number) => `<img src="${esc(i.url)}" alt="Photo ${ix + 1} of ${esc(dispName(p.name))}" class="${ix === 0 ? "on" : ""}" onclick="swapMainPhoto('${esc(i.url)}', this)">`).join("")}</div>` : `<div class="tile big">${esc(p.tile || "🛍")}</div><p>No photo yet.</p>`}
 </div>
-<div class="pinfo"><h1>${esc(dispName(p.name))}</h1><p class="stars">★ ${p.rating} (${p.reviewsCount} reviews) · ${p.sold} sold</p>
+<div class="pinfo"><h1>${esc(dispName(p.name))}</h1><p class="stars">${reviewHead} · ${p.sold} sold</p>
 <p class="price big">${formatPkr(price)} ${p.salePrice != null && p.salePrice < p.price ? `<s>${formatPkr(p.price)}</s> <span class="off">−${Math.round(((p.price - p.salePrice) / p.price) * 100)}%</span>` : ""}</p>
 <p>${esc(dispDesc(p.shortDesc))}</p><p>${esc(dispDesc(p.description))}</p>
 <p class="soldby">Sold by NEXORA Official Store · Warehouse: ${esc(p.warehouse)}</p>
@@ -255,8 +266,7 @@ export function accountView(details?: BusinessDetails): string {
 // loadWishlist() in app.js from listWishlist (server-scoped key).
 export function wishlistView(details?: BusinessDetails): string {
   return layout("My Wishlist", `<h1>My Wishlist</h1><p class="note">Items you saved — sign in and they follow your account; guests keep them in this browser.</p>
-<div id="wishlistRoot"><p>Loading your wishlist…</p></div>
-<p><a class="btn ghost" href="/shop">Continue shopping →</a></p>`, { details });
+<div id="wishlistRoot"><p>Loading your wishlist…</p></div>`, { details });
 }
 
 export function adminView(details?: BusinessDetails): string {
@@ -342,7 +352,7 @@ export function helpView(details?: BusinessDetails): string {
 <p><strong>Are the product photos final?</strong> The photos are representative images; real product photos will replace them.</p>
 <p><strong>How do I track an order?</strong> Use Track with your order number (NX-…) and tracking number (TRK-…).</p></div>
 <h2 id="support">Contact support</h2>
-<form class="card light-panel" onsubmit="return doCreateTicket(event)"><p class="note">Open a support case — the team replies on your ticket. Sign in first so the reply reaches your account.</p>
+<form class="card light-panel stack" onsubmit="return doCreateTicket(event)"><p class="note">Open a support case — the team replies on your ticket. Sign in first so the reply reaches your account.</p>
 <label>Your name <input id="tkName" required></label>
 <label>Subject <input id="tkSubject" required placeholder="e.g. My order is late"></label>
 <label>Category <select id="tkCategory"><option>General</option><option>Order</option><option>Payment</option><option>Return</option><option>Delivery</option></select></label>
@@ -365,9 +375,9 @@ ${row("Rating", (p) => `★ ${p.rating} (${p.reviewsCount} reviews)`)}
 ${row("Stock", (p) => p.stock <= 0 ? "Out of stock" : String(p.stock))}
 ${row("Brand", (p) => esc(p.brand || "—"))}
 ${row("Category", (p) => esc(p.category || "—"))}
-${row("Colours", (p) => esc(p.colors || "—"))}
-${row("Sizes", (p) => esc(p.sizes || "—"))}
-${row("Warranty", (p) => esc(p.warranty || "—"))}
+${row("Colours", (p) => esc(dispDesc(p.colors || "—")))}
+${row("Sizes", (p) => esc(dispDesc(p.sizes || "—")))}
+${row("Warranty", (p) => esc(dispDesc(p.warranty || "—")))}
 ${row("Specifications", (p) => esc(dispDesc(p.specs || "—")))}
 </table></div><p><a class="btn ghost" href="/shop">Add more from the Shop</a> <button class="btn ghost" onclick="clearCompare()">Clear all</button></p></div>`, { details });
 }
@@ -376,11 +386,21 @@ ${row("Specifications", (p) => esc(dispDesc(p.specs || "—")))}
 // details are configured in settings, and the [OWNER TO SUPPLY]
 // placeholder until the owner supplies them. Never invented.
 export function aboutView(details?: BusinessDetails): string {
-  return layout("About", `<h1>About NEXORA MARKET</h1><div class="card light-panel"><p>NEXORA MARKET is a single-company online store in Pakistan — fashion, phones, wearables, audio, jewelry, beauty and kids' wear, with Cash on Delivery and a 14-day return window.</p>${detailsBlock(details)}</div>`, { details });
+  return layout("About", `<h1>About NEXORA MARKET</h1><div class="card light-panel"><p>NEXORA MARKET is a single-company online store in Pakistan — fashion, phones, wearables, audio, jewelry, beauty and kids' wear, with Cash on Delivery and a 14-day return window.</p>
+<p>This store was built as an <strong>Educational Project</strong> for an AI course assignment: a working demonstration of a complete online store — product catalogue, cart, checkout, customer accounts, order tracking and an admin dashboard. No real orders or payments are processed here; payments, courier and tracking are recorded for the assignment only. Product photos are representative images until real product photos are supplied.</p>${detailsBlock(details)}</div>`, { details });
 }
 
 export function contactView(details?: BusinessDetails): string {
-  return layout("Contact", `<h1>Contact Us</h1><div class="card light-panel"><p>Questions about an order, a return or a product? Reach the store below — or open a support case from the <a href="/help">Help Center</a>.</p>${detailsBlock(details)}</div>`, { details });
+  return layout("Contact", `<h1>Contact Us</h1><div class="card light-panel"><p>Questions about an order, a return or a product? Open a support case below — the team replies on your ticket. No email or phone contact is published yet; the support case is the way to reach the store.</p>${detailsBlock(details)}</div>
+<h2>Open a support case</h2>
+<form class="card light-panel stack" onsubmit="return doCreateTicket(event)"><p class="note">Open a support case — the team replies on your ticket. Sign in first so the reply reaches your account.</p>
+<label>Your name <input id="tkName" required></label>
+<label>Subject <input id="tkSubject" required placeholder="e.g. My order is late"></label>
+<label>Category <select id="tkCategory"><option>General</option><option>Order</option><option>Payment</option><option>Return</option><option>Delivery</option></select></label>
+<label>Order number (optional) <input id="tkOrder" placeholder="NX-…"></label>
+<label>Describe the problem <textarea id="tkDesc" required rows="4"></textarea></label>
+<button class="btn">Open support case</button></form><div id="ticketResult"></div>
+<p><a class="btn ghost" href="/help">Help Center</a> <a class="btn ghost" href="/track">Track an order</a></p>`, { details });
 }
 
 export { REFUND_STAGE_LABELS };

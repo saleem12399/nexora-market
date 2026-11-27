@@ -16,6 +16,19 @@ export function dispName(s: any): string {
   return String(s ?? "").replace(/ \(Demo\)$/, "");
 }
 
+// Display text: strip stored demo wording from live-DB text at render time
+// (reviews, Q&A, notifications, merchant names). Live rows were seeded
+// before the seed cleanup, so their "(Demo)" / "demo use" / "demo purchase"
+// / "— simulated demo event" phrasing survives in the DB; never rewrite rows.
+export function cleanText(s: any): string {
+  let t = String(s ?? "");
+  t = t.replace(/ \(Demo\)/g, "").replace(/ \(Demo Simulated\)/g, "").replace(/ \(demo simulation\)/g, "");
+  t = t.replace(/Demo Simulation — /g, "").replace(/ — demo only, no charge/g, "").replace(/ — simulated demo event\./g, ".");
+  t = t.replace(/ in demo data\./g, ".").replace(/ in the demo simulation\./g, ".").replace(/demo electronics/g, "electronics");
+  t = t.replace(/demo purchase/g, "purchase").replace(/demo use/g, "use");
+  return t.replace(/\s{2,}/g, " ").trim();
+}
+
 // Display description: strip the seed "Demo product: ... DEMO DATA" wording
 // and its special clauses (medical claims, gold plating, stock demo,
 // AI-features, not-a-real-offer, out-of-stock demo, cosmetic demo).
@@ -114,7 +127,7 @@ ${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-te
 <div class="trust">📦 <strong>12-step order tracking</strong><span>From Pending to Delivered, end to end.</span></div>
 <div class="trust">💬 <strong>Help Center &amp; support</strong><span>FAQs, support cases and ticket replies.</span></div></div></section>`;
     } else if (sec.key === "reviews") {
-      html += `<section><h2>What Customers Say</h2><div class="revgrid">${(h.reviews || []).map((r: any) => `<div class="review"><strong>${esc(dispName(r.productName || ""))}</strong><div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div><p>${esc(r.text)}</p><small>— ${esc(r.customerName)} ${r.verified ? "· Verified purchase" : ""}</small></div>`).join("")}</div></section>`;
+      html += `<section><h2>What Customers Say</h2><div class="revgrid">${(h.reviews || []).map((r: any) => `<div class="review"><strong>${esc(dispName(r.productName || ""))}</strong><div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div><p>${esc(cleanText(r.text))}</p><small>— ${esc(dispName(r.customerName))} ${r.verified ? "· Verified purchase" : ""}</small></div>`).join("")}</div></section>`;
     }
   }
   return layout("Home", html);
@@ -135,7 +148,7 @@ export function shopView(data: any, q: any): string {
 <form class="filters" method="get" action="/shop">
 <input type="hidden" name="category" value="${esc(q.category || "")}">
 <label>Subcategory <select name="subcategory"><option value="">All</option>${subs.map((c: any) => `<option ${q.subcategory === c.name ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
-<label>Search <input name="search" list="sugg" value="${esc(q.search || "")}" placeholder="Search products…"><datalist id="sugg">${(data.suggestions || []).map((s: string) => `<option value="${esc(s)}">`).join("")}</datalist></label>
+<label>Search <input name="search" list="sugg" value="${esc(q.search || "")}" placeholder="Search products…"><datalist id="sugg">${(data.suggestions || []).map((s: string) => `<option value="${esc(dispName(s))}">`).join("")}</datalist></label>
 <label>Sort <select name="sort"><option value="">Relevance</option><option value="biggest-discount" ${q.sort === "biggest-discount" ? "selected" : ""}>Biggest discount</option><option value="price-asc" ${q.sort === "price-asc" ? "selected" : ""}>Price: low to high</option><option value="price-desc" ${q.sort === "price-desc" ? "selected" : ""}>Price: high to low</option><option value="rating" ${q.sort === "rating" ? "selected" : ""}>Top rated</option><option value="newest" ${q.sort === "newest" ? "selected" : ""}>Newest</option></select></label>
 <label><input type="checkbox" name="inStock" value="1" ${q.inStock ? "checked" : ""}> In stock only</label>
 <label><input type="checkbox" name="onDiscount" value="1" ${q.onDiscount ? "checked" : ""}> On discount</label>
@@ -166,8 +179,8 @@ export function productView(p: any, reviews: any[], questions: any[]): string {
 ${p.category === "Mobile Phones" ? "<p>PTA note: check PTA approval status for this device before use in Pakistan.</p>" : ""}
 ${p.category === "Smart Wearables" ? "<p>Smart-glasses note: frame, lens, camera, audio, Bluetooth, battery and compatibility are listed in the specifications above.</p>" : ""}
 </div></div>
-<section><h2>Reviews</h2>${reviews.map((r: any) => `<div class="review"><strong>${esc(r.customerName)}</strong> ${"★".repeat(r.rating)}<p>${esc(r.text)}</p>${r.sellerReply ? `<p class="reply">NEXORA reply: ${esc(r.sellerReply)}</p>` : ""}</div>`).join("") || "<p>No reviews yet.</p>"}</section>
-<section><h2>Questions &amp; Answers</h2>${questions.map((x: any) => `<div class="review"><p><strong>Q:</strong> ${esc(x.question)} — ${esc(x.customerName)}</p><p><strong>A:</strong> ${esc(x.answer || "Not answered yet.")}</p></div>`).join("") || "<p>No questions yet.</p>"}</section>`);
+<section><h2>Reviews</h2>${reviews.map((r: any) => `<div class="review"><strong>${esc(dispName(r.customerName))}</strong> ${"★".repeat(r.rating)}<p>${esc(cleanText(r.text))}</p>${r.sellerReply ? `<p class="reply">NEXORA reply: ${esc(r.sellerReply)}</p>` : ""}</div>`).join("") || "<p>No reviews yet.</p>"}</section>
+<section><h2>Questions &amp; Answers</h2>${questions.map((x: any) => `<div class="review"><p><strong>Q:</strong> ${esc(cleanText(x.question))} — ${esc(dispName(x.customerName))}</p><p><strong>A:</strong> ${esc(cleanText(x.answer || "Not answered yet."))}</p></div>`).join("") || "<p>No questions yet.</p>"}</section>`);
 }
 
 export function trackView(): string {
@@ -230,7 +243,7 @@ export function policyView(page: string): string {
 
 export function merchantsView(merchants: any[]): string {
   return layout("Merchants", `<h1>Merchants</h1><p class="note">A directory of the featured stores in NEXORA MARKET.</p>
-<div class="grid">${merchants.map((m: any) => `<div class="card light-panel"><h3>${esc(m.storeName)}</h3><p>${esc(m.ownerName)} · ${esc(m.city)}</p><p>Focus: ${esc(m.categoryFocus)}</p><p>★ ${m.rating} (${m.reviewsCount} reviews) · ${esc(m.verification)} · Joined ${esc(m.joined)}</p></div>`).join("")}</div>`);
+<div class="grid">${merchants.map((m: any) => `<div class="card light-panel"><h3>${esc(dispName(m.storeName))}</h3><p>${esc(dispName(m.ownerName))} · ${esc(m.city)}</p><p>Focus: ${esc(m.categoryFocus)}</p><p>★ ${m.rating} (${m.reviewsCount} reviews) · ${esc(m.verification)} · Joined ${esc(m.joined)}</p></div>`).join("")}</div>`);
 }
 
 export function helpView(): string {

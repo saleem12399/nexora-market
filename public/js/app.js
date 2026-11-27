@@ -22,7 +22,7 @@ function money(n) { return "Rs. " + Number(n || 0).toLocaleString("en-PK"); }
 function dispName(s) { return String(s == null ? "" : s).replace(/ \(Demo\)$/, ""); }
 function cleanDemo(s) {
   let t = String(s == null ? "" : s);
-  t = t.replace("Demo Simulation — ", "").replace(" (Demo Simulated)", "").replace(" (demo simulation)", "").replace(" — demo only, no charge", "").replace(" — Demo", "").replace(" (Demo)", "");
+  t = t.replace("Demo Simulation — ", "").replace(" (Demo Simulated)", "").replace(" (demo simulation)", "").replace(" — demo only, no charge", "").replace(" — Demo", "").replace(" (Demo)", "").replace(" — simulated demo event.", ".").replace(" in demo data.", ".").replace(" in the demo simulation.", ".").replace("demo electronics", "electronics").replace("demo purchase", "purchase").replace("demo use", "use");
   return t;
 }
 
@@ -386,7 +386,7 @@ async function showReturns(e) { e.preventDefault(); const r = await api("listRet
 async function showRefunds(e) { e.preventDefault(); const r = await api("listReturns", { mine: true }); acctPanel("<h3>My Refunds — 9-stage tracker</h3>" + (r.returns || []).map((x) => `<p>${esc(x.returnNumber)}: stage ${x.refundStage}/8 — ${esc(cleanDemo(x.stageLabel))}</p>`).join("") || "<p>No refunds in progress.</p>"); }
 async function showPayments(e) { e.preventDefault(); const r = await api("listPaymentTransactions", {}); const my = await api("listMyOrders", {}); const nums = new Set((my.orders || []).map((o) => o.orderNumber)); acctPanel("<h3>Payment History</h3>" + (r.transactions || []).filter((t) => nums.has(t.orderNumber)).map((t) => `<p>${esc(t.orderNumber)} — ${esc(cleanDemo(t.method))} — ${esc(t.account || "")} — ${esc(t.reference || "")} — ${esc(cleanDemo(t.status))} — ${money(t.amount)}</p>`).join("") || "<p>No payments yet.</p>"); }
 async function showAddresses(e) { e.preventDefault(); const r = await api("listAddresses", {}); acctPanel("<h3>Saved Addresses</h3>" + (r.addresses || []).map((a) => `<p><strong>${esc(a.label)}</strong> — ${esc(a.recipient)}, ${esc(a.address)}, ${esc(a.city)} ${esc(a.postalCode)} ${a.isDefault ? "(Default)" : ""}</p>`).join("") || "<p>No saved address yet.</p>"); }
-async function showNotifs(e) { e.preventDefault(); const r = await api("listNotifications", {}); await api("markNotificationsRead", {}); acctPanel("<h3>Notifications</h3><p class='note'>Opening notifications marks them all read.</p>" + (r.notifications || []).slice(0, 10).map((n) => `<p><strong>${esc(n.title)}</strong> — ${esc(n.body)}</p>`).join("")); }
+async function showNotifs(e) { e.preventDefault(); const r = await api("listNotifications", {}); await api("markNotificationsRead", {}); acctPanel("<h3>Notifications</h3><p class='note'>Opening notifications marks them all read.</p>" + (r.notifications || []).slice(0, 10).map((n) => `<p><strong>${esc(cleanDemo(n.title))}</strong> — ${esc(cleanDemo(n.body))}</p>`).join("")); }
 function changeName(e) { e.preventDefault(); const n = prompt("New name:"); if (!n) return; api("updateCustomerProfile", { name: n }).then(() => loadAccount()); }
 function changeAddress(e) { e.preventDefault(); showAddresses(e); }
 function changePayment(e) { e.preventDefault(); showPayments(e); }

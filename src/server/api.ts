@@ -1379,6 +1379,20 @@ export function registerApi(app: Express) {
     });
   });
 
+  // Phase 5 (F6): read-only. Migration 0007 counts orphan rows for the four
+  // NOT VALID FKs and stores the counts in settings key "fkOrphanCounts".
+  // This action exposes ONLY those four integers (no PII, no credentials);
+  // it reads one settings key and never writes. Public so the counts can be
+  // verified without a staff session.
+  a("getFkOrphanCounts", async (_req, res, db) => {
+    const row = (await db.select().from(s.settings).where(eq(s.settings.key, "fkOrphanCounts")))[0];
+    if (!row) { res.json({ ok: true, available: false, note: "FK orphan counts have not been recorded yet (migration 0007 has not run)." }); return; }
+    let counts: any = null;
+    try { counts = JSON.parse(row.value); } catch { counts = null; }
+    if (!counts || typeof counts !== "object") { res.json({ ok: true, available: false, note: "Stored fkOrphanCounts value is not valid JSON." }); return; }
+    res.json({ ok: true, available: true, counts });
+  });
+
   a("ownerSetup", async (req, res, db) => {
     if (rateLimited("owner-setup:ip:" + clientIp(req), 5, 60 * 60 * 1000)) { res.status(429).json(rateLimitBody()); return; }
     if (await ownerSetupDone(db)) { res.status(410).json({ ok: false, error: "Owner setup is already complete. Sign in at /admin." }); return; }

@@ -8,7 +8,7 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import type { Express, Request, Response } from "express";
-import { and, asc, desc, eq, gte, inArray, like, lt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, like, lt, lte, ne, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import * as s from "../db/schema";
 import { hashPassword, hashSessionToken, isLegacySha256Hash, newResetToken, newSessionToken, RESET_TOKEN_TTL_MS, SESSION_TTL_MS, verifyLegacySha256, verifyPassword } from "../lib/auth";
@@ -29,7 +29,7 @@ function dbOr503(res: Response): Db | null {
   return db;
 }
 
-async function audit(db: Db, action: string, actor: string, detail: string) {
+async function audit(db: TxDb, action: string, actor: string, detail: string) {
   try { await db.insert(s.auditLogs).values({ action, actor, detail, createdAt: Date.now() }); } catch { /* audit must never break the action */ }
 }
 
@@ -46,6 +46,18 @@ async function audit(db: Db, action: string, actor: string, detail: string) {
 export class StaffAuthRequiredError extends Error {
   constructor() { super("Staff sign-in required — no staff role was supplied."); this.name = "StaffAuthRequiredError"; }
 }
+
+// F4: a business failure inside a multi-write flow must THROW so the
+// Drizzle transaction rolls back, instead of returning {ok:false} after
+// partial writes have already happened.
+export class OrderError extends Error {
+  status: number; errors?: any;
+  constructor(status: number, message: string, errors?: any) { super(message); this.name = "OrderError"; this.status = status; this.errors = errors; }
+}
+
+// The transaction client type (for placeOrderInternal/cancelOrder/
+// updateReturn, which run inside db.transaction).
+type TxDb = Db | Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 // Staff session cookie (HttpOnly). The same token is accepted as a Bearer
 // token for API/curl use; the cookie is what the browser admin UI uses.
@@ -214,6 +226,30 @@ async function productWithImages(db: Db, p: any) {
     images: imgs.map((i: any) => ({ id: i.id, url: imageUrlOf(i), storageKey: i.storageKey, fileName: i.fileName, sortOrder: i.sortOrder, isSample: !!i.isSample })),
     imageUrl: imgs[0] ? imageUrlOf(imgs[0]) : "", imageIsSample: imgs[0] ? !!imgs[0].isSample : false,
   };
+}
+
+// F1: batch-load product images — ONE SELECT ... WHERE productId IN (...)
+// for a whole page/list, instead of one SELECT per product (N+1). The
+// shape is identical to productWithImages; images stay ordered by
+// sortOrder within each product.
+async function productsWithImages(db: Db, products: any[]) {
+  if (!products.length) return [];
+  const ids = products.map((p: any) => p.id);
+  const imgs = await db.select().from(s.productImages).where(inArray(s.productImages.productId, ids)).orderBy(asc(s.productImages.sortOrder));
+  const byProduct = new Map<number, any[]>();
+  for (const img of imgs) {
+    const arr = byProduct.get(img.productId) || [];
+    arr.push(img);
+    byProduct.set(img.productId, arr);
+  }
+  return products.map((p: any) => {
+    const list = byProduct.get(p.id) || [];
+    return {
+      ...p, sellerName: OFFICIAL_STORE_NAME,
+      images: list.map((i: any) => ({ id: i.id, url: imageUrlOf(i), storageKey: i.storageKey, fileName: i.fileName, sortOrder: i.sortOrder, isSample: !!i.isSample })),
+      imageUrl: list[0] ? imageUrlOf(list[0]) : "", imageIsSample: list[0] ? !!list[0].isSample : false,
+    };
+  });
 }
 
 function orderNumber(): string { return `NX-DEMO-${Math.floor(10000000 + Math.random() * 89999999)}`; }
@@ -423,35 +459,38 @@ export function registerApi(app: Express) {
   // ---- 5.2 Catalogue ----
   a("listProducts", async (req, res, db) => {
     const b = req.body || {};
-    let rows = await db.select().from(s.products).orderBy(asc(s.products.id));
-    if (b.category) rows = rows.filter((p: any) => p.category === b.category);
-    if (b.subcategory) rows = rows.filter((p: any) => p.subcategory === b.subcategory);
-    if (b.search) { const q = String(b.search).toLowerCase(); rows = rows.filter((p: any) => (p.name + " " + p.brand + " " + p.sku).toLowerCase().includes(q)); }
-    if (b.minPrice != null) rows = rows.filter((p: any) => p.price >= b.minPrice);
-    if (b.maxPrice != null) rows = rows.filter((p: any) => p.price <= b.maxPrice);
-    if (b.minRating != null) rows = rows.filter((p: any) => p.rating >= b.minRating);
-    if (b.inStock) rows = rows.filter((p: any) => p.stock > 0);
-    if (b.onDiscount) rows = rows.filter((p: any) => p.salePrice != null && p.salePrice < p.price);
-    // B1: /shop?flash=1 shows EXACTLY the 11-product flash pool (isFlash
-    // and actually discounted) — not the 44 all-discounted products.
-    if (b.flash) rows = rows.filter((p: any) => p.isFlash && p.salePrice != null && p.salePrice < p.price);
-    if (b.color) rows = rows.filter((p: any) => (p.colors || "").toLowerCase().includes(String(b.color).toLowerCase()));
-    if (b.size) rows = rows.filter((p: any) => (p.sizes || "").includes(String(b.size)));
-    // B6: price sorts use the EFFECTIVE (sale) price, not the list price.
-    const effPrice = (p: any) => (p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price);
-    if (b.sort === "biggest-discount") rows.sort((x: any, y: any) => ((y.salePrice != null ? (y.price - y.salePrice) / y.price : 0) - (x.salePrice != null ? (x.price - x.salePrice) / x.price : 0)));
-    else if (b.sort === "price-asc") rows.sort((x: any, y: any) => effPrice(x) - effPrice(y));
-    else if (b.sort === "price-desc") rows.sort((x: any, y: any) => effPrice(y) - effPrice(x));
-    else if (b.sort === "rating") rows.sort((x: any, y: any) => y.rating - x.rating);
-    // B7: newest sorts by published_at (backfilled from seed order), with
-    // id as the tie-break so the order is stable.
-    else if (b.sort === "newest") rows.sort((x: any, y: any) => (Number(y.publishedAt ?? 0) - Number(x.publishedAt ?? 0)) || (y.id - x.id));
-    const total = rows.length;
+    // F2: filters, sort, limit/offset and the COUNT all run in SQL now
+    // (the old code fetched every product and filtered/sorted in JS).
+    // B6: price sorts use the EFFECTIVE (sale) price; B7: newest sorts
+    // by published_at; B1: flash is the 11-product pool.
+    const effPrice = sql`CASE WHEN ${s.products.salePrice} IS NOT NULL AND ${s.products.salePrice} < ${s.products.price} THEN ${s.products.salePrice} ELSE ${s.products.price} END`;
+    const discountFrac = sql`CASE WHEN ${s.products.salePrice} IS NOT NULL AND ${s.products.salePrice} < ${s.products.price} THEN (${s.products.price} - ${s.products.salePrice})::float / ${s.products.price} ELSE 0 END`;
+    const escLike = (v: string) => String(v).replace(/[%_\\]/g, "\\$&");
+    const conds: any[] = [];
+    if (b.category) conds.push(eq(s.products.category, b.category));
+    if (b.subcategory) conds.push(eq(s.products.subcategory, b.subcategory));
+    if (b.search) conds.push(like(sql`lower(${s.products.name} || ' ' || ${s.products.brand} || ' ' || ${s.products.sku})`, `%${escLike(String(b.search).toLowerCase())}%`));
+    if (b.minPrice != null) conds.push(gte(s.products.price, Number(b.minPrice)));
+    if (b.maxPrice != null) conds.push(lte(s.products.price, Number(b.maxPrice)));
+    if (b.minRating != null) conds.push(gte(s.products.rating, Number(b.minRating)));
+    if (b.inStock) conds.push(sql`${s.products.stock} > 0`);
+    if (b.onDiscount) conds.push(sql`${s.products.salePrice} IS NOT NULL AND ${s.products.salePrice} < ${s.products.price}`);
+    if (b.flash) conds.push(and(eq(s.products.isFlash, true), sql`${s.products.salePrice} IS NOT NULL AND ${s.products.salePrice} < ${s.products.price}`));
+    if (b.color) conds.push(like(sql`lower(${s.products.colors})`, `%${escLike(String(b.color).toLowerCase())}%`));
+    if (b.size) conds.push(like(s.products.sizes, `%${escLike(String(b.size))}%`));
+    const where = conds.length ? and(...conds) : undefined;
+    let orderBy: any[] = [asc(s.products.id)];
+    if (b.sort === "biggest-discount") orderBy = [desc(discountFrac), asc(s.products.id)];
+    else if (b.sort === "price-asc") orderBy = [asc(effPrice), asc(s.products.id)];
+    else if (b.sort === "price-desc") orderBy = [desc(effPrice), asc(s.products.id)];
+    else if (b.sort === "rating") orderBy = [desc(s.products.rating), asc(s.products.id)];
+    else if (b.sort === "newest") orderBy = [desc(s.products.publishedAt), desc(s.products.id)];
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.products).where(where))[0]?.n || 0);
     const limit = Math.min(100, Number(b.limit || 48));
-    const offset = Number(b.offset || 0);
-    const page = rows.slice(offset, offset + limit);
-    const out = [];
-    for (const p of page) out.push(await productWithImages(db, p));
+    const offset = Math.max(0, Number(b.offset || 0));
+    const page = await db.select().from(s.products).where(where).orderBy(...orderBy).limit(limit).offset(offset);
+    // F1: one image query for the whole page.
+    const out = await productsWithImages(db, page);
     const suggestions = b.search ? out.slice(0, 8).map((p: any) => p.name) : [];
     res.json({ ok: true, products: out, total, suggestions });
   });
@@ -610,11 +649,14 @@ export function registerApi(app: Express) {
   a("getCart", async (req, res, db) => {
     const key = await cartKey(db, req, res);
     const lines = await db.select().from(s.cartItems).where(eq(s.cartItems.customerEmail, key));
+    // F1: one product query + one image query for the whole cart.
+    const pids = [...new Set(lines.map((l: any) => l.productId))];
+    const prods = pids.length ? await db.select().from(s.products).where(inArray(s.products.id, pids)) : [];
+    const fullById = new Map((await productsWithImages(db, prods)).map((p: any) => [p.id, p]));
     const out = [];
     for (const l of lines) {
-      const p = (await db.select().from(s.products).where(eq(s.products.id, l.productId)))[0];
-      if (!p) continue;
-      const full = await productWithImages(db, p);
+      const full = fullById.get(l.productId);
+      if (!full) continue;
       out.push({ ...l, product: full, imageUrl: full.imageUrl, isSample: full.imageIsSample });
     }
     res.json({ ok: true, items: out });
@@ -663,8 +705,12 @@ export function registerApi(app: Express) {
   a("listWishlist", async (req, res, db) => {
     const key = await cartKey(db, req, res);
     const rows = await db.select().from(s.wishlistItems).where(eq(s.wishlistItems.customerEmail, key));
+    // F1: one product query + one image query for the whole list.
+    const pids = [...new Set(rows.map((r: any) => r.productId))];
+    const prods = pids.length ? await db.select().from(s.products).where(inArray(s.products.id, pids)) : [];
+    const fullById = new Map((await productsWithImages(db, prods)).map((p: any) => [p.id, p]));
     const out = [];
-    for (const r of rows) { const p = (await db.select().from(s.products).where(eq(s.products.id, r.productId)))[0]; if (p) out.push(await productWithImages(db, p)); }
+    for (const r of rows) { const p = fullById.get(r.productId); if (p) out.push(p); }
     res.json({ ok: true, items: out, count: out.length });
   });
 
@@ -706,11 +752,11 @@ export function registerApi(app: Express) {
     res.json({ ok: true, code: c.code, discount: v.discount, discountType: c.discountType, value: c.value });
   });
 
-  async function placeOrderInternal(db: Db, b: any) {
+  async function placeOrderInternal(db: TxDb, b: any) {
     const v = validateCustomerInfo({ email: b.customerEmail, phone: b.customerPhone, name: b.customerName });
-    if (!v.ok) return { ok: false, status: 400, errors: v.errors };
+    if (!v.ok) throw new OrderError(400, "", v.errors);
     const items: { productId: number; qty: number }[] = b.items || [];
-    if (!items.length) return { ok: false, status: 400, error: "Your cart is empty." };
+    if (!items.length) throw new OrderError(400, "Your cart is empty.");
     const idempotencyKey = String(b.idempotencyKey || b.idempotency_key || "");
     if (idempotencyKey) {
       const dup = (await db.select().from(s.orders).where(eq(s.orders.idempotencyKey, idempotencyKey)))[0];
@@ -721,11 +767,11 @@ export function registerApi(app: Express) {
     const adjustments: string[] = [];
     for (const it of items) {
       const p = (await db.select().from(s.products).where(eq(s.products.id, Number(it.productId))))[0];
-      if (!p) return { ok: false, status: 400, error: `Product ${it.productId} not found.` };
+      if (!p) throw new OrderError(400, `Product ${it.productId} not found.`);
       const price = p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price;
       let qty = Math.max(1, Number(it.qty || 1));
       if (qty > p.stock) { adjustments.push(`${p.name}: quantity reduced from ${qty} to ${p.stock} (available stock).`); qty = p.stock; }
-      if (qty <= 0) return { ok: false, status: 400, error: `${p.name} is out of stock.` };
+      if (qty <= 0) throw new OrderError(400, `${p.name} is out of stock.`);
       subtotal += price * qty;
       lines.push({ product: p, price, qty });
     }
@@ -765,8 +811,13 @@ export function registerApi(app: Express) {
     }).returning())[0];
     for (const l of lines) {
       await db.insert(s.orderItems).values({ orderId: order.id, productId: l.product.id, productName: l.product.name, price: l.price, qty: l.qty, sellerId: 0 });
+      // F5: atomic stock decrement — one UPDATE that only succeeds while
+      // enough stock remains. If another order took the stock first, this
+      // affects 0 rows and the whole order rolls back (F4) instead of
+      // selling stock that is not there.
       const newStock = l.product.stock - l.qty;
-      await db.update(s.products).set({ stock: newStock }).where(eq(s.products.id, l.product.id));
+      const dec: any = await db.execute(sql`UPDATE "products" SET "stock" = "stock" - ${l.qty} WHERE "id" = ${l.product.id} AND "stock" >= ${l.qty}`);
+      if ((dec?.rowCount ?? 0) === 0) throw new OrderError(400, `${l.product.name} is out of stock.`);
       await db.insert(s.inventoryMovements).values({ productId: l.product.id, sku: l.product.sku, type: "Order Reserved (Stock-Out)", qty: -l.qty, balanceAfter: newStock, reference: on, actor: "System", note: `Reserved for order ${on} at checkout`, createdAt: now });
     }
     await db.insert(s.orderEvents).values({ orderId: order.id, status: "Pending", note: `Order placed. Payment: ${paymentMethod}${isCod ? " — cash collected on delivery." : ` from ${b.paymentAccount || ""}, Transaction ${paymentRef} recorded.`}`, location: "NEXORA Karachi Central", actor: "System", createdAt: now });
@@ -789,8 +840,17 @@ export function registerApi(app: Express) {
   }
 
   a("createOrder", async (req, res, db) => {
-    const r = await placeOrderInternal(db, req.body || {});
-    if (!r.ok) { res.status(r.status || 400).json({ ok: false, error: r.error, errors: (r as any).errors }); return; }
+    let r;
+    try {
+      // F4: the whole order (order + items + stock + movements + events +
+      // payment + coupon + notification) commits or rolls back together.
+      r = await db.transaction(async (tx) => placeOrderInternal(tx, req.body || {}));
+    } catch (e) {
+      if (e instanceof OrderError) { res.status(e.status).json({ ok: false, error: e.message || undefined, errors: e.errors }); return; }
+      throw e;
+    }
+    // placeOrderInternal either returns {ok:true} or throws OrderError —
+    // there is no {ok:false} return left (F4 rollback needs the throw).
     // Clear the buyer's cart lines for the ordered products.
     if (req.body?.clearCart !== false) {
       const key = await cartKey(db, req, res);
@@ -863,30 +923,37 @@ export function registerApi(app: Express) {
     if (order.status === "Cancelled") { res.status(400).json({ ok: false, error: "This order is already cancelled." }); return; }
     if (order.status === "Delivered") { res.status(400).json({ ok: false, error: "A delivered order cannot be cancelled — please request a return instead." }); return; }
     if (["Shipped", "In Transit", "Arrived at Sorting Facility", "Arrived in Destination City", "Out for Delivery"].includes(order.status)) {
-      await db.insert(s.orderEvents).values({ orderId: order.id, status: order.status, note: `Cancellation requested while ${order.status} — refusal workflow: courier return requested. Reason: ${reason}`, location: "NEXORA Express", actor: "System", createdAt: now });
-      await db.insert(s.notifications).values({ title: "Cancellation requested", body: `${order.orderNumber} is already ${order.status}; a courier return has been requested.`, type: "Order", isRead: false, customerId: notifCust?.id ?? null, createdAt: now });
-      await audit(db, "Order cancellation requested (shipped)", actor, `${order.orderNumber} — ${order.status}`);
+      // F4: refusal workflow writes together or not at all.
+      await db.transaction(async (tx) => {
+        await tx.insert(s.orderEvents).values({ orderId: order.id, status: order.status, note: `Cancellation requested while ${order.status} — refusal workflow: courier return requested. Reason: ${reason}`, location: "NEXORA Express", actor: "System", createdAt: now });
+        await tx.insert(s.notifications).values({ title: "Cancellation requested", body: `${order.orderNumber} is already ${order.status}; a courier return has been requested.`, type: "Order", isRead: false, customerId: notifCust?.id ?? null, createdAt: now });
+        await audit(tx, "Order cancellation requested (shipped)", actor, `${order.orderNumber} — ${order.status}`);
+      });
       res.json({ ok: true, refused: true, message: "The order has already shipped — a courier return was requested instead of an instant cancellation." });
       return;
     }
     const prepaid = order.paymentStatus.startsWith("Paid (Demo Simulated)") || order.paymentStatus.startsWith("Paid • Ref");
-    await db.update(s.orders).set({ status: "Cancelled", cancelReason: reason, paymentStatus: prepaid ? "Refund Pending" : order.paymentStatus }).where(eq(s.orders.id, order.id));
-    await db.insert(s.orderEvents).values({ orderId: order.id, status: "Cancelled", note: `Order cancelled. Reason: ${reason}`, location: "NEXORA Head Office", actor: "System", createdAt: now });
-    // Release reserved stock (checkout-placed orders only).
-    const items = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, order.id));
-    for (const it of items) {
-      if (!it.productId) continue;
-      const p = (await db.select().from(s.products).where(eq(s.products.id, it.productId)))[0];
-      if (!p) continue;
-      const newStock = p.stock + it.qty;
-      await db.update(s.products).set({ stock: newStock }).where(eq(s.products.id, p.id));
-      await db.insert(s.inventoryMovements).values({ productId: p.id, sku: p.sku, type: "Order Cancelled (Stock-In)", qty: it.qty, balanceAfter: newStock, reference: order.orderNumber, actor: "System", note: `Stock released for cancelled order ${order.orderNumber}`, createdAt: now });
-    }
-    if (prepaid) {
-      await db.insert(s.paymentTransactions).values({ orderId: order.id, orderNumber: order.orderNumber, method: order.paymentMethod, provider: order.paymentMethod.replace(" (Demo)", ""), account: order.paymentAccount, reference: order.paymentRef, amount: order.total, status: "Refund Pending", mode: PAYMENT_MODE_DEMO, createdAt: now });
-    }
-    await db.insert(s.notifications).values({ title: "Order cancelled", body: `${order.orderNumber} was cancelled. ${prepaid ? "Refund Pending." : ""}`, type: "Order", isRead: false, customerId: notifCust?.id ?? null, createdAt: now });
-    await audit(db, "Order cancelled", actor, `${order.orderNumber} — ${reason}`);
+    // F4: the whole cancellation (status + event + stock release + refund
+    // record + notification + audit) commits or rolls back together.
+    await db.transaction(async (tx) => {
+      await tx.update(s.orders).set({ status: "Cancelled", cancelReason: reason, paymentStatus: prepaid ? "Refund Pending" : order.paymentStatus }).where(eq(s.orders.id, order.id));
+      await tx.insert(s.orderEvents).values({ orderId: order.id, status: "Cancelled", note: `Order cancelled. Reason: ${reason}`, location: "NEXORA Head Office", actor: "System", createdAt: now });
+      // Release reserved stock (checkout-placed orders only).
+      const items = await tx.select().from(s.orderItems).where(eq(s.orderItems.orderId, order.id));
+      for (const it of items) {
+        if (!it.productId) continue;
+        const p = (await tx.select().from(s.products).where(eq(s.products.id, it.productId)))[0];
+        if (!p) continue;
+        const newStock = p.stock + it.qty;
+        await tx.update(s.products).set({ stock: newStock }).where(eq(s.products.id, p.id));
+        await tx.insert(s.inventoryMovements).values({ productId: p.id, sku: p.sku, type: "Order Cancelled (Stock-In)", qty: it.qty, balanceAfter: newStock, reference: order.orderNumber, actor: "System", note: `Stock released for cancelled order ${order.orderNumber}`, createdAt: now });
+      }
+      if (prepaid) {
+        await tx.insert(s.paymentTransactions).values({ orderId: order.id, orderNumber: order.orderNumber, method: order.paymentMethod, provider: order.paymentMethod.replace(" (Demo)", ""), account: order.paymentAccount, reference: order.paymentRef, amount: order.total, status: "Refund Pending", mode: PAYMENT_MODE_DEMO, createdAt: now });
+      }
+      await tx.insert(s.notifications).values({ title: "Order cancelled", body: `${order.orderNumber} was cancelled. ${prepaid ? "Refund Pending." : ""}`, type: "Order", isRead: false, customerId: notifCust?.id ?? null, createdAt: now });
+      await audit(tx, "Order cancelled", actor, `${order.orderNumber} — ${reason}`);
+    });
     res.json({ ok: true, cancelled: true, refundPending: prepaid });
   });
 
@@ -1500,20 +1567,23 @@ export function registerApi(app: Express) {
     const ret = (await db.select().from(s.returns).where(eq(s.returns.id, Number(req.body?.id))))[0];
     if (!ret) { res.status(404).json({ ok: false, error: "Return not found." }); return; }
     const stage = Math.min(8, Math.max(0, Number(req.body?.refundStage ?? ret.refundStage + 1)));
-    await db.update(s.returns).set({ refundStage: stage, status: REFUND_STAGE_LABELS[stage] }).where(eq(s.returns.id, ret.id));
-    if (stage === 4) {
-      // Restock once, reference-guarded against duplicates.
-      const ref = `RET-${ret.returnNumber}-restock`;
-      const existing = await db.select().from(s.inventoryMovements).where(eq(s.inventoryMovements.reference, ref));
-      if (!existing.length) {
-        const prod = (await db.select().from(s.products).where(eq(s.products.name, ret.productName)))[0];
-        if (prod) {
-          const newStock = prod.stock + ret.qty;
-          await db.update(s.products).set({ stock: newStock }).where(eq(s.products.id, prod.id));
-          await db.insert(s.inventoryMovements).values({ productId: prod.id, sku: prod.sku, type: "Return Restock (Stock-In)", qty: ret.qty, balanceAfter: newStock, reference: ref, actor: staffRoleLabel(req), note: `Restocked at refund stage 4 for ${ret.returnNumber}`, createdAt: Date.now() });
+    // F4: stage update + restock + movement commit or roll back together.
+    await db.transaction(async (tx) => {
+      await tx.update(s.returns).set({ refundStage: stage, status: REFUND_STAGE_LABELS[stage] }).where(eq(s.returns.id, ret.id));
+      if (stage === 4) {
+        // Restock once, reference-guarded against duplicates.
+        const ref = `RET-${ret.returnNumber}-restock`;
+        const existing = await tx.select().from(s.inventoryMovements).where(eq(s.inventoryMovements.reference, ref));
+        if (!existing.length) {
+          const prod = (await tx.select().from(s.products).where(eq(s.products.name, ret.productName)))[0];
+          if (prod) {
+            const newStock = prod.stock + ret.qty;
+            await tx.update(s.products).set({ stock: newStock }).where(eq(s.products.id, prod.id));
+            await tx.insert(s.inventoryMovements).values({ productId: prod.id, sku: prod.sku, type: "Return Restock (Stock-In)", qty: ret.qty, balanceAfter: newStock, reference: ref, actor: staffRoleLabel(req), note: `Restocked at refund stage 4 for ${ret.returnNumber}`, createdAt: Date.now() });
+          }
         }
       }
-    }
+    });
     res.json({ ok: true, stage, label: REFUND_STAGE_LABELS[stage] });
   }, { area: "refunds" });
 
@@ -1801,6 +1871,10 @@ export function registerApi(app: Express) {
     const collections = (await db.select().from(s.homeCollections).where(eq(s.homeCollections.active, true)).orderBy(asc(s.homeCollections.sortOrder)));
     const sections = (await db.select().from(s.homeSections).orderBy(asc(s.homeSections.sortOrder)));
     const products = await db.select().from(s.products).where(eq(s.products.status, "Published")).orderBy(asc(s.products.id));
+    // F1: one image query for the whole homepage — every section below
+    // reuses this map instead of one SELECT per product.
+    const withImages = await productsWithImages(db, products);
+    const byId = new Map(withImages.map((p: any) => [p.id, p]));
     const pool = products.filter((p: any) => p.isFlash && p.salePrice != null && p.salePrice < p.price);
     const flashRow = computeFlashRow({
       poolSkus: pool.map((p: any) => p.sku),
@@ -1808,7 +1882,7 @@ export function registerApi(app: Express) {
       anchor: cfg.flashRowAnchor || "2026-11-25",
     });
     const flashProducts = [];
-    for (const sku of flashRow.skus) { const p = products.find((x: any) => x.sku === sku); if (p) flashProducts.push(await productWithImages(db, p)); }
+    for (const sku of flashRow.skus) { const p = products.find((x: any) => x.sku === sku); if (p) flashProducts.push(byId.get(p.id)); }
     const categoryImages = [
       ["Men's Fashion", "NX2-MEN-001"], ["Women's Fashion", "NX2-WOM-004"], ["Mobile Phones", "NX2-PHN-003"],
       ["Mobile Accessories", "NX2-ACC-005"], ["Smart Wearables", "NX2-WEA-005"], ["Audio & Electronics", "NX2-AUD-003"],
@@ -1817,7 +1891,7 @@ export function registerApi(app: Express) {
     const categories = [];
     for (const [name, sku] of categoryImages) {
       const p = products.find((x: any) => x.sku === sku);
-      categories.push({ category: name, count: products.filter((x: any) => x.category === name).length, productSku: sku, imageUrl: p ? (await productWithImages(db, p)).imageUrl : "", imageIsSample: true });
+      categories.push({ category: name, count: products.filter((x: any) => x.category === name).length, productSku: sku, imageUrl: p ? (byId.get(p.id)?.imageUrl || "") : "", imageIsSample: true });
     }
     // Best sellers from real order data (non-cancelled, non-legacy).
     const orders = await db.select().from(s.orders);
@@ -1827,9 +1901,9 @@ export function registerApi(app: Express) {
     for (const it of items) if (liveIds.has(it.orderId) && it.productId) soldQty[it.productId] = (soldQty[it.productId] || 0) + it.qty;
     const bestIds = Object.entries(soldQty).sort((a, b) => b[1] - a[1]).map(([id]) => Number(id));
     const bestSellers = [];
-    for (const id of bestIds) { const p = products.find((x: any) => x.id === id); if (p) bestSellers.push(await productWithImages(db, p)); }
+    for (const id of bestIds) { const p = products.find((x: any) => x.id === id); if (p) bestSellers.push(byId.get(p.id)); }
     const featured = products.filter((p: any) => p.isFeatured);
-    const bestSellersOut = { source: "sales", products: bestSellers, fallback: bestSellers.length < 3 ? { label: "Featured Products (fewer than 3 products have real sales yet)", products: await Promise.all(featured.map((p: any) => productWithImages(db, p))) } : null };
+    const bestSellersOut = { source: "sales", products: bestSellers, fallback: bestSellers.length < 3 ? { label: "Featured Products (fewer than 3 products have real sales yet)", products: featured.map((p: any) => byId.get(p.id)) } : null };
     // Recommended: own order categories for signed-in customers, featured for guests.
     const cust = await sessionCustomer(db, req);
     let recommended: any = { mode: "featured", products: [] as any[] };
@@ -1840,22 +1914,22 @@ export function registerApi(app: Express) {
       const cats = new Set<string>();
       for (const it of myItems) { const p = products.find((x: any) => x.id === it.productId); if (p) cats.add(p.category); }
       const recs = products.filter((p: any) => cats.has(p.category)).slice(0, 6);
-      recommended = { mode: "own-orders", categories: [...cats], products: await Promise.all(recs.map((p: any) => productWithImages(db, p))) };
+      recommended = { mode: "own-orders", categories: [...cats], products: recs.map((p: any) => byId.get(p.id)) };
     } else {
-      recommended = { mode: "featured", products: await Promise.all(featured.slice(0, 6).map((p: any) => productWithImages(db, p))) };
+      recommended = { mode: "featured", products: featured.slice(0, 6).map((p: any) => byId.get(p.id)) };
     }
     const reviews = await db.select().from(s.reviews).orderBy(desc(s.reviews.id));
     const heroOut = [];
     for (const b of banners) {
       const p = b.productId ? products.find((x: any) => x.id === b.productId) : null;
-      heroOut.push({ ...b, imageUrl: p ? (await productWithImages(db, p)).imageUrl : "", imageIsSample: true, ctaTarget: safeJson(b.ctaTarget), cta2Target: safeJson(b.cta2Target) });
+      heroOut.push({ ...b, imageUrl: p ? (byId.get(p.id)?.imageUrl || "") : "", imageIsSample: true, ctaTarget: safeJson(b.ctaTarget), cta2Target: safeJson(b.cta2Target) });
     }
     res.json({
       ok: true, banners: heroOut, collections, sections,
       flashRow: { ...flashRow, products: flashProducts },
       flashEndsAt: cfg.flashSaleEndsAt || "",
       categories, bestSellers: bestSellersOut, recommended,
-      newArrivals: await Promise.all([...products].sort((a: any, b: any) => (Number(b.publishedAt ?? 0) - Number(a.publishedAt ?? 0)) || (b.id - a.id)).slice(0, 8).map((p: any) => productWithImages(db, p))),
+      newArrivals: [...products].sort((a: any, b: any) => (Number(b.publishedAt ?? 0) - Number(a.publishedAt ?? 0)) || (b.id - a.id)).slice(0, 8).map((p: any) => byId.get(p.id)),
       reviews, demoMode: cfg.demoMode === "true",
     });
   });

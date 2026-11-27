@@ -49,7 +49,7 @@
    "brand": "Kiddo",
    "category": "Kids & Baby Fashion",
    "colors": "Red, Blue, Green",
-   "description": "Demo product: kids school backpack with padded straps. DEMO DATA — simulated listing.",
+   "description": "kids school backpack with padded straps.",
    "id": 72,
    "images": [
     {
@@ -61,7 +61,7 @@
    ],
    "isFeatured": true,
    "isFlash": false,
-   "name": "Kids School Backpack 20L (Demo)",
+   "name": "Kids School Backpack 20L",
    "price": 2999,
    "priceHistory": "2999,2599,2199",
    "rating": 4.8,
@@ -86,7 +86,7 @@
    "brand": "Kiddo",
    "category": "Kids & Baby Fashion",
    "colors": "Pink, Peach, Lilac",
-   "description": "Demo product: girls party frock for birthdays and events. DEMO DATA — simulated listing.",
+   "description": "girls party frock for birthdays and events.",
    "id": 71,
    "images": [
     {
@@ -98,7 +98,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Girls Party Frock (Demo)",
+   "name": "Girls Party Frock",
    "price": 3499,
    "priceHistory": "3499,2999,2499",
    "rating": 4.7,
@@ -123,7 +123,7 @@
    "brand": "Kiddo",
    "category": "Kids & Baby Fashion",
    "colors": "Blue Mix, Red Mix",
-   "description": "Demo product: boys graphic T-shirts, pack of 2. DEMO DATA — simulated listing.",
+   "description": "boys graphic T-shirts, pack of 2.",
    "id": 70,
    "images": [
     {
@@ -135,7 +135,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Boys Graphic T-Shirt — Pack of 2 (Demo)",
+   "name": "Boys Graphic T-Shirt — Pack of 2",
    "price": 2199,
    "priceHistory": "2199,1899,1599",
    "rating": 4.6,
@@ -160,7 +160,7 @@
    "brand": "ProTrim",
    "category": "Beauty & Personal Care",
    "colors": "",
-   "description": "Demo product: ProTrim cordless grooming kit with 10 attachments. DEMO DATA — simulated listing.",
+   "description": "ProTrim cordless grooming kit with 10 attachments.",
    "id": 69,
    "images": [
     {
@@ -172,7 +172,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "ProTrim Electric Grooming Kit (Demo)",
+   "name": "ProTrim Electric Grooming Kit",
    "price": 4499,
    "priceHistory": "4499,3849,3199",
    "rating": 4.6,
@@ -191,13 +191,13 @@
    "tile": "✂️",
    "tileColor": "#667085",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "GlowKart",
    "category": "Beauty & Personal Care",
    "colors": "",
-   "description": "Demo product: herbal argan hair oil. DEMO DATA — simulated listing; no medical claims.",
+   "description": "herbal argan hair oil.",
    "id": 68,
    "images": [
     {
@@ -209,7 +209,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Argan Hair Oil 200ml (Demo)",
+   "name": "Argan Hair Oil 200ml",
    "price": 1299,
    "priceHistory": "1299,1124,949",
    "rating": 4.5,
@@ -234,7 +234,7 @@
    "brand": "GlowKart",
    "category": "Beauty & Personal Care",
    "colors": "Nudes, Reds, Mixed",
-   "description": "Demo product: matte lipstick set with 6 everyday shades. DEMO DATA — simulated listing.",
+   "description": "matte lipstick set with 6 everyday shades.",
    "id": 67,
    "images": [
     {
@@ -246,7 +246,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Matte Lipstick Set — 6 Shades (Demo)",
+   "name": "Matte Lipstick Set — 6 Shades",
    "price": 1999,
    "priceHistory": "1999,1699,1399",
    "rating": 4.5,
@@ -271,7 +271,7 @@
    "brand": "GlowKart",
    "category": "Beauty & Personal Care",
    "colors": "",
-   "description": "Demo product: vitamin C brightening serum 30ml. Cosmetic demo listing; no medical claims are made. DEMO DATA.",
+   "description": "vitamin C brightening serum 30ml.",
    "id": 66,
    "images": [
     {
@@ -283,7 +283,7 @@
    ],
    "isFeatured": false,
    "isFlash": true,
-   "name": "Vitamin C Brightening Serum 30ml (Demo)",
+   "name": "Vitamin C Brightening Serum 30ml",
    "price": 2499,
    "priceHistory": "2499,2124,1749",
    "rating": 4.6,
@@ -295,7 +295,7 @@
    "sizes": "",
    "sku": "NX2-BEA-001",
    "sold": 1580,
-   "specs": "Volume: 30ml • Key ingredient: 15% Vitamin C • Skin type: All • Use: Apply 2-3 drops at night • No medical claims — cosmetic demo product",
+   "specs": "Volume: 30ml • Key ingredient: 15% Vitamin C • Skin type: All • Use: Apply 2-3 drops at night • No medical claims",
    "status": "Published",
    "stock": 310,
    "subcategory": "Skincare",
@@ -308,7 +308,7 @@
    "brand": "TimeCraft",
    "category": "Jewelry & Accessories",
    "colors": "Brown Strap, Black Strap",
-   "description": "Demo product: chronograph-style watch with leather strap. DEMO DATA — simulated listing.",
+   "description": "chronograph-style watch with leather strap.",
    "id": 65,
    "images": [
     {
@@ -320,7 +320,7 @@
    ],
    "isFeatured": true,
    "isFlash": false,
-   "name": "Chronograph Leather Watch (Demo)",
+   "name": "Chronograph Leather Watch",
    "price": 11999,
    "priceHistory": "11999,10199,8399",
    "rating": 4.7,
@@ -332,20 +332,20 @@
    "sizes": "",
    "sku": "NX2-JEW-004",
    "sold": 185,
-   "specs": "Movement: Japanese quartz (Demo) • Strap: Genuine leather • Case: 42mm steel • Water resistance: 3ATM",
+   "specs": "Movement: Japanese quartz • Strap: Genuine leather • Case: 42mm steel • Water resistance: 3ATM",
    "status": "Published",
    "stock": 29,
    "subcategory": "Watches",
    "tile": "⌚",
    "tileColor": "#B54708",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "SunCraft",
    "category": "Jewelry & Accessories",
    "colors": "Gold/Green, Black",
-   "description": "Demo product: classic aviator sunglasses with polarized UV400 lenses. DEMO DATA — simulated listing.",
+   "description": "classic aviator sunglasses with polarized UV400 lenses.",
    "id": 64,
    "images": [
     {
@@ -357,7 +357,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Aviator Sunglasses UV400 (Demo)",
+   "name": "Aviator Sunglasses UV400",
    "price": 3299,
    "priceHistory": "3299,2799,2299",
    "rating": 4.5,
@@ -382,7 +382,7 @@
    "brand": "Zeenat",
    "category": "Jewelry & Accessories",
    "colors": "Silver, Gold",
-   "description": "Demo product: zircon stud earrings with secure push-backs. DEMO DATA — simulated listing.",
+   "description": "zircon stud earrings with secure push-backs.",
    "id": 63,
    "images": [
     {
@@ -394,7 +394,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Zircon Stud Earrings (Demo)",
+   "name": "Zircon Stud Earrings",
    "price": 2499,
    "priceHistory": "2499,2124,1749",
    "rating": 4.6,
@@ -406,7 +406,7 @@
    "sizes": "",
    "sku": "NX2-JEW-002",
    "sold": 210,
-   "specs": "Stones: Cubic zirconia • Base: Sterling-silver plated (Demo) • Hypoallergenic posts",
+   "specs": "Stones: Cubic zirconia • Base: Sterling-silver plated • Hypoallergenic posts",
    "status": "Published",
    "stock": 140,
    "subcategory": "Earrings",
@@ -419,7 +419,7 @@
    "brand": "Zeenat",
    "category": "Jewelry & Accessories",
    "colors": "Gold, Rose Gold",
-   "description": "Demo product: gold-plated bridal necklace set. DEMO DATA — simulated listing; plating is demo-grade, not solid gold.",
+   "description": "gold-plated bridal necklace set.",
    "id": 62,
    "images": [
     {
@@ -431,7 +431,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Gold-Plated Necklace Set (Demo)",
+   "name": "Gold-Plated Necklace Set",
    "price": 8999,
    "priceHistory": "8999,7649,6299",
    "rating": 4.8,
@@ -443,7 +443,7 @@
    "sizes": "",
    "sku": "NX2-JEW-001",
    "sold": 150,
-   "specs": "Material: Brass with 22k gold plating (Demo) • Set: Necklace + earrings • Care: Keep dry, store in pouch",
+   "specs": "Material: Brass with 22k gold plating • Set: Necklace + earrings • Care: Keep dry, store in pouch",
    "status": "Published",
    "stock": 36,
    "subcategory": "Necklaces",
@@ -456,7 +456,7 @@
    "brand": "StrikeZone",
    "category": "Audio & Electronics",
    "colors": "Black/Red, Black/Blue",
-   "description": "Demo product: StrikeZone gaming headset with 50mm drivers. DEMO DATA — simulated listing.",
+   "description": "StrikeZone gaming headset with 50mm drivers.",
    "id": 61,
    "images": [
     {
@@ -468,7 +468,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "StrikeZone Gaming Headset (Demo)",
+   "name": "StrikeZone Gaming Headset",
    "price": 8499,
    "priceHistory": "8499,7349,6199",
    "rating": 4.5,
@@ -487,13 +487,13 @@
    "tile": "🎮",
    "tileColor": "#315EFB",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "StudioMic",
    "category": "Audio & Electronics",
    "colors": "",
-   "description": "Demo product: StudioMic USB microphone for streaming, online classes and recording. DEMO DATA — simulated listing.",
+   "description": "StudioMic USB microphone for streaming, online classes and recording.",
    "id": 60,
    "images": [
     {
@@ -505,7 +505,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "StudioMic USB Streaming Microphone (Demo)",
+   "name": "StudioMic USB Streaming Microphone",
    "price": 11499,
    "priceHistory": "11499,9999,8499",
    "rating": 4.7,
@@ -524,13 +524,13 @@
    "tile": "🎙️",
    "tileColor": "#667085",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "BassBoom",
    "category": "Audio & Electronics",
    "colors": "Black, Camo",
-   "description": "Demo product: PartyBox portable speaker, IPX7 waterproof. DEMO DATA — simulated listing.",
+   "description": "PartyBox portable speaker, IPX7 waterproof.",
    "id": 59,
    "images": [
     {
@@ -542,7 +542,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "PartyBox Portable Bluetooth Speaker (Demo)",
+   "name": "PartyBox Portable Bluetooth Speaker",
    "price": 9999,
    "priceHistory": "9999,8624,7249",
    "rating": 4.6,
@@ -561,13 +561,13 @@
    "tile": "🔊",
    "tileColor": "#F04438",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "SonicBeat",
    "category": "Audio & Electronics",
    "colors": "Black, White, Red",
-   "description": "Demo product: SonicBeat wired earphones with in-line mic. DEMO DATA — simulated listing.",
+   "description": "SonicBeat wired earphones with in-line mic.",
    "id": 58,
    "images": [
     {
@@ -579,7 +579,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "SonicBeat Wired Earphones (Demo)",
+   "name": "SonicBeat Wired Earphones",
    "price": 1299,
    "priceHistory": "1299,1099,899",
    "rating": 4.3,
@@ -604,7 +604,7 @@
    "brand": "BassBoom",
    "category": "Audio & Electronics",
    "colors": "Black, Blue",
-   "description": "Demo product: BassBoom over-ear Bluetooth headphones with deep bass. DEMO DATA — simulated listing.",
+   "description": "BassBoom over-ear Bluetooth headphones with deep bass.",
    "id": 57,
    "images": [
     {
@@ -616,7 +616,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "BassBoom Bluetooth Headphones (Demo)",
+   "name": "BassBoom Bluetooth Headphones",
    "price": 12999,
    "priceHistory": "12999,10999,8999",
    "rating": 4.6,
@@ -635,13 +635,13 @@
    "tile": "🎵",
    "tileColor": "#101828",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "Aurora",
    "category": "Audio & Electronics",
    "colors": "Black, White",
-   "description": "Demo product: Aurora X5 wireless earbuds with ENC calls and gaming mode. DEMO DATA — simulated listing.",
+   "description": "Aurora X5 wireless earbuds with ENC calls and gaming mode.",
    "id": 56,
    "images": [
     {
@@ -653,7 +653,7 @@
    ],
    "isFeatured": true,
    "isFlash": true,
-   "name": "Aurora X5 Wireless Earbuds (Demo)",
+   "name": "Aurora X5 Wireless Earbuds",
    "price": 8999,
    "priceHistory": "8999,7249,5499",
    "rating": 4.7,
@@ -672,13 +672,13 @@
    "tile": "🎧",
    "tileColor": "#315EFB",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "Orbit",
    "category": "Smart Wearables",
    "colors": "Silver, Black, Gold",
-   "description": "Demo product: Orbit titanium smart ring for sleep and recovery tracking. DEMO DATA — simulated listing.",
+   "description": "Orbit titanium smart ring for sleep and recovery tracking.",
    "id": 55,
    "images": [
     {
@@ -690,7 +690,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Orbit Smart Ring (Demo)",
+   "name": "Orbit Smart Ring",
    "price": 24999,
    "priceHistory": "24999,22499,19999",
    "rating": 4.3,
@@ -709,13 +709,13 @@
    "tile": "💍",
    "tileColor": "#667085",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "PulseFit",
    "category": "Smart Wearables",
    "colors": "Black, Blue, Coral",
-   "description": "Demo product: PulseFit Fitness Band Pro with 14-day battery. DEMO DATA — simulated listing.",
+   "description": "PulseFit Fitness Band Pro with 14-day battery.",
    "id": 54,
    "images": [
     {
@@ -727,7 +727,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "PulseFit Fitness Band Pro (Demo)",
+   "name": "PulseFit Fitness Band Pro",
    "price": 6499,
    "priceHistory": "6499,5599,4699",
    "rating": 4.4,
@@ -746,13 +746,13 @@
    "tile": "📟",
    "tileColor": "#12B76A",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "PulseFit",
    "category": "Smart Wearables",
    "colors": "Black, Silver, Pink",
-   "description": "Demo product: PulseFit Series 9 smartwatch with health tracking. Only a few left in demo stock. DEMO DATA — simulated listing.",
+   "description": "PulseFit Series 9 smartwatch with health tracking.",
    "id": 53,
    "images": [
     {
@@ -764,7 +764,7 @@
    ],
    "isFeatured": false,
    "isFlash": true,
-   "name": "PulseFit Smartwatch Series 9 (Demo)",
+   "name": "PulseFit Smartwatch Series 9",
    "price": 15999,
    "priceHistory": "15999,13749,11499",
    "rating": 4.5,
@@ -783,13 +783,13 @@
    "tile": "⌚",
    "tileColor": "#F04438",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "HoloView",
    "category": "Smart Wearables",
    "colors": "Black",
-   "description": "Demo product: HoloView AR Glasses Lite with Micro-OLED virtual screen. DEMO DATA — simulated listing.",
+   "description": "HoloView AR Glasses Lite with Micro-OLED virtual screen.",
    "id": 52,
    "images": [
     {
@@ -801,7 +801,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "HoloView AR Glasses Lite (Demo)",
+   "name": "HoloView AR Glasses Lite",
    "price": 89999,
    "priceHistory": "98999,89999",
    "rating": 4.6,
@@ -813,20 +813,20 @@
    "sizes": "",
    "sku": "NX2-WEA-003",
    "sold": 44,
-   "specs": "Frame type: Sport wrap • Lens type: Micro-OLED display 1080p per eye • Camera: Passthrough camera • Audio: Built-in speakers • Bluetooth: 5.3 + WiFi 6 • Battery: 4h + charging case • Compatibility: USB-C display devices • Features: Virtual cinema screen, notifications HUD (Demo)",
+   "specs": "Frame type: Sport wrap • Lens type: Micro-OLED display 1080p per eye • Camera: Passthrough camera • Audio: Built-in speakers • Bluetooth: 5.3 + WiFi 6 • Battery: 4h + charging case • Compatibility: USB-C display devices • Features: Virtual cinema screen, notifications HUD",
    "status": "Published",
    "stock": 9,
    "subcategory": "AR Glasses",
    "tile": "🥽",
    "tileColor": "#F59E0B",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "EchoFrame",
    "category": "Smart Wearables",
    "colors": "Black, Havana",
-   "description": "Demo product: EchoFrame Bluetooth glasses for calls and music with UV400 lenses. DEMO DATA — simulated listing.",
+   "description": "EchoFrame Bluetooth glasses for calls and music with UV400 lenses.",
    "id": 51,
    "images": [
     {
@@ -838,7 +838,7 @@
    ],
    "isFeatured": false,
    "isFlash": true,
-   "name": "EchoFrame Bluetooth Audio Glasses (Demo)",
+   "name": "EchoFrame Bluetooth Audio Glasses",
    "price": 18999,
    "priceHistory": "18999,16749,14499",
    "rating": 4.5,
@@ -857,13 +857,13 @@
    "tile": "👓",
    "tileColor": "#315EFB",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "VisionX",
    "category": "Smart Wearables",
    "colors": "Matte Black, Tortoise",
-   "description": "Demo product: VisionX AI smart glasses with 12MP camera, open-ear audio and AI assistant features. DEMO DATA — simulated listing; AI features are demonstrated, not live services.",
+   "description": "VisionX AI smart glasses with 12MP camera, open-ear audio and AI assistant features.",
    "id": 50,
    "images": [
     {
@@ -875,7 +875,7 @@
    ],
    "isFeatured": true,
    "isFlash": false,
-   "name": "VisionX AI Smart Glasses with Camera (Demo)",
+   "name": "VisionX AI Smart Glasses with Camera",
    "price": 54999,
    "priceHistory": "54999,49999,44999",
    "rating": 4.7,
@@ -887,20 +887,20 @@
    "sizes": "",
    "sku": "NX2-WEA-001",
    "sold": 130,
-   "specs": "Frame type: Wayfarer acetate • Lens type: Clear + blue-light filter • Camera: 12MP photo / 1080p video • Audio: Open-ear dual speakers + mic array • Bluetooth: 5.3 • Battery: Up to 8h typical use • Compatibility: Android & iOS app • Features: AI assistant, live translation (Demo), hands-free calls",
+   "specs": "Frame type: Wayfarer acetate • Lens type: Clear + blue-light filter • Camera: 12MP photo / 1080p video • Audio: Open-ear dual speakers + mic array • Bluetooth: 5.3 • Battery: Up to 8h typical use • Compatibility: Android & iOS app • Features: AI assistant, live translation, hands-free calls",
    "status": "Published",
    "stock": 22,
    "subcategory": "AI Smart Glasses",
    "tile": "🕶️",
    "tileColor": "#101828",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "ArmorGuard",
    "category": "Mobile Accessories",
    "colors": "",
-   "description": "Demo product: 9H tempered glass screen protector with easy-install kit. DEMO DATA — simulated listing.",
+   "description": "9H tempered glass screen protector with easy-install kit.",
    "id": 49,
    "images": [
     {
@@ -912,7 +912,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Tempered Glass Screen Protector — 2 Pack (Demo)",
+   "name": "Tempered Glass Screen Protector — 2 Pack",
    "price": 999,
    "priceHistory": "999,849,699",
    "rating": 4.4,
@@ -937,7 +937,7 @@
    "brand": "ArmorGuard",
    "category": "Mobile Accessories",
    "colors": "Black, Clear, Blue",
-   "description": "Demo product: shockproof phone case with raised camera protection. DEMO DATA — simulated listing.",
+   "description": "shockproof phone case with raised camera protection.",
    "id": 48,
    "images": [
     {
@@ -949,7 +949,7 @@
    ],
    "isFeatured": false,
    "isFlash": true,
-   "name": "ArmorGuard Shockproof Phone Case (Demo)",
+   "name": "ArmorGuard Shockproof Phone Case",
    "price": 1499,
    "priceHistory": "1499,1249,999",
    "rating": 4.5,
@@ -961,7 +961,7 @@
    "sizes": "",
    "sku": "NX2-ACC-004",
    "sold": 2300,
-   "specs": "Material: TPU + PC • Drop test: 2m (Demo claim) • Raised camera lip • Models: iPhone / Samsung / Xiaomi variants",
+   "specs": "Material: TPU + PC • Drop test: 2m • Raised camera lip • Models: iPhone / Samsung / Xiaomi variants",
    "status": "Published",
    "stock": 540,
    "subcategory": "Phone Cases",
@@ -974,7 +974,7 @@
    "brand": "MagCharge",
    "category": "Mobile Accessories",
    "colors": "Black, White",
-   "description": "Demo product: magnetic snap-on wireless charger. DEMO DATA — simulated listing.",
+   "description": "magnetic snap-on wireless charger.",
    "id": 47,
    "images": [
     {
@@ -986,7 +986,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "MagCharge Wireless Charger Pad (Demo)",
+   "name": "MagCharge Wireless Charger Pad",
    "price": 3499,
    "priceHistory": "3499,2974,2449",
    "rating": 4.4,
@@ -1005,13 +1005,13 @@
    "tile": "📶",
    "tileColor": "#2E90FA",
    "warehouse": "Karachi Central",
-   "warranty": "6 months (Demo)"
+   "warranty": "6 months"
   },
   {
    "brand": "VoltEdge",
    "category": "Mobile Accessories",
    "colors": "",
-   "description": "Demo product: 65W GaN fast charger with 3 ports. DEMO DATA — simulated listing.",
+   "description": "65W GaN fast charger with 3 ports.",
    "id": 46,
    "images": [
     {
@@ -1023,7 +1023,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "VoltEdge 65W GaN Fast Charger (Demo)",
+   "name": "VoltEdge 65W GaN Fast Charger",
    "price": 4999,
    "priceHistory": "4999,4249,3499",
    "rating": 4.6,
@@ -1042,13 +1042,13 @@
    "tile": "🔌",
    "tileColor": "#F59E0B",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "VoltEdge",
    "category": "Mobile Accessories",
    "colors": "Black, White",
-   "description": "Demo product: VoltEdge 20000mAh power bank with 22.5W fast charging. DEMO DATA — simulated listing.",
+   "description": "VoltEdge 20000mAh power bank with 22.5W fast charging.",
    "id": 45,
    "images": [
     {
@@ -1060,7 +1060,7 @@
    ],
    "isFeatured": false,
    "isFlash": true,
-   "name": "VoltEdge 20000mAh Power Bank (Demo)",
+   "name": "VoltEdge 20000mAh Power Bank",
    "price": 5999,
    "priceHistory": "5999,5099,4199",
    "rating": 4.6,
@@ -1079,13 +1079,13 @@
    "tile": "🔋",
    "tileColor": "#315EFB",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "Nova",
    "category": "Mobile Phones",
    "colors": "Grey, Silver",
-   "description": "Demo product: NovaTab 11-inch tablet for study and entertainment. DEMO DATA — simulated listing.",
+   "description": "NovaTab 11-inch tablet for study and entertainment.",
    "id": 44,
    "images": [
     {
@@ -1097,7 +1097,7 @@
    ],
    "isFeatured": true,
    "isFlash": false,
-   "name": "NovaTab 11-inch Tablet — 128GB (Demo)",
+   "name": "NovaTab 11-inch Tablet — 128GB",
    "price": 84999,
    "priceHistory": "84999,78999,72999",
    "rating": 4.7,
@@ -1116,13 +1116,13 @@
    "tile": "📲",
    "tileColor": "#101828",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "Vivo",
    "category": "Mobile Phones",
    "colors": "Agate Green, Gleaming Orange",
-   "description": "Demo product: Vivo Y28 with 6000mAh battery and 44W charging. DEMO DATA — simulated listing.",
+   "description": "Vivo Y28 with 6000mAh battery and 44W charging.",
    "id": 43,
    "images": [
     {
@@ -1134,7 +1134,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Vivo Y28 — 256GB (Demo)",
+   "name": "Vivo Y28 — 256GB",
    "price": 47999,
    "priceHistory": "52799,47999",
    "rating": 4.5,
@@ -1146,20 +1146,20 @@
    "sizes": "",
    "sku": "NX2-PHN-005",
    "sold": 240,
-   "specs": "Model: Y28 • RAM: 8GB • Storage: 256GB • Display: 6.68in 90Hz • Battery: 6000mAh, 44W flash charge • Connectivity: 4G • PTA Approved (Demo)",
+   "specs": "Model: Y28 • RAM: 8GB • Storage: 256GB • Display: 6.68in 90Hz • Battery: 6000mAh, 44W flash charge • Connectivity: 4G • PTA Approved",
    "status": "Published",
    "stock": 33,
    "subcategory": "Vivo",
    "tile": "📱",
    "tileColor": "#667085",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "Infinix",
    "category": "Mobile Phones",
    "colors": "Starlit Black, Horizon Gold",
-   "description": "Demo product: Infinix Hot 40i budget smartphone. DEMO DATA — simulated listing.",
+   "description": "Infinix Hot 40i budget smartphone.",
    "id": 42,
    "images": [
     {
@@ -1171,7 +1171,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Infinix Hot 40i — 128GB (Demo)",
+   "name": "Infinix Hot 40i — 128GB",
    "price": 32999,
    "priceHistory": "32999,30749,28499",
    "rating": 4.4,
@@ -1183,20 +1183,20 @@
    "sizes": "",
    "sku": "NX2-PHN-004",
    "sold": 520,
-   "specs": "Model: Hot 40i • RAM: 8GB (4+4) • Storage: 128GB • Display: 6.56in 90Hz • Battery: 5000mAh • Connectivity: 4G • PTA Approved (Demo)",
+   "specs": "Model: Hot 40i • RAM: 8GB (4+4) • Storage: 128GB • Display: 6.56in 90Hz • Battery: 5000mAh • Connectivity: 4G • PTA Approved",
    "status": "Published",
    "stock": 61,
    "subcategory": "Infinix",
    "tile": "📱",
    "tileColor": "#12B76A",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "Xiaomi",
    "category": "Mobile Phones",
    "colors": "Graphite, Ocean Sunset",
-   "description": "Demo product: Redmi Note 13 with 108MP triple camera. DEMO DATA — simulated listing.",
+   "description": "Redmi Note 13 with 108MP triple camera.",
    "id": 41,
    "images": [
     {
@@ -1208,7 +1208,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Xiaomi Redmi Note 13 — 128GB (Demo)",
+   "name": "Xiaomi Redmi Note 13 — 128GB",
    "price": 54999,
    "priceHistory": "54999,50999,46999",
    "rating": 4.6,
@@ -1220,20 +1220,20 @@
    "sizes": "",
    "sku": "NX2-PHN-003",
    "sold": 690,
-   "specs": "Model: Redmi Note 13 • RAM: 8GB • Storage: 128GB • Display: 6.67in AMOLED 120Hz • Battery: 5000mAh, 33W turbo charge • Connectivity: 4G, IR blaster • PTA Approved (Demo)",
+   "specs": "Model: Redmi Note 13 • RAM: 8GB • Storage: 128GB • Display: 6.67in AMOLED 120Hz • Battery: 5000mAh, 33W turbo charge • Connectivity: 4G, IR blaster • PTA Approved",
    "status": "Published",
    "stock": 44,
    "subcategory": "Redmi",
    "tile": "📱",
    "tileColor": "#F79009",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "Samsung",
    "category": "Mobile Phones",
    "colors": "Awesome Navy, Iceblue",
-   "description": "Demo product: Samsung Galaxy A55 5G with metal frame and IP67. DEMO DATA — simulated listing.",
+   "description": "Samsung Galaxy A55 5G with metal frame and IP67.",
    "id": 40,
    "images": [
     {
@@ -1245,7 +1245,7 @@
    ],
    "isFeatured": false,
    "isFlash": true,
-   "name": "Samsung Galaxy A55 5G — 256GB (Demo)",
+   "name": "Samsung Galaxy A55 5G — 256GB",
    "price": 139999,
    "priceHistory": "139999,130999,121999",
    "rating": 4.7,
@@ -1257,20 +1257,20 @@
    "sizes": "",
    "sku": "NX2-PHN-002",
    "sold": 410,
-   "specs": "Model: Galaxy A55 • RAM: 8GB • Storage: 256GB • Display: 6.6in Super AMOLED 120Hz • Battery: 5000mAh, 25W fast charge • Connectivity: 5G, NFC • PTA Approved (Demo)",
+   "specs": "Model: Galaxy A55 • RAM: 8GB • Storage: 256GB • Display: 6.6in Super AMOLED 120Hz • Battery: 5000mAh, 25W fast charge • Connectivity: 5G, NFC • PTA Approved",
    "status": "Published",
    "stock": 26,
    "subcategory": "Samsung",
    "tile": "📱",
    "tileColor": "#315EFB",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "Apple",
    "category": "Mobile Phones",
    "colors": "Black, Blue, Pink",
-   "description": "Demo product: Apple iPhone 15 with Dynamic Island and 48MP camera. DEMO DATA — simulated listing, not a real offer.",
+   "description": "Apple iPhone 15 with Dynamic Island and 48MP camera.",
    "id": 39,
    "images": [
     {
@@ -1282,7 +1282,7 @@
    ],
    "isFeatured": true,
    "isFlash": false,
-   "name": "Apple iPhone 15 — 128GB (Demo)",
+   "name": "Apple iPhone 15 — 128GB",
    "price": 324999,
    "priceHistory": "324999,312499,299999",
    "rating": 4.9,
@@ -1290,24 +1290,24 @@
    "salePrice": 299999,
    "sellerId": 0,
    "sellerName": "NEXORA MARKET — Official Store",
-   "shortDesc": "iPhone 15, 128GB, PTA approved (demo).",
+   "shortDesc": "iPhone 15, 128GB, PTA approved.",
    "sizes": "",
    "sku": "NX2-PHN-001",
    "sold": 320,
-   "specs": "Model: iPhone 15 • RAM: 6GB • Storage: 128GB • Display: 6.1in Super Retina XDR • Battery: Up to 20h video • Connectivity: 5G, WiFi 6, USB-C • PTA Approved (Demo) • Warranty: 1 year Apple (Demo)",
+   "specs": "Model: iPhone 15 • RAM: 6GB • Storage: 128GB • Display: 6.1in Super Retina XDR • Battery: Up to 20h video • Connectivity: 5G, WiFi 6, USB-C • PTA Approved • Warranty: 1 year Apple",
    "status": "Published",
    "stock": 18,
    "subcategory": "Apple iPhone",
    "tile": "📱",
    "tileColor": "#101828",
    "warehouse": "Karachi Central",
-   "warranty": "1 year (Demo)"
+   "warranty": "1 year"
   },
   {
    "brand": "ModestLine",
    "category": "Women's Fashion",
    "colors": "Rose, Beige, Teal",
-   "description": "Demo product: silk-blend scarf, 180x70cm. DEMO DATA — simulated listing.",
+   "description": "silk-blend scarf, 180x70cm.",
    "id": 38,
    "images": [
     {
@@ -1319,7 +1319,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Women's Silk Scarf (Demo)",
+   "name": "Women's Silk Scarf",
    "price": 1799,
    "priceHistory": "1799,1549,1299",
    "rating": 4.5,
@@ -1344,7 +1344,7 @@
    "brand": "StepUp",
    "category": "Women's Fashion",
    "colors": "Nude, Black, Red",
-   "description": "Demo product: block heels with cushioned insole. DEMO DATA — simulated listing.",
+   "description": "block heels with cushioned insole.",
    "id": 37,
    "images": [
     {
@@ -1356,7 +1356,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Women's Block Heels (Demo)",
+   "name": "Women's Block Heels",
    "price": 5499,
    "priceHistory": "6049,5499",
    "rating": 4.4,
@@ -1381,7 +1381,7 @@
    "brand": "Milano Street",
    "category": "Women's Fashion",
    "colors": "Tan, Black, Blush",
-   "description": "Demo product: quilted handbag with detachable chain strap. DEMO DATA — simulated listing.",
+   "description": "quilted handbag with detachable chain strap.",
    "id": 36,
    "images": [
     {
@@ -1393,7 +1393,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Women's Quilted Handbag (Demo)",
+   "name": "Women's Quilted Handbag",
    "price": 6999,
    "priceHistory": "6999,5949,4899",
    "rating": 4.6,
@@ -1418,7 +1418,7 @@
    "brand": "StyleNest",
    "category": "Women's Fashion",
    "colors": "Pink, Mint, Sky Blue",
-   "description": "Demo product: women's printed lawn kurti. DEMO DATA — simulated listing.",
+   "description": "women's printed lawn kurti.",
    "id": 35,
    "images": [
     {
@@ -1430,7 +1430,7 @@
    ],
    "isFeatured": false,
    "isFlash": true,
-   "name": "Women's Printed Lawn Kurti (Demo)",
+   "name": "Women's Printed Lawn Kurti",
    "price": 3999,
    "priceHistory": "3999,3399,2799",
    "rating": 4.7,
@@ -1455,7 +1455,7 @@
    "brand": "ModestLine",
    "category": "Women's Fashion",
    "colors": "Black, Dark Grey, Brown",
-   "description": "Demo product: premium nidha abaya with matching hijab. DEMO DATA — simulated listing.",
+   "description": "premium nidha abaya with matching hijab.",
    "id": 34,
    "images": [
     {
@@ -1467,7 +1467,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Women's Premium Abaya (Demo)",
+   "name": "Women's Premium Abaya",
    "price": 7499,
    "priceHistory": "7499,6562,5625",
    "rating": 4.8,
@@ -1492,7 +1492,7 @@
    "brand": "StyleNest",
    "category": "Women's Fashion",
    "colors": "Maroon, Emerald, Mustard",
-   "description": "Demo product: embroidered 3-piece suit with chiffon dupatta. DEMO DATA — simulated listing.",
+   "description": "embroidered 3-piece suit with chiffon dupatta.",
    "id": 33,
    "images": [
     {
@@ -1504,7 +1504,7 @@
    ],
    "isFeatured": false,
    "isFlash": true,
-   "name": "Women's Embroidered 3-Piece Suit (Demo)",
+   "name": "Women's Embroidered 3-Piece Suit",
    "price": 12999,
    "priceHistory": "12999,10999,8999",
    "rating": 4.9,
@@ -1529,7 +1529,7 @@
    "brand": "StyleNest",
    "category": "Women's Fashion",
    "colors": "Floral Pink, Mint, Sky",
-   "description": "Demo product: floral chiffon dress with lining. DEMO DATA — simulated listing.",
+   "description": "floral chiffon dress with lining.",
    "id": 32,
    "images": [
     {
@@ -1541,7 +1541,7 @@
    ],
    "isFeatured": true,
    "isFlash": false,
-   "name": "Women's Floral Summer Dress (Demo)",
+   "name": "Women's Floral Summer Dress",
    "price": 5999,
    "priceHistory": "5999,5099,4199",
    "rating": 4.7,
@@ -1566,7 +1566,7 @@
    "brand": "HideCraft",
    "category": "Men's Fashion",
    "colors": "Brown, Black",
-   "description": "Demo product: genuine cowhide leather belt. DEMO DATA — simulated listing.",
+   "description": "genuine cowhide leather belt.",
    "id": 31,
    "images": [
     {
@@ -1578,7 +1578,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Men's Genuine Leather Belt (Demo)",
+   "name": "Men's Genuine Leather Belt",
    "price": 1999,
    "priceHistory": "1999,1749,1499",
    "rating": 4.5,
@@ -1603,7 +1603,7 @@
    "brand": "NEXORA Eastern",
    "category": "Men's Fashion",
    "colors": "White, Cream, Navy, Olive",
-   "description": "Demo product: premium cotton kurta, stitched for comfort in Pakistani weather. DEMO DATA — simulated listing.",
+   "description": "premium cotton kurta, stitched for comfort in Pakistani weather.",
    "id": 30,
    "images": [
     {
@@ -1615,7 +1615,7 @@
    ],
    "isFeatured": false,
    "isFlash": true,
-   "name": "Men's Cotton Kurta — Traditional Wear (Demo)",
+   "name": "Men's Cotton Kurta — Traditional Wear",
    "price": 4999,
    "priceHistory": "4999,4249,3499",
    "rating": 4.8,
@@ -1640,7 +1640,7 @@
    "brand": "NEXORA Basics",
    "category": "Men's Fashion",
    "colors": "Grey, Black, Navy",
-   "description": "Demo product: fleece hoodie with kangaroo pocket. Shown out of stock to demonstrate stock states. DEMO DATA.",
+   "description": "fleece hoodie with kangaroo pocket.",
    "id": 29,
    "images": [
     {
@@ -1652,7 +1652,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Men's Fleece Hoodie (Demo)",
+   "name": "Men's Fleece Hoodie",
    "price": 3799,
    "priceHistory": "3799,3324,2849",
    "rating": 4.6,
@@ -1660,7 +1660,7 @@
    "salePrice": 2849,
    "sellerId": 0,
    "sellerName": "NEXORA MARKET — Official Store",
-   "shortDesc": "Warm fleece hoodie — currently out of stock (demo state).",
+   "shortDesc": "Warm fleece hoodie — currently out of stock.",
    "sizes": "M, L, XL",
    "sku": "NX2-MEN-005",
    "sold": 410,
@@ -1677,7 +1677,7 @@
    "brand": "DenimWorks",
    "category": "Men's Fashion",
    "colors": "Blue, Black, Charcoal",
-   "description": "Demo product: slim-fit stretch jeans with fade-resistant dye. DEMO DATA — simulated listing.",
+   "description": "slim-fit stretch jeans with fade-resistant dye.",
    "id": 28,
    "images": [
     {
@@ -1689,7 +1689,7 @@
    ],
    "isFeatured": true,
    "isFlash": false,
-   "name": "Men's Slim-Fit Stretch Jeans (Demo)",
+   "name": "Men's Slim-Fit Stretch Jeans",
    "price": 4499,
    "priceHistory": "4499,3949,3399",
    "rating": 4.7,
@@ -1714,7 +1714,7 @@
    "brand": "NEXORA Basics",
    "category": "Men's Fashion",
    "colors": "Green, Maroon, Black",
-   "description": "Demo product: classic pique polo with ribbed collar. DEMO DATA — simulated listing.",
+   "description": "classic pique polo with ribbed collar.",
    "id": 27,
    "images": [
     {
@@ -1726,7 +1726,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Men's Pique Polo Shirt (Demo)",
+   "name": "Men's Pique Polo Shirt",
    "price": 2999,
    "priceHistory": "3299,2999",
    "rating": 4.4,
@@ -1751,7 +1751,7 @@
    "brand": "NEXORA Formal",
    "category": "Men's Fashion",
    "colors": "Sky Blue, White, Grey",
-   "description": "Demo product: wrinkle-resistant oxford formal shirt for office wear. DEMO DATA — simulated listing.",
+   "description": "wrinkle-resistant oxford formal shirt for office wear.",
    "id": 26,
    "images": [
     {
@@ -1763,7 +1763,7 @@
    ],
    "isFeatured": false,
    "isFlash": false,
-   "name": "Men's Oxford Formal Shirt (Demo)",
+   "name": "Men's Oxford Formal Shirt",
    "price": 3999,
    "priceHistory": "3999,3499,2999",
    "rating": 4.5,
@@ -1788,7 +1788,7 @@
    "brand": "NEXORA Basics",
    "category": "Men's Fashion",
    "colors": "White, Black, Navy, Olive",
-   "description": "Demo product: NEXORA Basics premium cotton T-shirt, pre-shrunk and bio-washed for Pakistani summers. DEMO DATA — simulated listing.",
+   "description": "NEXORA Basics premium cotton T-shirt, pre-shrunk and bio-washed for Pakistani summers.",
    "id": 25,
    "images": [
     {
@@ -1800,7 +1800,7 @@
    ],
    "isFeatured": true,
    "isFlash": true,
-   "name": "Men's Premium Cotton T-Shirt (Demo)",
+   "name": "Men's Premium Cotton T-Shirt",
    "price": 2499,
    "priceHistory": "2499,2124,1749",
    "rating": 4.6,

@@ -81,7 +81,7 @@ app.get("/policies/:page", (req, res) => {
 });
 app.get("/merchants", async (_req, res) => {
   const db = getDb();
-  if (!db) return noDb(res, "the Demo Merchants directory");
+  if (!db) return noDb(res, "the Merchants directory");
   const rows = await db.select().from(s.demoMerchants).orderBy(desc(s.demoMerchants.rating));
   res.send(views.merchantsView(rows));
 });

@@ -10,20 +10,47 @@ export function esc(s: any): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function layout(title: string, body: string, opts?: { active?: string; noDb?: boolean }): string {
+// Display name: the live DB stores "(Demo)" in product names; strip it at
+// render time (never rewrite DB rows). Admin lists keep the stored name raw.
+export function dispName(s: any): string {
+  return String(s ?? "").replace(/ \(Demo\)$/, "");
+}
+
+// Display description: strip the seed "Demo product: ... DEMO DATA" wording
+// and its special clauses (medical claims, gold plating, stock demo,
+// AI-features, not-a-real-offer, out-of-stock demo, cosmetic demo).
+export function dispDesc(s: any): string {
+  let t = String(s ?? "");
+  t = t.replace(/^Demo product:\s*/i, "");
+  t = t.replace(/;\s*no medical claims are made\.?/i, "");
+  t = t.replace(/;\s*no medical claims\.?/i, "");
+  t = t.replace(/;\s*plating is demo-grade, not solid gold\.?/i, "");
+  t = t.replace(/;\s*AI features are demonstrated, not live services\.?/i, "");
+  t = t.replace(/,?\s*not a real offer\.?/i, "");
+  t = t.replace(/Only a few left in demo stock\.?\s*/i, "");
+  t = t.replace(/Shown out of stock to demonstrate stock states\.?\s*/i, "");
+  t = t.replace(/Cosmetic demo listing;?\s*/i, "");
+  t = t.replace(/\s*[\u2014\u2013-]\s*cosmetic demo product\.?/i, "");
+  t = t.replace(/\s*DEMO DATA[ \u2014\u2013-]*simulated listing\.?/i, "");
+  t = t.replace(/\s*DEMO DATA\.?/i, "");
+  t = t.replace(/\s*\(demo\)/gi, "").replace(/\s*\(demo state\)/gi, "").replace(/\s*\(Demo claim\)/i, "");
+  return t.replace(/\s{2,}/g, " ").trim();
+}
+
+export function layout(title: string, body: string, opts?: { active?: string; noDb?: boolean; admin?: boolean }): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} — NEXORA MARKET</title><link rel="stylesheet" href="/css/style.css"></head>
 <body>
 <header class="topbar"><a class="brand" href="/">NEXORA <span>MARKET</span></a>
 <button class="menu-btn" onclick="document.getElementById('nav').classList.toggle('open')" aria-label="Menu">☰ Menu</button>
 <nav id="nav" class="nav">
-<a href="/">Home</a><a href="/shop">Shop</a><a href="/merchants">Demo Merchants</a><a href="/help">Help Center</a><a href="/policies/shipping">Policies</a>
-<a href="/cart">Cart <span class="badge" id="cartCount">0</span></a><a href="/account">My Account</a><a href="/admin">Admin <span class="demo-tag">DEMO</span></a>
+<a href="/">Home</a><a href="/shop">Shop</a><a href="/merchants">Merchants</a><a href="/help">Help Center</a><a href="/policies/shipping">Policies</a>
+<a href="/cart">Cart <span class="badge" id="cartCount">0</span></a><a href="/account">My Account</a><a href="/admin">Admin</a>
 </nav></header>
-<div class="demo-banner">DEMO / TRIAL MODE — No live payment gateway, courier or messaging provider is connected. Every payment, shipment and tracking step is a simulation.</div>
+${opts?.admin ? `<div class="demo-banner">DEMO / TRIAL MODE — No live payment gateway, courier or messaging provider is connected. Every payment, shipment and tracking step is a simulation.</div>` : ""}
 <main class="wrap">${body}</main>
 <footer class="footer"><p><strong>NEXORA MARKET</strong> — Shop Smarter. Live Better.</p>
-<p>Demo store: all products, orders and payments are simulated. Cash on Delivery is collected only at delivery (demo). 14-day demo return window.</p>
+<p>All prices in PKR. Cash on Delivery is collected only at delivery. 14-day return window.</p>
 <p><a href="/policies/privacy">Privacy</a> · <a href="/policies/terms">Terms</a> · <a href="/policies/shipping">Shipping</a> · <a href="/policies/returns">Returns &amp; Refunds</a></p></footer>
 <nav class="bottomnav"><a href="/">Home</a><a href="/shop">Shop</a><a href="/cart">Cart</a><a href="/track">Track</a><a href="/account">Account</a></nav>
 <script src="/js/app.js"></script></body></html>`;
@@ -39,8 +66,8 @@ export function noDbPage(feature: string): string {
 export function productCard(p: any): string {
   const price = p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price;
   const off = p.salePrice != null && p.salePrice < p.price ? Math.round(((p.price - p.salePrice) / p.price) * 100) : 0;
-  return `<article class="pcard"><a href="/product/${p.id}"><div class="pimg">${p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.name)}" loading="lazy">` : `<div class="tile">${esc(p.tile || "🛍")}</div>`}<span class="sample-chip">Sample image</span>${off ? `<span class="off">−${off}%</span>` : ""}</div>
-<h3>${esc(p.name)}</h3><div class="stars">★ ${p.rating} (${p.reviewsCount})</div>
+  return `<article class="pcard"><a href="/product/${p.id}"><div class="pimg">${p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="${esc(dispName(p.name))}" loading="lazy">` : `<div class="tile">${esc(p.tile || "🛍")}</div>`}${off ? `<span class="off">−${off}%</span>` : ""}</div>
+<h3>${esc(dispName(p.name))}</h3><div class="stars">★ ${p.rating} (${p.reviewsCount})</div>
 <div class="price">${formatPkr(price)} ${off ? `<s>${formatPkr(p.price)}</s>` : ""}</div>
 <div class="stock">${p.stock <= 0 ? `<span class="oos">Out of stock</span>` : p.stock <= 10 ? `Only ${p.stock} left` : "In stock"}</div></a>
 <div class="row"><button class="btn small" onclick="addToCart(${p.id},1)" ${p.stock <= 0 ? "disabled" : ""}>Add to Cart</button>
@@ -57,14 +84,14 @@ export function homepageView(h: any): string {
 ${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-text"><h2>${esc(b.headline)}</h2><p>${esc(b.subtext)}</p>
 <p><a class="btn" href="/shop?category=${encodeURIComponent(safeTarget(b.ctaTarget).category || "")}">${esc(b.ctaLabel || "Shop now")}</a>
 <a class="btn ghost" href="/shop?category=${encodeURIComponent(safeTarget(b.cta2Target).category || "")}">${esc(b.cta2Label || "")}</a></p>
-<span class="sample-chip">Sample image</span></div></div>`).join("");
+</div></div>`).join("");
       html += `<section class="hero" id="hero">${slides || `<div class="slide active"><div class="slide-text"><h2>NEXORA MARKET</h2><p>Shop Smarter. Live Better.</p></div></div>`}
 <div class="dots">${(h.banners || []).map((_: any, i: number) => `<button onclick="heroGo(${i})" aria-label="Slide ${i + 1}">●</button>`).join("")}</div></section>`;
     } else if (sec.key === "categories") {
-      html += `<section><h2>Shop by Category</h2><div class="catgrid">${(h.categories || []).map((c: any) => `<a class="catcard" href="/shop?category=${encodeURIComponent(c.category)}">${c.imageUrl ? `<img src="${esc(c.imageUrl)}" alt="">` : ""}<span>${esc(c.category)} (${c.count})</span><span class="sample-chip">Sample image</span></a>`).join("")}</div></section>`;
+      html += `<section><h2>Shop by Category</h2><div class="catgrid">${(h.categories || []).map((c: any) => `<a class="catcard" href="/shop?category=${encodeURIComponent(c.category)}">${c.imageUrl ? `<img src="${esc(c.imageUrl)}" alt="">` : ""}<span>${esc(c.category)} (${c.count})</span></a>`).join("")}</div></section>`;
     } else if (sec.key === "flash") {
       const fr = h.flashRow || {};
-      html += `<section><h2>⚡ Flash Sale <span class="demo-tag">DEMO</span></h2>
+      html += `<section><h2>⚡ Flash Sale</h2>
 <p class="note">Rotating deals — ${fr.poolSize || 0} flash products, ${fr.rowSize || 5} in this set, new set every ${fr.rotateDays || 2} day(s). Next refresh: ${esc(fr.nextRotationAt || "")}. ${h.flashEndsAt ? `Sale ends ${esc(h.flashEndsAt)}.` : "No countdown — no campaign end is set."}</p>
 <div class="flashrow">${(fr.products || []).map(productCard).join("")}</div>
 <p><a class="btn ghost" href="/shop?flash=1">See all flash deals →</a></p></section>`;
@@ -83,14 +110,14 @@ ${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-te
       html += `<section><h2>Why Shop With NEXORA</h2><div class="trustgrid">
 <div class="trust">🚚 <strong>Delivery info at checkout</strong><span>Standard, Express, Scheduled and Pickup options with arrival dates.</span></div>
 <div class="trust">🔒 <strong>Secure checkout</strong><span>Server-recomputed totals — the client never dictates a price.</span></div>
-<div class="trust">↩️ <strong>14-day demo return window</strong><span>With a 9-stage refund tracker you can follow.</span></div>
-<div class="trust">📦 <strong>12-step order tracking</strong><span>From Pending to Delivered, simulated end to end.</span></div>
+<div class="trust">↩️ <strong>14-day return window</strong><span>With a 9-stage refund tracker you can follow.</span></div>
+<div class="trust">📦 <strong>12-step order tracking</strong><span>From Pending to Delivered, end to end.</span></div>
 <div class="trust">💬 <strong>Help Center &amp; support</strong><span>FAQs, support cases and ticket replies.</span></div></div></section>`;
     } else if (sec.key === "reviews") {
-      html += `<section><h2>What Customers Say</h2><div class="revgrid">${(h.reviews || []).map((r: any) => `<div class="review"><strong>${esc(r.productName || "")}</strong><div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div><p>${esc(r.text)}</p><small>— ${esc(r.customerName)} ${r.verified ? "· Verified purchase" : ""}</small></div>`).join("")}</div></section>`;
+      html += `<section><h2>What Customers Say</h2><div class="revgrid">${(h.reviews || []).map((r: any) => `<div class="review"><strong>${esc(dispName(r.productName || ""))}</strong><div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div><p>${esc(r.text)}</p><small>— ${esc(r.customerName)} ${r.verified ? "· Verified purchase" : ""}</small></div>`).join("")}</div></section>`;
     }
   }
-  return layout("Home", html + `<p class="note">DEMO notice: every product photo is a representative sample image, labelled "Sample image". Real product photos are still owed by the owner and will replace the samples.</p>`);
+  return layout("Home", html);
 }
 
 function safeTarget(v: any): any { return v && typeof v === "object" ? v : {}; }
@@ -122,19 +149,19 @@ ${data.total > (data.products || []).length ? `<p><a class="btn" href="/shop?${e
 
 export function productView(p: any, reviews: any[], questions: any[]): string {
   const price = p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price;
-  return layout(p.name, `<div class="pdetail light-panel">
-<div class="pgallery">${p.images?.length ? p.images.map((i: any) => `<figure><img src="${esc(i.url)}" alt="${esc(p.name)}"><figcaption>Sample image — representative stock photo; the owner's real photo will replace it.</figcaption></figure>`).join("") : `<div class="tile big">${esc(p.tile || "🛍")}</div><p>Demo product visual — no photo yet.</p>`}
-<span class="sample-chip">Sample image</span></div>
-<div class="pinfo"><h1>${esc(p.name)}</h1><p class="stars">★ ${p.rating} (${p.reviewsCount} reviews) · ${p.sold} sold</p>
+  return layout(dispName(p.name), `<div class="pdetail light-panel">
+<div class="pgallery">${p.images?.length ? p.images.map((i: any) => `<figure><img src="${esc(i.url)}" alt="${esc(dispName(p.name))}"></figure>`).join("") : `<div class="tile big">${esc(p.tile || "🛍")}</div><p>No photo yet.</p>`}
+</div>
+<div class="pinfo"><h1>${esc(dispName(p.name))}</h1><p class="stars">★ ${p.rating} (${p.reviewsCount} reviews) · ${p.sold} sold</p>
 <p class="price big">${formatPkr(price)} ${p.salePrice != null && p.salePrice < p.price ? `<s>${formatPkr(p.price)}</s> <span class="off">−${Math.round(((p.price - p.salePrice) / p.price) * 100)}%</span>` : ""}</p>
-<p>${esc(p.shortDesc)}</p><p>${esc(p.description)}</p>
+<p>${esc(dispDesc(p.shortDesc))}</p><p>${esc(dispDesc(p.description))}</p>
 <p class="soldby">Sold by NEXORA Official Store · Warehouse: ${esc(p.warehouse)}</p>
 <p>${p.stock <= 0 ? '<span class="oos">Out of stock</span>' : `In stock: ${p.stock}`}</p>
 <p><button class="btn" onclick="addToCart(${p.id},1)" ${p.stock <= 0 ? "disabled" : ""}>Add to Cart</button>
 <button class="btn ghost" onclick="buyNow(${p.id})">Buy Now</button>
 <button class="btn ghost" onclick="addToWishlist(${p.id})">♡ Wishlist</button>
-<button class="btn ghost" onclick="shareProduct(${p.id}, '${esc(p.name)}')">Share</button></p>
-<h3>Specifications</h3><p class="specs">${esc(p.specs || "—")}</p>
+<button class="btn ghost" onclick="shareProduct(${p.id}, '${esc(dispName(p.name))}')">Share</button></p>
+<h3>Specifications</h3><p class="specs">${esc(dispDesc(p.specs || "—"))}</p>
 <p>Colours: ${esc(p.colors || "—")} · Sizes: ${esc(p.sizes || "—")} · Warranty: ${esc(p.warranty || "—")}</p>
 ${p.category === "Mobile Phones" ? "<p>PTA note: check PTA approval status for this device before use in Pakistan.</p>" : ""}
 ${p.category === "Smart Wearables" ? "<p>Smart-glasses note: frame, lens, camera, audio, Bluetooth, battery and compatibility are listed in the specifications above.</p>" : ""}
@@ -144,7 +171,7 @@ ${p.category === "Smart Wearables" ? "<p>Smart-glasses note: frame, lens, camera
 }
 
 export function trackView(): string {
-  return layout("Track Order", `<h1>Track Your Order</h1><p class="note">Simulated tracking — no courier API connected. The map preview is a clearly-labelled simulation.</p>
+  return layout("Track Order", `<h1>Track Your Order</h1><p class="note">Enter your order and tracking numbers to follow your parcel.</p>
 <form class="card light-panel" onsubmit="return trackOrder(event)"><label>Order number <input id="tOrder" required placeholder="NX-DEMO-…"></label>
 <label>Tracking number <input id="tTrack" required placeholder="TRK-DEMO-…"></label>
 <button class="btn">Track</button></form><div id="trackResult"></div>`);
@@ -161,12 +188,12 @@ export function adminView(): string {
 <p class="note">20 modules (spec §7.7). The Phase 1 lab test observed 21 admin tabs — the extra tab was the Phase 2 tab added later; the actual list below is the 20-module list, with Orders and Tracking kept as one Orders tab (tracking manager inside it). Staff role for this demo session: <select id="staffRole" onchange="localStorage.setItem('nx_staff_role',this.value)"><option>Super Admin</option><option>Admin</option><option>Product Manager</option><option>Inventory Manager</option><option>Order Manager</option><option>Finance Officer</option><option>Customer Support Agent</option><option>Warehouse Staff</option><option>Delivery Manager</option></select> — permissions are enforced server-side and denials are audit-logged.</p>
 <div class="tabs">${tabs.map((t, i) => `<button class="tab ${i === 0 ? "on" : ""}" onclick="adminTab(${i},this)">${esc(t)}</button>`).join("")}</div>
 <div id="adminRoot" class="card light-panel"><p>Loading…</p></div>
-`);
+`, { admin: true });
 }
 
 export function checkoutView(step: number): string {
   const steps = ["Cart Review", "Customer Info", "Delivery Address", "Shipping", "Payment", "Summary", "Confirm"];
-  return layout(`Checkout — ${steps[step - 1]}`, `<h1>Checkout <span class="demo-tag">DEMO</span></h1>
+  return layout(`Checkout — ${steps[step - 1]}`, `<h1>Checkout</h1>
 <ol class="steps">${steps.map((s, i) => `<li class="${i + 1 === step ? "on" : i + 1 < step ? "done" : ""}">${i + 1}. ${s}</li>`).join("")}</ol>
 <div id="checkoutRoot" class="card light-panel" data-step="${step}"><p>Loading step ${step}…</p></div>
 `);
@@ -193,24 +220,24 @@ ${isLogin ? "" : '<label>Confirm password <input id="aPass2" type="password" req
 export function policyView(page: string): string {
   const titles: Record<string, string> = { privacy: "Privacy Policy", terms: "Terms of Service", shipping: "Shipping Policy", returns: "Returns & Refunds Policy" };
   const bodies: Record<string, string> = {
-    privacy: "<p>We collect only what checkout and support need: name, email, phone and delivery address. No payment card numbers are stored — demo payments store only a •••• last-4 label. No email/SMS provider is connected yet, so verification emails cannot be sent.</p>",
-    terms: "<p>This is a demo store. All products, prices and orders are simulated. No live payment, courier or messaging provider is connected.</p>",
-    shipping: "<p>Standard Rs. 250 (free at Rs. 5,000+ after discount), Express Rs. 450, Scheduled Rs. 450, Pickup Rs. 0. Deliveries are simulated — no courier API is connected.</p>",
-    returns: "<p>14-day demo return window. Returns follow a 9-stage tracker (Requested → Refunded (Demo)); stock is restocked at stage 4. Refund-stage labels 1–7 are working labels, to verify against the Muse copy's returns UI.</p>",
+    privacy: "<p>We collect only what checkout and support need: name, email, phone and delivery address. No payment card numbers are stored — only a •••• last-4 label. Verification emails are not sent yet.</p>",
+    terms: "<p>All prices are in PKR. Orders are delivered by NEXORA Express. Cash on Delivery is collected only at delivery.</p>",
+    shipping: "<p>Standard Rs. 250 (free at Rs. 5,000+ after discount), Express Rs. 450, Scheduled Rs. 450, Pickup Rs. 0. Delivery times are estimates.</p>",
+    returns: "<p>14-day return window. Returns follow a 9-stage tracker (Requested → Refunded); stock is restocked at stage 4.</p>",
   };
   return layout(titles[page] || "Policy", `<h1>${titles[page] || "Policy"}</h1><div class="card light-panel">${bodies[page] || ""}<p><strong>[OWNER TO SUPPLY]</strong> — registered business name, NTN, business address, returns warehouse address.</p></div>`);
 }
 
 export function merchantsView(merchants: any[]): string {
-  return layout("Demo Merchants", `<h1>Demo Merchants</h1><p class="note">Display only — these are demo profiles, NOT sellers. No registration, stores, product ownership, commissions or payouts.</p>
+  return layout("Merchants", `<h1>Merchants</h1><p class="note">A directory of the featured stores in NEXORA MARKET.</p>
 <div class="grid">${merchants.map((m: any) => `<div class="card light-panel"><h3>${esc(m.storeName)}</h3><p>${esc(m.ownerName)} · ${esc(m.city)}</p><p>Focus: ${esc(m.categoryFocus)}</p><p>★ ${m.rating} (${m.reviewsCount} reviews) · ${esc(m.verification)} · Joined ${esc(m.joined)}</p></div>`).join("")}</div>`);
 }
 
 export function helpView(): string {
-  const tiles = ["Track my order", "Cancel an order", "Return a product", "Refund status", "Payment methods (Demo)", "Delivery options", "Coupons", "My account & password", "Addresses", "Wishlist", "Product photos (Sample)", "Demo Merchants", "Contact support", "Give feedback"];
+  const tiles = ["Track my order", "Cancel an order", "Return a product", "Refund status", "Payment methods", "Delivery options", "Coupons", "My account & password", "Addresses", "Wishlist", "Product photos", "Merchants", "Contact support", "Give feedback"];
   return layout("Help Center", `<h1>Help Center</h1><div class="tiles">${tiles.map((t) => `<a class="tilecard" href="/track">${esc(t)}</a>`).join("")}</div>
-<h2>FAQs</h2><div class="card light-panel"><p><strong>Are payments real?</strong> No — demo only. "Simulate Demo Payment" is required before placing a non-COD order; nothing is charged.</p>
-<p><strong>Why does every photo say "Sample image"?</strong> The products are demo listings with representative stock photos. The owner's real photos will replace them.</p>
+<h2>FAQs</h2><div class="card light-panel"><p><strong>How do I pay?</strong> Pay Cash on Delivery, or choose a wallet/card at Step 5 and confirm before placing your order.</p>
+<p><strong>Are the product photos final?</strong> The photos are representative images; real product photos will replace them.</p>
 <p><strong>How do I track an order?</strong> Use Track with your order number (NX-DEMO-…) and tracking number (TRK-DEMO-…).</p></div>
 <p><a class="btn" href="/track">Track an order</a> <a class="btn ghost" href="/account">Open a support case</a></p>`);
 }

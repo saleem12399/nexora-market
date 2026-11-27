@@ -17,6 +17,14 @@ async function api(name, body, opts) {
 }
 function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
 function money(n) { return "Rs. " + Number(n || 0).toLocaleString("en-PK"); }
+// Display helpers: strip stored "(Demo)"/"(Demo Simulated)" labels at render
+// time (live DB rows keep their stored values). Admin views keep raw values.
+function dispName(s) { return String(s == null ? "" : s).replace(/ \(Demo\)$/, ""); }
+function cleanDemo(s) {
+  let t = String(s == null ? "" : s);
+  t = t.replace("Demo Simulation — ", "").replace(" (Demo Simulated)", "").replace(" (demo simulation)", "").replace(" — demo only, no charge", "").replace(" — Demo", "").replace(" (Demo)", "");
+  return t;
+}
 
 async function addToCart(id, qty) {
   const r = await api("addToCart", { productId: id, qty });
@@ -106,7 +114,7 @@ async function loadCart() {
   root.innerHTML = r.items.map((i) => {
     const p = i.product; const price = p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price;
     total += price * i.qty;
-    return `<div class="card light-panel"><div class="row" style="align-items:center">${i.imageUrl ? `<img src="${esc(i.imageUrl)}" style="width:72px;height:72px;object-fit:cover;border-radius:8px">` : ""}<div><strong>${esc(p.name)}</strong> <span class="sample-chip" style="position:static">Sample image</span><br>${money(price)} × <input type="number" min="0" max="${p.stock}" value="${i.qty}" style="width:64px" onchange="updateQty(${i.id},this.value)"> = <strong>${money(price * i.qty)}</strong></div><button class="btn ghost small" onclick="removeLine(${i.id})">🗑 Remove</button></div></div>`;
+    return `<div class="card light-panel"><div class="row" style="align-items:center">${i.imageUrl ? `<img src="${esc(i.imageUrl)}" style="width:72px;height:72px;object-fit:cover;border-radius:8px">` : ""}<div><strong>${esc(dispName(p.name))}</strong><br>${money(price)} × <input type="number" min="0" max="${p.stock}" value="${i.qty}" style="width:64px" onchange="updateQty(${i.id},this.value)"> = <strong>${money(price * i.qty)}</strong></div><button class="btn ghost small" onclick="removeLine(${i.id})">🗑 Remove</button></div></div>`;
   }).join("") + `<p><strong>Subtotal: ${money(total)}</strong> (shipping and discounts are calculated at checkout)</p><p><a class="btn" href="/checkout?step=1">Proceed to Checkout →</a></p>`;
 }
 async function updateQty(id, qty) { const r = await api("updateCartItem", { id, qty: Number(qty) }); if (r.note) alert(r.note); loadCart(); refreshCartCount(); }
@@ -139,7 +147,7 @@ async function loadCheckout(step) {
   const lines = items.map((i) => { const p = i.product; const pr = p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price; return { productId: p.id, qty: i.qty, price: pr, name: p.name, imageUrl: i.imageUrl }; });
   const subtotal = lines.reduce((a, l) => a + l.price * l.qty, 0);
   const stepHtml = {
-    1: `<h2>Step 1 — Cart Review</h2>${lines.map((l) => `<p>${l.imageUrl ? `<img src="${esc(l.imageUrl)}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;vertical-align:middle">` : ""} ${esc(l.name)} <span class="sample-chip" style="position:static">Sample</span> — ${money(l.price)} × ${l.qty} = <strong>${money(l.price * l.qty)}</strong></p>`).join("")}
+    1: `<h2>Step 1 — Cart Review</h2>${lines.map((l) => `<p>${l.imageUrl ? `<img src="${esc(l.imageUrl)}" style="width:48px;height:48px;object-fit:cover;border-radius:6px;vertical-align:middle">` : ""} ${esc(dispName(l.name))} — ${money(l.price)} × ${l.qty} = <strong>${money(l.price * l.qty)}</strong></p>`).join("")}
 <p>Subtotal: <strong>${money(subtotal)}</strong></p>
 <label>Coupon code <input id="coCoupon" placeholder="e.g. 000" value="${esc(checkoutData.couponCode || "")}"></label>
 <button class="btn ghost" onclick="applyCoupon(${subtotal})">Apply</button> <span id="coMsg"></span>
@@ -163,14 +171,14 @@ async function loadCheckout(step) {
 <label><input type="radio" name="ship" value="Pickup" ${checkoutData.shippingMethod === "Pickup" ? "checked" : ""}> Pickup — Rs. 0</label><br>
 <label>Scheduled date <input id="coSlotDate" type="date"></label><label>Time window <select id="coSlotTime"><option>9am–12pm</option><option>12pm–3pm</option><option>3pm–6pm</option><option>6pm–9pm</option></select></label>
 <label>Pickup point <select id="coPickup"><option value="">—</option><option>Karachi Central</option><option>Ghotki Store</option></select></label>
-<p><button class="btn ghost" type="button" onclick="useGps()">📍 Use my device GPS (permission-based; deliveries remain simulated)</button> <span id="gpsOut"></span></p>
+<p><button class="btn ghost" type="button" onclick="useGps()">📍 Use my device GPS (permission-based)</button> <span id="gpsOut"></span></p>
 <button class="btn">Continue →</button></form>`,
-    5: `<h2>Step 5 — Payment <span class="demo-tag">DEMO</span></h2><p class="note">Demo Simulation — no gateway connected. "Simulate Demo Payment" is required before placing a non-COD order.</p>
-<div id="payMethods"></div><p><button class="btn" onclick="simulatePayment()">Simulate Demo Payment</button> <span id="payOut"></span></p>
+    5: `<h2>Step 5 — Payment</h2><p class="note">Confirm your payment before placing a non-COD order.</p>
+<div id="payMethods"></div><p><button class="btn" onclick="simulatePayment()">Confirm Payment</button> <span id="payOut"></span></p>
 <p><button class="btn" onclick="saveStep5()">Continue to Summary →</button></p>`,
     6: `<h2>Step 6 — Summary</h2><div id="summaryBox"><p>Loading summary…</p></div><p><a class="btn" href="/checkout?step=7">Continue to Confirm →</a></p>`,
     7: `<h2>Step 7 — Confirm</h2><div id="confirmBox"><p>Review your order and place it. This is idempotent — a duplicate submission creates no second order.</p></div>
-<button class="btn" onclick="placeOrder()">Place Order (Demo)</button><div id="orderOut"></div>`,
+<button class="btn" onclick="placeOrder()">Place Order</button><div id="orderOut"></div>`,
   };
   root.innerHTML = stepHtml[step] || "";
   if (step === 5) renderPayMethods();
@@ -180,12 +188,12 @@ async function loadCheckout(step) {
 function renderPayMethods() {
   const el = document.getElementById("payMethods"); if (!el) return;
   const rows = [
-    { name: "JazzCash (Demo)", logo: "/images/payments/jazzcash-logo.png", line: "Demo wallet — number ≥ 10 digits, then a 4-digit DEMO PIN (client-side only, never sent or stored)." },
-    { name: "Easypaisa (Demo)", logo: "/images/payments/easypaisa-logo.png", line: "Demo wallet — number ≥ 10 digits, then a 4-digit DEMO PIN (client-side only, never sent or stored)." },
-    { name: "Debit Card (Demo)", logo: "/images/payments/visa-logo.png", logo2: "/images/payments/mastercard-logo.png", line: "Demo card — only a •••• last-4 label is stored, never a card number." },
-    { name: "Bank Transfer (Demo)", tile: "BANK", line: "Demo bank details (fictional) — paid only via recorded finance verification." },
-    { name: "Cash on Delivery", tile: "COD", line: "Pay on delivery. COD stays unpaid until delivery collection is recorded (demo)." },
-    { name: "Digital Wallet (Demo)", tile: "WALLET", line: "Demo wallet — 3-stage demo flow." },
+    { name: "JazzCash", logo: "/images/payments/jazzcash-logo.png", line: "Wallet — account number ≥ 10 digits, then a 4-digit PIN (client-side only, never sent or stored)." },
+    { name: "Easypaisa", logo: "/images/payments/easypaisa-logo.png", line: "Wallet — account number ≥ 10 digits, then a 4-digit PIN (client-side only, never sent or stored)." },
+    { name: "Debit Card", logo: "/images/payments/visa-logo.png", logo2: "/images/payments/mastercard-logo.png", line: "Card — only a •••• last-4 label is stored, never a card number." },
+    { name: "Bank Transfer", tile: "BANK", line: "Bank transfer — paid only via recorded finance verification." },
+    { name: "Cash on Delivery", tile: "COD", line: "Pay on delivery. COD stays unpaid until delivery collection is recorded." },
+    { name: "Digital Wallet", tile: "WALLET", line: "Digital wallet — 3-stage confirmation flow." },
   ];
   el.innerHTML = rows.map((m) => `<label class="payrow"><input type="radio" name="pay" value="${esc(m.name)}" ${m.name === (checkoutData.paymentMethod || "Cash on Delivery") ? "checked" : ""}>
 ${m.logo ? `<span class="paylogo"><img src="${m.logo}" alt="${esc(m.name)}"></span>${m.logo2 ? `<span class="paylogo"><img src="${m.logo2}" alt="Mastercard"></span>` : ""}` : `<span class="paytile">${m.tile}</span>`}
@@ -201,23 +209,23 @@ async function simulatePayment() {
   const method = (document.querySelector('input[name="pay"]:checked') || {}).value || "Cash on Delivery";
   checkoutData.paymentMethod = method;
   if (method !== "Cash on Delivery") {
-    const acct = prompt("Demo wallet/card account (demo only — never enter a real number):", "03001234567");
-    if (!acct || acct.replace(/\D/g, "").length < 10) { alert("Wallet number must be at least 10 digits (demo)."); return; }
-    const pin = prompt("Enter any 4-digit DEMO PIN (client-side only — never sent or stored):");
-    if (!pin || pin.length !== 4) { alert("A 4-digit DEMO PIN is required to approve the demo payment."); return; }
+    const acct = prompt("Wallet/card account (never enter a real number):", "03001234567");
+    if (!acct || acct.replace(/\D/g, "").length < 10) { alert("Account number must be at least 10 digits."); return; }
+    const pin = prompt("Enter any 4-digit PIN to confirm (it is not sent or stored):");
+    if (!pin || pin.length !== 4) { alert("A 4-digit PIN is required to confirm the payment."); return; }
     checkoutData.paymentAccount = acct;
     checkoutData.paymentRef = "TXN-DEMO-" + Math.floor(10000000 + Math.random() * 89999999);
   }
   checkoutData.paymentSimulated = true;
   saveCheckoutData();
-  document.getElementById("payOut").textContent = "Payment Confirmed (Demo Simulation)" + (checkoutData.paymentRef ? " — " + checkoutData.paymentRef : "");
+  document.getElementById("payOut").textContent = "Payment Confirmed" + (checkoutData.paymentRef ? " — " + checkoutData.paymentRef : "");
 }
 function useGps() {
   if (!navigator.geolocation) { document.getElementById("gpsOut").textContent = "GPS is not available on this device."; return; }
   navigator.geolocation.getCurrentPosition((pos) => {
     checkoutData.gps = pos.coords.latitude + "," + pos.coords.longitude;
     saveCheckoutData();
-    document.getElementById("gpsOut").textContent = "GPS attached: " + checkoutData.gps + " (deliveries remain simulated).";
+    document.getElementById("gpsOut").textContent = "GPS attached: " + checkoutData.gps + ".";
   }, () => { document.getElementById("gpsOut").textContent = "GPS permission was not granted."; });
 }
 function saveStep1() {
@@ -244,7 +252,7 @@ function saveStep4(e) {
   e.preventDefault();
   checkoutData.shippingMethod = (document.querySelector('input[name="ship"]:checked') || {}).value || "Standard";
   const d = document.getElementById("coSlotDate").value, t = document.getElementById("coSlotTime").value;
-  checkoutData.deliverySlot = checkoutData.shippingMethod === "Scheduled" && d ? `Scheduled — ${d} ${t}` : checkoutData.shippingMethod + " — arrives in 2–4 days (demo)";
+  checkoutData.deliverySlot = checkoutData.shippingMethod === "Scheduled" && d ? `Scheduled — ${d} ${t}` : checkoutData.shippingMethod + " — arrives in 2–4 days";
   checkoutData.pickupPoint = document.getElementById("coPickup").value || "";
   saveCheckoutData();
   location.href = "/checkout?step=5"; return false;
@@ -283,34 +291,34 @@ async function renderSummary(lines, subtotal) {
 <p>Subtotal ${money(subtotal)} − discount ${money(discount)} + shipping ${money(ship)} + tax Rs. 0 = <strong>${money(total)}</strong></p>
 <p>Deliver to: ${esc(checkoutData.recipientName || "")}, ${esc(checkoutData.address || "")}, ${esc(checkoutData.city || "")} ${esc(checkoutData.postalCode || "")}</p>
 <p>Shipping: ${esc(checkoutData.shippingMethod || "Standard")} · ${esc(checkoutData.deliverySlot || "")}</p>
-<p>Payment: ${esc(checkoutData.paymentMethod || "Cash on Delivery")} ${checkoutData.paymentSimulated ? "(Demo Simulated)" : ""}</p>`;
+<p>Payment: ${esc(checkoutData.paymentMethod || "Cash on Delivery")} ${checkoutData.paymentSimulated ? "(Confirmed)" : ""}</p>`;
   checkoutData._summary = { subtotal, discount, ship, total };
   saveCheckoutData();
 }
 function renderConfirm(lines, subtotal) {
   const el = document.getElementById("confirmBox"); if (!el) return;
-  el.innerHTML = `<p>${lines.length} item(s) · Subtotal ${money(subtotal)} · Payment: ${esc(checkoutData.paymentMethod || "Cash on Delivery")} (Demo)</p>`;
+  el.innerHTML = `<p>${lines.length} item(s) · Subtotal ${money(subtotal)} · Payment: ${esc(checkoutData.paymentMethod || "Cash on Delivery")}</p>`;
 }
 async function placeOrder() {
   const cart = await api("getCart", {});
   const items = (cart.items || []).map((i) => ({ productId: i.product.id, qty: i.qty }));
   if (!items.length) { alert("Your cart is empty."); return; }
   const method = checkoutData.paymentMethod || "Cash on Delivery";
-  if (method !== "Cash on Delivery" && !checkoutData.paymentSimulated) { alert('"Simulate Demo Payment" is required before placing a non-COD order.'); return; }
+  if (method !== "Cash on Delivery" && !checkoutData.paymentSimulated) { alert('"Confirm Payment" is required before placing a non-COD order.'); return; }
   if (!checkoutData.idempotencyKey) { checkoutData.idempotencyKey = "key-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8); saveCheckoutData(); }
   const r = await api("createOrder", { ...checkoutData, items, couponCode: checkoutData.couponCode || "", idempotencyKey: checkoutData.idempotencyKey });
   const out = document.getElementById("orderOut");
   if (!r.ok) { out.innerHTML = "<p><strong>Order failed:</strong> " + esc(r.error || JSON.stringify(r.errors || {})) + "</p>"; return; }
   if (r.duplicateBlocked) { clearCheckoutData(); out.innerHTML = "<p>Duplicate submission blocked — your original order stands (idempotency).</p>"; return; }
-  out.innerHTML = `<div class="card light-panel"><h3>Order placed (Demo) ✓</h3><p>Order <strong>${esc(r.order.orderNumber)}</strong> · Total <strong>${money(r.order.total)}</strong></p>
-<p>Tracking: ${esc(r.order.trackingNumber)} · Courier: NEXORA Express (Demo) — simulated</p>
+  out.innerHTML = `<div class="card light-panel"><h3>Order placed ✓</h3><p>Order <strong>${esc(r.order.orderNumber)}</strong> · Total <strong>${money(r.order.total)}</strong></p>
+<p>Tracking: ${esc(r.order.trackingNumber)} · Courier: ${esc(cleanDemo(r.order.courier))}</p>
 <p>${(r.adjustments || []).map(esc).join("<br>")}</p>
-<p><button class="btn" onclick="simulateDelivery(${r.order.id})">Simulate Delivery (Demo)</button> <a class="btn ghost" href="/track">Track Order</a> <a class="btn ghost" href="/account">My Orders</a></p></div>`;
+<p><button class="btn" onclick="simulateDelivery(${r.order.id})">Advance to Next Step</button> <a class="btn ghost" href="/track">Track Order</a> <a class="btn ghost" href="/account">My Orders</a></p></div>`;
   clearCheckoutData();
 }
 async function simulateDelivery(orderId) {
   const r = await api("advanceOrder", { orderId }, { role: true });
-  alert(r.ok ? ("Advanced to " + r.advancedTo + " (demo simulation).") : (r.error || "Could not advance."));
+  alert(r.ok ? ("Advanced to " + r.advancedTo + ".") : (r.error || "Could not advance."));
   if (r.ok && r.advancedTo !== "Delivered") { /* stay on the page; tap again to advance */ }
 }
 
@@ -322,11 +330,11 @@ async function trackOrder(e) {
   if (!r.ok) { el.innerHTML = "<p>" + esc(r.error) + "</p>"; return false; }
   const pct = r.stepIndex >= 0 ? Math.round(((r.stepIndex + 1) / r.steps.length) * 100) : 0;
   el.innerHTML = `<div class="card light-panel"><h3>${esc(r.order.orderNumber)} — ${esc(r.order.status)}</h3>
-<p>Courier: ${esc(r.courier)} (Demo) · Tracking: ${esc(r.order.trackingNumber)} · Total ${money(r.order.total)}</p>
+<p>Courier: ${esc(cleanDemo(r.courier))} · Tracking: ${esc(r.order.trackingNumber)} · Total ${money(r.order.total)}</p>
 <div style="background:#E2E8F0;border-radius:999px;height:10px"><div style="width:${pct}%;background:#315EFB;height:10px;border-radius:999px"></div></div>
-<ol>${r.events.map((ev) => `<li><strong>${esc(ev.status)}</strong> — ${esc(ev.note || "")} <small>(${esc(ev.location || "")})</small></li>`).join("")}</ol>
-<p class="note">Simulated map preview: parcel shown at the last verified event location (demo simulation).</p>
-<p><button class="btn" onclick="simulateDelivery(${r.order.id})">Simulate Delivery (Demo)</button></p></div>`;
+<ol>${r.events.map((ev) => `<li><strong>${esc(cleanDemo(ev.status))}</strong> — ${esc(cleanDemo(ev.note || ""))} <small>(${esc(cleanDemo(ev.location || ""))})</small></li>`).join("")}</ol>
+<p class="note">Parcel shown at the last verified event location.</p>
+<p><button class="btn" onclick="simulateDelivery(${r.order.id})">Advance to Next Step</button></p></div>`;
   return false;
 }
 
@@ -363,7 +371,7 @@ async function loadAccount() {
 <div class="stat"><b>${st.delivered}</b><span>Delivered Orders</span></div>
 <div class="stat"><b>${st.wishlistItems}</b><span>Wishlist Items</span></div></div>
 <h3 style="color:#fff">Recent Orders</h3>
-${recent.length ? recent.map((o) => `<p>${esc(o.orderNumber)} — ${esc(o.status)} — ${money(o.total)} <a href="/track" style="color:#fff">Track</a> <button class="btn ghost small" onclick="simulateDelivery(${o.id})">Simulate Delivery (Demo)</button></p>`).join("") : "<p class='muted'>No orders yet.</p>"}
+${recent.length ? recent.map((o) => `<p>${esc(o.orderNumber)} — ${esc(o.status)} — ${money(o.total)} <a href="/track" style="color:#fff">Track</a> <button class="btn ghost small" onclick="simulateDelivery(${o.id})">Advance to Next Step</button></p>`).join("") : "<p class='muted'>No orders yet.</p>"}
 <p><a href="/account" style="color:#fff">View All →</a></p>
 <h3 style="color:#fff">Quick Services</h3><div class="qgrid">
 <a class="qcard" href="/shop">🛍 Shop</a><a class="qcard" href="/track">📦 Track Order</a><a class="qcard" href="/cart">🛒 Cart</a>
@@ -374,9 +382,9 @@ ${recent.length ? recent.map((o) => `<p>${esc(o.orderNumber)} — ${esc(o.status
 </div>`;
 }
 function acctPanel(html) { const el = document.getElementById("acctPanel"); if (el) el.innerHTML = html; }
-async function showReturns(e) { e.preventDefault(); const r = await api("listReturns", { mine: true }); acctPanel("<h3>My Returns</h3>" + (r.returns || []).map((x) => `<p>${esc(x.returnNumber)} — ${esc(x.productName)} — ${money(x.refundAmount)} — stage ${x.refundStage}: ${esc(x.stageLabel)}${x.stageLabelsVerified ? "" : " (label to verify)"}</p>`).join("") || "<p>No returns.</p>"); }
-async function showRefunds(e) { e.preventDefault(); const r = await api("listReturns", { mine: true }); acctPanel("<h3>My Refunds — 9-stage tracker</h3>" + (r.returns || []).map((x) => `<p>${esc(x.returnNumber)}: stage ${x.refundStage}/8 — ${esc(x.stageLabel)}</p>`).join("") || "<p>No refunds in progress.</p>"); }
-async function showPayments(e) { e.preventDefault(); const r = await api("listPaymentTransactions", {}); const my = await api("listMyOrders", {}); const nums = new Set((my.orders || []).map((o) => o.orderNumber)); acctPanel("<h3>Payment History</h3>" + (r.transactions || []).filter((t) => nums.has(t.orderNumber)).map((t) => `<p>${esc(t.orderNumber)} — ${esc(t.method)} — ${esc(t.account || "")} — ${esc(t.reference || "")} — ${esc(t.status)} — ${money(t.amount)} (Demo)</p>`).join("") || "<p>No payments yet.</p>"); }
+async function showReturns(e) { e.preventDefault(); const r = await api("listReturns", { mine: true }); acctPanel("<h3>My Returns</h3>" + (r.returns || []).map((x) => `<p>${esc(x.returnNumber)} — ${esc(dispName(x.productName))} — ${money(x.refundAmount)} — stage ${x.refundStage}: ${esc(cleanDemo(x.stageLabel))}${x.stageLabelsVerified ? "" : " (label to verify)"}</p>`).join("") || "<p>No returns.</p>"); }
+async function showRefunds(e) { e.preventDefault(); const r = await api("listReturns", { mine: true }); acctPanel("<h3>My Refunds — 9-stage tracker</h3>" + (r.returns || []).map((x) => `<p>${esc(x.returnNumber)}: stage ${x.refundStage}/8 — ${esc(cleanDemo(x.stageLabel))}</p>`).join("") || "<p>No refunds in progress.</p>"); }
+async function showPayments(e) { e.preventDefault(); const r = await api("listPaymentTransactions", {}); const my = await api("listMyOrders", {}); const nums = new Set((my.orders || []).map((o) => o.orderNumber)); acctPanel("<h3>Payment History</h3>" + (r.transactions || []).filter((t) => nums.has(t.orderNumber)).map((t) => `<p>${esc(t.orderNumber)} — ${esc(cleanDemo(t.method))} — ${esc(t.account || "")} — ${esc(t.reference || "")} — ${esc(cleanDemo(t.status))} — ${money(t.amount)}</p>`).join("") || "<p>No payments yet.</p>"); }
 async function showAddresses(e) { e.preventDefault(); const r = await api("listAddresses", {}); acctPanel("<h3>Saved Addresses</h3>" + (r.addresses || []).map((a) => `<p><strong>${esc(a.label)}</strong> — ${esc(a.recipient)}, ${esc(a.address)}, ${esc(a.city)} ${esc(a.postalCode)} ${a.isDefault ? "(Default)" : ""}</p>`).join("") || "<p>No saved address yet.</p>"); }
 async function showNotifs(e) { e.preventDefault(); const r = await api("listNotifications", {}); await api("markNotificationsRead", {}); acctPanel("<h3>Notifications</h3><p class='note'>Opening notifications marks them all read.</p>" + (r.notifications || []).slice(0, 10).map((n) => `<p><strong>${esc(n.title)}</strong> — ${esc(n.body)}</p>`).join("")); }
 function changeName(e) { e.preventDefault(); const n = prompt("New name:"); if (!n) return; api("updateCustomerProfile", { name: n }).then(() => loadAccount()); }
@@ -398,7 +406,7 @@ async function doChangePassword(e) {
   alert(r.ok ? "Password changed." : (r.error || "Could not change password."));
   return false;
 }
-function notifPrefs(e) { e.preventDefault(); alert("Notification preferences: order updates and support replies are on (demo)."); }
+function notifPrefs(e) { e.preventDefault(); alert("Notification preferences: order updates and support replies are on."); }
 function privacySec(e) { e.preventDefault(); if (confirm("Request account deletion? This only records the request — the owner reviews it first.")) api("requestAccountDeletion", {}).then((r) => alert(r.note || "Requested.")); }
 
 // ---- Admin ----

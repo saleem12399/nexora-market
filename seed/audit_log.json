@@ -24,9 +24,9 @@
   },
   {
    "action": "Return requested",
-   "actor": "Demo Customer",
+   "actor": "Test Customer",
    "createdAt": "2026-11-25T09:51:50.856Z",
-   "detail": "RET-DEMO-310810 — NX-DEMO-100001 / Aurora X5 Wireless Earbuds (Demo) / Rs. 5,499",
+   "detail": "RET-DEMO-310810 — NX-DEMO-100001 / Aurora X5 Wireless Earbuds / Rs. 5,499",
    "id": 45
   },
   {
@@ -96,7 +96,7 @@
    "action": "Return requested",
    "actor": "Big Test QA Customer",
    "createdAt": "2026-11-25T09:05:31.319Z",
-   "detail": "RET-DEMO-531294 — NX-DEMO-97530481 / Men's Premium Cotton T-Shirt (Demo) / Rs. 1,749",
+   "detail": "RET-DEMO-531294 — NX-DEMO-97530481 / Men's Premium Cotton T-Shirt / Rs. 1,749",
    "id": 35
   },
   {

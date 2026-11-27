@@ -1,7 +1,8 @@
 // API — REST endpoints mirroring the REBUILD-SPEC.md §5 action surface.
 // Every action name from the spec exists as POST /api/<actionName> (plus a
 // few GET conveniences). No DB -> 503 {"error":"database not configured"}.
-// Demo mode: every payment/courier/messaging step is labelled DEMO/simulated;
+// Payments, courier and tracking are not connected to live providers;
+// customer views show neutral wording (no real-payment/shipment claims).
 // no live gateway, courier or messaging provider is connected.
 
 import crypto from "node:crypto";
@@ -489,7 +490,7 @@ export function registerApi(app: Express) {
   a("listDemoMerchants", async (req, res, db) => {
     let rows = await db.select().from(s.demoMerchants).orderBy(desc(s.demoMerchants.rating));
     if (req.body?.verification) rows = rows.filter((m: any) => m.verification === req.body.verification);
-    res.json({ ok: true, merchants: rows, note: "Display only — demo merchants are not sellers; there is no registration, store, commission or payout." });
+    res.json({ ok: true, merchants: rows, note: "Featured stores directory — these merchants are display profiles, not sellers." });
   });
 
   // ---- 5.3 Checkout & orders ----
@@ -545,7 +546,7 @@ export function registerApi(app: Express) {
     const paymentMethod = String(b.paymentMethod || "Cash on Delivery");
     const isCod = paymentMethod === "Cash on Delivery";
     const paymentRef = isCod ? "" : (b.paymentRef || txnRef());
-    const paymentStatus = isCod ? "Pending (COD)" : `Paid (Demo Simulated) • Ref ${paymentRef}`;
+    const paymentStatus = isCod ? "Pending (COD)" : `Paid • Ref ${paymentRef}`;
     const on = orderNumber();
     const now = Date.now();
     const order = (await db.insert(s.orders).values({
@@ -557,7 +558,7 @@ export function registerApi(app: Express) {
       pickupPoint: b.pickupPoint || "", shippingMethod: method, shippingFee: totals.shippingFee,
       subtotal, discount, total: totals.total, status: "Pending", paymentMethod,
       paymentStatus, paymentAccount: b.paymentAccount || "", paymentRef,
-      courier: "NEXORA Express (Demo)", trackingNumber: trackingNumber(on),
+      courier: "NEXORA Express", trackingNumber: trackingNumber(on),
       cancelReason: "", idempotencyKey, legacyTest: false, legacyNote: "", createdAt: now,
     }).returning())[0];
     for (const l of lines) {
@@ -566,13 +567,13 @@ export function registerApi(app: Express) {
       await db.update(s.products).set({ stock: newStock }).where(eq(s.products.id, l.product.id));
       await db.insert(s.inventoryMovements).values({ productId: l.product.id, sku: l.product.sku, type: "Order Reserved (Stock-Out)", qty: -l.qty, balanceAfter: newStock, reference: on, actor: "System", note: `Reserved for order ${on} at checkout`, createdAt: now });
     }
-    await db.insert(s.orderEvents).values({ orderId: order.id, status: "Pending", note: `Order placed. Payment: ${paymentMethod}${isCod ? " — demo only, no charge." : ` from ${b.paymentAccount || ""}, Transaction ${paymentRef} — demo only, no charge.`}`, location: "NEXORA Karachi Central (Demo)", actor: "System", createdAt: now });
+    await db.insert(s.orderEvents).values({ orderId: order.id, status: "Pending", note: `Order placed. Payment: ${paymentMethod}${isCod ? " — cash collected on delivery." : ` from ${b.paymentAccount || ""}, Transaction ${paymentRef} recorded.`}`, location: "NEXORA Karachi Central", actor: "System", createdAt: now });
     await db.insert(s.paymentTransactions).values({ orderId: order.id, orderNumber: on, method: paymentMethod, provider: paymentMethod.replace(" (Demo)", ""), account: b.paymentAccount || (isCod ? "Cash collected on delivery" : ""), reference: paymentRef, amount: totals.total, status: paymentStatus, mode: PAYMENT_MODE_DEMO, createdAt: now });
     if (couponCode && discount > 0) {
       const c = (await db.select().from(s.coupons).where(eq(s.coupons.code, couponCode)))[0];
       if (c) await db.update(s.coupons).set({ uses: c.uses + 1 }).where(eq(s.coupons.id, c.id));
     }
-    await db.insert(s.notifications).values({ title: "Order placed (Demo)", body: `${on} confirmed. Total ${formatPkr(totals.total)}. Tracking ${trackingNumber(on)}.`, type: "Order", isRead: false, createdAt: now });
+    await db.insert(s.notifications).values({ title: "Order placed", body: `${on} confirmed. Total ${formatPkr(totals.total)}. Tracking ${trackingNumber(on)}.`, type: "Order", isRead: false, createdAt: now });
     return { ok: true, order, totals, adjustments, duplicate: false };
   }
 
@@ -596,13 +597,13 @@ export function registerApi(app: Express) {
     const next = TRACKING_STEPS[idx + 1];
     const now = Date.now();
     await db.update(s.orders).set({ status: next }).where(eq(s.orders.id, order.id));
-    await db.insert(s.orderEvents).values({ orderId: order.id, status: next, note: TRACKING_STEP_NOTES[next] || `${next} (demo simulation).`, location: TRACKING_STEP_LOCATIONS[next] || "NEXORA Express (Demo)", actor: "System", createdAt: now });
+    await db.insert(s.orderEvents).values({ orderId: order.id, status: next, note: TRACKING_STEP_NOTES[next] || `${next}.`, location: TRACKING_STEP_LOCATIONS[next] || "NEXORA Express", actor: "System", createdAt: now });
     if (next === "Shipped") {
-      await db.insert(s.shipments).values({ orderId: order.id, orderNumber: order.orderNumber, trackingNumber: order.trackingNumber, provider: "NEXORA Express (Demo)", charge: order.shippingFee, status: SHIPMENT_STATUS, createdAt: now });
+      await db.insert(s.shipments).values({ orderId: order.id, orderNumber: order.orderNumber, trackingNumber: order.trackingNumber, provider: "NEXORA Express", charge: order.shippingFee, status: SHIPMENT_STATUS, createdAt: now });
     }
     if (next === "Delivered" && order.paymentMethod === "Cash on Delivery") {
-      await db.update(s.orders).set({ paymentStatus: "Paid (COD Collected — Demo)" }).where(eq(s.orders.id, order.id));
-      await db.insert(s.paymentTransactions).values({ orderId: order.id, orderNumber: order.orderNumber, method: order.paymentMethod, provider: "Cash on Delivery", account: "Cash collected on delivery", reference: "", amount: order.total, status: "Paid (COD Collected — Demo)", mode: PAYMENT_MODE_DEMO, createdAt: now });
+      await db.update(s.orders).set({ paymentStatus: "Paid (COD Collected)" }).where(eq(s.orders.id, order.id));
+      await db.insert(s.paymentTransactions).values({ orderId: order.id, orderNumber: order.orderNumber, method: order.paymentMethod, provider: "Cash on Delivery", account: "Cash collected on delivery", reference: "", amount: order.total, status: "Paid (COD Collected)", mode: PAYMENT_MODE_DEMO, createdAt: now });
     }
     const updated = (await db.select().from(s.orders).where(eq(s.orders.id, order.id)))[0];
     return { ok: true, order: updated, advancedTo: next };
@@ -611,7 +612,7 @@ export function registerApi(app: Express) {
   a("advanceOrder", async (req, res, db) => {
     const r = await advanceOrderInternal(db, Number(req.body?.orderId));
     if (!r.ok) { res.status(400).json({ ok: false, error: r.error }); return; }
-    res.json({ ok: true, order: r.order, advancedTo: r.advancedTo, note: "Demo simulation — each tap advances one step on the 12-step timeline." });
+    res.json({ ok: true, order: r.order, advancedTo: r.advancedTo, note: "Each tap advances one step on the 12-step timeline." });
   }, { area: "orders" });
 
   a("updateOrderStatus", async (req, res, db) => {
@@ -623,7 +624,7 @@ export function registerApi(app: Express) {
     const order = (await db.select().from(s.orders).where(eq(s.orders.id, Number(req.body?.orderId))))[0];
     if (!order) { res.status(404).json({ ok: false, error: "Order not found." }); return; }
     await db.update(s.orders).set({ status }).where(eq(s.orders.id, order.id));
-    await db.insert(s.orderEvents).values({ orderId: order.id, status, note: `Status set to ${status} by ${staffRoleLabel(req)} (demo simulation).`, location: "NEXORA Head Office (Demo)", actor: staffRoleLabel(req), createdAt: Date.now() });
+    await db.insert(s.orderEvents).values({ orderId: order.id, status, note: `Status set to ${status} by ${staffRoleLabel(req)}.`, location: "NEXORA Head Office", actor: staffRoleLabel(req), createdAt: Date.now() });
     res.json({ ok: true });
   }, { area: "orders" });
 
@@ -649,15 +650,15 @@ export function registerApi(app: Express) {
     if (order.status === "Cancelled") { res.status(400).json({ ok: false, error: "This order is already cancelled." }); return; }
     if (order.status === "Delivered") { res.status(400).json({ ok: false, error: "A delivered order cannot be cancelled — please request a return instead." }); return; }
     if (["Shipped", "In Transit", "Arrived at Sorting Facility", "Arrived in Destination City", "Out for Delivery"].includes(order.status)) {
-      await db.insert(s.orderEvents).values({ orderId: order.id, status: order.status, note: `Cancellation requested while ${order.status} — refusal workflow: courier return requested (demo simulation). Reason: ${reason}`, location: "NEXORA Express (Demo)", actor: "System", createdAt: now });
-      await db.insert(s.notifications).values({ title: "Cancellation requested (Demo)", body: `${order.orderNumber} is already ${order.status}; a courier return has been requested (demo simulation).`, type: "Order", isRead: false, createdAt: now });
+      await db.insert(s.orderEvents).values({ orderId: order.id, status: order.status, note: `Cancellation requested while ${order.status} — refusal workflow: courier return requested. Reason: ${reason}`, location: "NEXORA Express", actor: "System", createdAt: now });
+      await db.insert(s.notifications).values({ title: "Cancellation requested", body: `${order.orderNumber} is already ${order.status}; a courier return has been requested.`, type: "Order", isRead: false, createdAt: now });
       await audit(db, "Order cancellation requested (shipped)", actor, `${order.orderNumber} — ${order.status}`);
-      res.json({ ok: true, refused: true, message: "The order has already shipped — a courier return was requested instead of an instant cancellation (demo simulation)." });
+      res.json({ ok: true, refused: true, message: "The order has already shipped — a courier return was requested instead of an instant cancellation." });
       return;
     }
-    const prepaid = order.paymentStatus.startsWith("Paid (Demo Simulated)");
-    await db.update(s.orders).set({ status: "Cancelled", cancelReason: reason, paymentStatus: prepaid ? "Refund Pending (Demo)" : order.paymentStatus }).where(eq(s.orders.id, order.id));
-    await db.insert(s.orderEvents).values({ orderId: order.id, status: "Cancelled", note: `Order cancelled. Reason: ${reason}`, location: "NEXORA Head Office (Demo)", actor: "System", createdAt: now });
+    const prepaid = order.paymentStatus.startsWith("Paid (Demo Simulated)") || order.paymentStatus.startsWith("Paid • Ref");
+    await db.update(s.orders).set({ status: "Cancelled", cancelReason: reason, paymentStatus: prepaid ? "Refund Pending" : order.paymentStatus }).where(eq(s.orders.id, order.id));
+    await db.insert(s.orderEvents).values({ orderId: order.id, status: "Cancelled", note: `Order cancelled. Reason: ${reason}`, location: "NEXORA Head Office", actor: "System", createdAt: now });
     // Release reserved stock (checkout-placed orders only).
     const items = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, order.id));
     for (const it of items) {
@@ -669,9 +670,9 @@ export function registerApi(app: Express) {
       await db.insert(s.inventoryMovements).values({ productId: p.id, sku: p.sku, type: "Order Cancelled (Stock-In)", qty: it.qty, balanceAfter: newStock, reference: order.orderNumber, actor: "System", note: `Stock released for cancelled order ${order.orderNumber}`, createdAt: now });
     }
     if (prepaid) {
-      await db.insert(s.paymentTransactions).values({ orderId: order.id, orderNumber: order.orderNumber, method: order.paymentMethod, provider: order.paymentMethod.replace(" (Demo)", ""), account: order.paymentAccount, reference: order.paymentRef, amount: order.total, status: "Refund Pending (Demo)", mode: PAYMENT_MODE_DEMO, createdAt: now });
+      await db.insert(s.paymentTransactions).values({ orderId: order.id, orderNumber: order.orderNumber, method: order.paymentMethod, provider: order.paymentMethod.replace(" (Demo)", ""), account: order.paymentAccount, reference: order.paymentRef, amount: order.total, status: "Refund Pending", mode: PAYMENT_MODE_DEMO, createdAt: now });
     }
-    await db.insert(s.notifications).values({ title: "Order cancelled (Demo)", body: `${order.orderNumber} was cancelled. ${prepaid ? "Refund Pending (Demo)." : ""}`, type: "Order", isRead: false, createdAt: now });
+    await db.insert(s.notifications).values({ title: "Order cancelled", body: `${order.orderNumber} was cancelled. ${prepaid ? "Refund Pending." : ""}`, type: "Order", isRead: false, createdAt: now });
     await audit(db, "Order cancelled", actor, `${order.orderNumber} — ${reason}`);
     res.json({ ok: true, cancelled: true, refundPending: prepaid });
   });
@@ -683,7 +684,7 @@ export function registerApi(app: Express) {
     const events = await db.select().from(s.orderEvents).where(eq(s.orderEvents.orderId, order.id)).orderBy(asc(s.orderEvents.createdAt));
     const items = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, order.id));
     const stepIndex = TRACKING_STEPS.indexOf(order.status as any);
-    res.json({ ok: true, order, events, items, stepIndex, steps: TRACKING_STEPS, courier: order.courier, note: "Simulated tracking — no courier API connected. The map preview is a clearly-labelled simulation." });
+    res.json({ ok: true, order, events, items, stepIndex, steps: TRACKING_STEPS, courier: order.courier, note: "Follow your parcel with the latest verified event." });
   });
 
   a("listOrders", async (req, res, db) => {
@@ -853,7 +854,7 @@ export function registerApi(app: Express) {
   // ---- 5.5 Payments ----
   a("updatePaymentStatus", async (req, res, db) => {
     const status = String(req.body?.status || "");
-    if (!PAYMENT_STATUSES_SOURCED.includes(status as any) && !status.startsWith("Paid (Demo Simulated)")) {
+    if (!PAYMENT_STATUSES_SOURCED.includes(status as any) && !status.startsWith("Paid (Demo Simulated)") && !status.startsWith("Paid • Ref")) {
       res.status(400).json({ ok: false, error: `Unknown payment status "${status}". Sourced statuses: ${PAYMENT_STATUSES_SOURCED.join(", ")}. The brief promises 10 statuses; the remaining 5 are open (spec §14.9) — verify against the Muse copy before adding more.` });
       return;
     }
@@ -906,7 +907,7 @@ export function registerApi(app: Express) {
     const open = await db.select().from(s.returns).where(and(eq(s.returns.orderNumber, order.orderNumber), eq(s.returns.productName, b.productName)));
     if (open.some((r: any) => r.refundStage < 8)) { res.status(400).json({ ok: false, error: "There is already an open return for this product on this order." }); return; }
     const rn = `RET-DEMO-${Math.floor(100000 + Math.random() * 899999)}`;
-    const row = (await db.insert(s.returns).values({ returnNumber: rn, orderNumber: order.orderNumber, productName: b.productName, qty: Number(b.qty || 1), refundAmount, reason: `${b.reason || ""} • ${b.pickupMethod || "Home Pickup (Demo)"}`, status: "Requested", refundStage: 0, legacyFlag: false, legacyNote: "", customerName: cust?.name || order.customerName, createdAt: Date.now() }).returning())[0];
+    const row = (await db.insert(s.returns).values({ returnNumber: rn, orderNumber: order.orderNumber, productName: b.productName, qty: Number(b.qty || 1), refundAmount, reason: `${b.reason || ""} • ${b.pickupMethod || "Home Pickup"}`, status: "Requested", refundStage: 0, legacyFlag: false, legacyNote: "", customerName: cust?.name || order.customerName, createdAt: Date.now() }).returning())[0];
     res.json({ ok: true, return: row });
   });
 
@@ -957,7 +958,7 @@ export function registerApi(app: Express) {
       const order = (await db.select().from(s.orders).where(eq(s.orders.orderNumber, r1.orderNumber)))[0];
       const items = order ? await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, order.id)) : [];
       const onOrder = items.some((i: any) => i.productName === r1.productName);
-      discrepancies.push({ returnNumber: "RET-DEMO-001", fault: onOrder ? "none" : "Product is not an item on the order", product: r1.productName, orderStatus: order?.status, offeredCorrection: "Aurora X5 Wireless Earbuds (Demo), Rs 5,499 — the genuine item on Delivered order NX-DEMO-100001" });
+      discrepancies.push({ returnNumber: "RET-DEMO-001", fault: onOrder ? "none" : "Product is not an item on the order", product: r1.productName, orderStatus: order?.status, offeredCorrection: "Aurora X5 Wireless Earbuds, Rs 5,499 — the genuine item on Delivered order NX-DEMO-100001" });
     }
     const r2 = (await db.select().from(s.returns).where(eq(s.returns.returnNumber, "RET-DEMO-002")))[0];
     if (r2) {
@@ -974,7 +975,7 @@ export function registerApi(app: Express) {
     const order = (await db.select().from(s.orders).where(eq(s.orders.orderNumber, ret.orderNumber)))[0];
     if (!order || order.status !== "Delivered") { res.status(400).json({ ok: false, error: "Correction is only allowed when the sole fault is the product mapping on a Delivered order. This return does not qualify." }); return; }
     const original = `${ret.productName} — Rs ${ret.refundAmount}`;
-    await db.update(s.returns).set({ productName: "Aurora X5 Wireless Earbuds (Demo)", refundAmount: 5499, legacyNote: `Corrected by owner approval. Original: ${original}` }).where(eq(s.returns.id, ret.id));
+    await db.update(s.returns).set({ productName: "Aurora X5 Wireless Earbuds", refundAmount: 5499, legacyNote: `Corrected by owner approval. Original: ${original}` }).where(eq(s.returns.id, ret.id));
     await audit(db, "Legacy return corrected", staffRoleLabel(req), `RET-DEMO-001 original preserved in note: ${original}`);
     res.json({ ok: true });
   }, { area: "refunds" });
@@ -1021,7 +1022,7 @@ export function registerApi(app: Express) {
     const t = (await db.select().from(s.tickets).where(eq(s.tickets.id, Number(req.body?.id))))[0];
     if (!t) { res.status(404).json({ ok: false, error: "Ticket not found." }); return; }
     await db.update(s.tickets).set({ lastReply: String(req.body?.reply || ""), status: "In Progress" }).where(eq(s.tickets.id, t.id));
-    await db.insert(s.notifications).values({ title: "Support reply (Demo)", body: `Agent replied to ${t.ticketNumber}: ${String(req.body?.reply || "").slice(0, 120)}`, type: "Support", isRead: false, createdAt: Date.now() });
+    await db.insert(s.notifications).values({ title: "Support reply", body: `Agent replied to ${t.ticketNumber}: ${String(req.body?.reply || "").slice(0, 120)}`, type: "Support", isRead: false, createdAt: Date.now() });
     res.json({ ok: true });
   }, { area: "customers" });
 

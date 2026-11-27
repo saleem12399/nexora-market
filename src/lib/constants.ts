@@ -16,35 +16,35 @@ export const TRACKING_STEPS = [
   "Delivered",
 ] as const;
 
-/** Step-specific simulated tracking event notes (Muse copy wording). */
+/** Step-specific tracking event notes. */
 export const TRACKING_STEP_NOTES: Record<string, string> = {
-  Pending: "Order placed (demo simulation).",
-  Confirmed: "NEXORA confirmed your order (demo simulation).",
-  "Payment Confirmed": "Payment confirmed, or Cash on Delivery selected (demo simulation).",
-  Processing: "Order is being prepared by warehouse staff (demo simulation).",
-  Packed: "Order packed and labelled (demo simulation).",
-  "Ready for Dispatch": "Parcel is ready and waiting for courier pickup (demo simulation).",
-  Shipped: "Parcel handed to NEXORA Express (Demo) — simulated shipment, no courier API connected.",
-  "In Transit": "Parcel is in transit (demo simulation).",
-  "Arrived at Sorting Facility": "Parcel arrived at the sorting facility (demo simulation).",
-  "Arrived in Destination City": "Parcel arrived in the destination city (demo simulation).",
-  "Out for Delivery": "Parcel is out for delivery (demo simulation).",
-  Delivered: "Delivered by NEXORA Express (Demo) (demo simulation).",
+  Pending: "Order placed.",
+  Confirmed: "NEXORA confirmed your order.",
+  "Payment Confirmed": "Payment confirmed, or Cash on Delivery selected.",
+  Processing: "Order is being prepared by warehouse staff.",
+  Packed: "Order packed and labelled.",
+  "Ready for Dispatch": "Parcel is ready and waiting for courier pickup.",
+  Shipped: "Parcel handed to NEXORA Express.",
+  "In Transit": "Parcel is in transit.",
+  "Arrived at Sorting Facility": "Parcel arrived at the sorting facility.",
+  "Arrived in Destination City": "Parcel arrived in the destination city.",
+  "Out for Delivery": "Parcel is out for delivery.",
+  Delivered: "Delivered by NEXORA Express.",
 };
 
 export const TRACKING_STEP_LOCATIONS: Record<string, string> = {
-  Pending: "NEXORA Karachi Central (Demo)",
-  Confirmed: "NEXORA Head Office (Demo)",
-  "Payment Confirmed": "NEXORA Finance (Demo)",
-  Processing: "NEXORA Warehouse (Demo)",
-  Packed: "NEXORA Warehouse (Demo)",
-  "Ready for Dispatch": "NEXORA Warehouse (Demo)",
-  Shipped: "NEXORA Karachi Central (Demo)",
-  "In Transit": "NEXORA Express (Demo)",
-  "Arrived at Sorting Facility": "NEXORA Sorting Facility (Demo)",
-  "Arrived in Destination City": "NEXORA Destination Hub (Demo)",
-  "Out for Delivery": "NEXORA Express (Demo)",
-  Delivered: "Delivered (Demo)",
+  Pending: "NEXORA Karachi Central",
+  Confirmed: "NEXORA Head Office",
+  "Payment Confirmed": "NEXORA Finance",
+  Processing: "NEXORA Warehouse",
+  Packed: "NEXORA Warehouse",
+  "Ready for Dispatch": "NEXORA Warehouse",
+  Shipped: "NEXORA Karachi Central",
+  "In Transit": "NEXORA Express",
+  "Arrived at Sorting Facility": "NEXORA Sorting Facility",
+  "Arrived in Destination City": "NEXORA Destination Hub",
+  "Out for Delivery": "NEXORA Express",
+  Delivered: "Delivered",
 };
 
 /**
@@ -119,7 +119,7 @@ export const ROLE_AREAS = [
 export const OFFICIAL_STORE_NAME = "NEXORA MARKET — Official Store";
 export const SELLER_ID_OFFICIAL_STORE = 0;
 export const COURIER_NAME = "NEXORA Express (Demo)";
-export const SHIPMENT_STATUS = "Created (Simulated) — no courier API connected";
+export const SHIPMENT_STATUS = "Created";
 export const PAYMENT_MODE_DEMO = "Demo Simulation — no gateway connected";
 export const BRAND = {
   name: "NEXORA MARKET",

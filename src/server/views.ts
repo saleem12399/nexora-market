@@ -387,7 +387,7 @@ ${row("Specifications", (p) => esc(dispDesc(p.specs || "—")))}
 // placeholder until the owner supplies them. Never invented.
 export function aboutView(details?: BusinessDetails): string {
   return layout("About", `<h1>About NEXORA MARKET</h1><div class="card light-panel"><p>NEXORA MARKET is a single-company online store in Pakistan — fashion, phones, wearables, audio, jewelry, beauty and kids' wear, with Cash on Delivery and a 14-day return window.</p>
-<p>This store was built as an <strong>Educational Project</strong> for an AI course assignment: a working demonstration of a complete online store — product catalogue, cart, checkout, customer accounts, order tracking and an admin dashboard. No real orders or payments are processed here; payments, courier and tracking are recorded for the assignment only. Product photos are representative images until real product photos are supplied.</p>${detailsBlock(details)}</div>`, { details });
+<p>This store was built as an <strong>Educational Project</strong> for an AI course assignment: a working example of a complete online store — product catalogue, cart, checkout, customer accounts, order tracking and an admin dashboard. No real orders or payments are processed here; payments, courier and tracking are recorded for the assignment only. Product photos are representative images until real product photos are supplied.</p>${detailsBlock(details)}</div>`, { details });
 }
 
 export function contactView(details?: BusinessDetails): string {

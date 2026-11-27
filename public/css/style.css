@@ -1,4 +1,7 @@
-:root{--navy:#101828;--blue:#315EFB;--amber:#F59E0B;--bg:#F8FAFC;--text:#101828;--dim:#475467;--border:#E2E8F0;--surface:#fff}
+/* E4: light theme is deliberate — no dark theme. color-scheme:light stops
+   dark-mode devices/browsers from auto-darkening form controls, so the
+   page stays fully readable (dark text on light surfaces) everywhere. */
+:root{color-scheme:light;--navy:#101828;--blue:#315EFB;--amber:#F59E0B;--bg:#F8FAFC;--text:#101828;--dim:#475467;--border:#E2E8F0;--surface:#fff}
 *{box-sizing:border-box}html,body{margin:0;padding:0}
 body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
 /* E6: visible keyboard-focus ring (amber) on links, buttons and inputs. */

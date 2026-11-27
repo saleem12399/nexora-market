@@ -611,12 +611,14 @@ export function registerApi(app: Express) {
     // F1: one image query for the whole page.
     const out = await productsWithImages(db, page);
     const suggestions = b.search ? out.slice(0, 8).map((p: any) => p.name) : [];
-    res.json({ ok: true, products: out, total, suggestions });
+    res.json({ ok: true, products: out, total, limit, offset, suggestions });
   });
 
-  a("listCategories", async (_req, res, db) => {
-    const rows = await db.select().from(s.categories).orderBy(asc(s.categories.sortOrder), asc(s.categories.id));
-    res.json({ ok: true, categories: rows });
+  a("listCategories", async (req, res, db) => {
+    const { limit, offset } = pageParams(req.body);
+    const total = Number((await db.select({ n: sql<number>`count(*)` }).from(s.categories))[0]?.n || 0);
+    const rows = await db.select().from(s.categories).orderBy(asc(s.categories.sortOrder), asc(s.categories.id)).limit(limit).offset(offset);
+    res.json({ ok: true, categories: rows, total, limit, offset });
   });
 
   a("saveProduct", async (req, res, db) => {
@@ -694,8 +696,10 @@ export function registerApi(app: Express) {
   }, { area: "products" });
 
   a("listProductImages", async (req, res, db) => {
-    const rows = await db.select().from(s.productImages).where(eq(s.productImages.productId, Number(req.body?.productId))).orderBy(asc(s.productImages.sortOrder));
-    res.json({ ok: true, images: rows.map((i: any) => ({ ...i, url: imageUrlOf(i) })) });
+    const { limit, offset } = pageParams(req.body);
+    const all = await db.select().from(s.productImages).where(eq(s.productImages.productId, Number(req.body?.productId))).orderBy(asc(s.productImages.sortOrder));
+    const rows = all.slice(offset, offset + limit);
+    res.json({ ok: true, images: rows.map((i: any) => ({ ...i, url: imageUrlOf(i) })), total: all.length, limit, offset });
   });
 
   a("deleteProductImage", async (req, res, db) => {
@@ -848,7 +852,8 @@ export function registerApi(app: Express) {
     const fullById = new Map((await productsWithImages(db, prods)).map((p: any) => [p.id, p]));
     const out = [];
     for (const r of rows) { const p = fullById.get(r.productId); if (p) out.push(p); }
-    res.json({ ok: true, items: out, count: out.length });
+    const { limit, offset } = pageParams(req.body);
+    res.json({ ok: true, items: out.slice(offset, offset + limit), count: out.length, total: out.length, limit, offset });
   });
 
   a("addToWishlist", async (req, res, db) => {
@@ -866,9 +871,10 @@ export function registerApi(app: Express) {
   });
 
   a("listDemoMerchants", async (req, res, db) => {
+    const { limit, offset } = pageParams(req.body);
     let rows = await db.select().from(s.demoMerchants).orderBy(desc(s.demoMerchants.rating));
     if (req.body?.verification) rows = rows.filter((m: any) => m.verification === req.body.verification);
-    res.json({ ok: true, merchants: rows, note: "Featured stores directory — these merchants are display profiles, not sellers." });
+    res.json({ ok: true, merchants: rows.slice(offset, offset + limit), total: rows.length, limit, offset, note: "Featured stores directory — these merchants are display profiles, not sellers." });
   });
 
   // ---- 5.3 Checkout & orders ----
@@ -1133,7 +1139,8 @@ export function registerApi(app: Express) {
       toReceive: rows.filter((o: any) => ["Shipped", "In Transit", "Arrived at Sorting Facility", "Arrived in Destination City", "Out for Delivery"].includes(o.status)).length,
       toReview: rows.filter((o: any) => o.status === "Delivered").length,
     };
-    res.json({ ok: true, authenticated: true, orders: rows, buckets });
+    const { limit, offset } = pageParams(req.body);
+    res.json({ ok: true, authenticated: true, orders: rows.slice(offset, offset + limit), total: rows.length, limit, offset, buckets });
   });
 
   a("clearCancelledOrders", async (req, res, db) => {
@@ -1646,8 +1653,9 @@ export function registerApi(app: Express) {
 
   a("listAddresses", async (req, res, db) => {
     const cust = await requireCustomer(db, req, res); if (!cust) return;
+    const { limit, offset } = pageParams(req.body);
     const rows = await db.select().from(s.customerAddresses).where(eq(s.customerAddresses.customerId, cust.id));
-    res.json({ ok: true, addresses: rows });
+    res.json({ ok: true, addresses: rows.slice(offset, offset + limit), total: rows.length, limit, offset });
   });
 
   a("saveAddress", async (req, res, db) => {

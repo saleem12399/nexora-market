@@ -24,15 +24,36 @@ function cleanDemo(s) {
   return t;
 }
 
+// E2: non-blocking toast (replaces alert() for cart/wishlist feedback),
+// with a View cart action and a cart-badge pulse. No modal popups.
+function showToast(msg, actionLabel, actionHref) {
+  let el = document.getElementById("nxToast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "nxToast"; el.className = "toast"; el.setAttribute("role", "status");
+    document.body.appendChild(el);
+  }
+  el.innerHTML = esc(msg) + (actionLabel && actionHref ? ` <a href="${esc(actionHref)}">${esc(actionLabel)}</a>` : "");
+  el.classList.add("show");
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove("show"), 3500);
+}
+function pulseCartBadge() {
+  const el = document.getElementById("cartCount");
+  if (!el) return;
+  el.classList.remove("pulse"); void el.offsetWidth; el.classList.add("pulse");
+}
 async function addToCart(id, qty) {
   const r = await api("addToCart", { productId: id, qty });
-  alert(r.ok ? (r.note || "Added to cart.") : (r.error || "Could not add to cart."));
+  if (r.ok) { showToast(r.note || "Added to cart.", "View cart", "/cart"); pulseCartBadge(); }
+  else showToast(r.error || "Could not add to cart.");
   refreshCartCount();
 }
 async function buyNow(id) { await addToCart(id, 1); location.href = "/checkout?step=1"; }
 async function addToWishlist(id) {
   const r = await api("addToWishlist", { productId: id });
-  alert(r.ok ? "Added to wishlist." : (r.error || "Could not add."));
+  if (r.ok) showToast("Added to wishlist.", "View wishlist", "/wishlist");
+  else showToast(r.error || "Could not add.");
 }
 function shareProduct(id, name) {
   const url = location.origin + "/product/" + id;
@@ -44,16 +65,35 @@ async function refreshCartCount() {
 }
 refreshCartCount();
 
-function heroGo(i) {
+// C6: the active dot is highlighted; auto-rotation pauses on hover /
+// focus and for 30 s after a manual dot click.
+let heroPausedUntil = 0;
+let heroHover = false;
+function heroGo(i, manual) {
   document.querySelectorAll(".slide").forEach((s, j) => s.classList.toggle("active", j === i));
+  document.querySelectorAll(".dots button").forEach((d, j) => d.classList.toggle("active", j === i));
+  if (manual) heroPausedUntil = Date.now() + 30000;
+}
+// E7: flash-row scroll arrows (desktop affordance; mobile keeps swipe).
+function flashScroll(dir) {
+  const el = document.getElementById("flashRow"); if (!el) return;
+  el.scrollBy({ left: dir * 500, behavior: "smooth" });
 }
 setInterval(() => {
   const slides = document.querySelectorAll(".slide");
-  if (slides.length > 1) {
+  if (slides.length > 1 && !heroHover && Date.now() > heroPausedUntil) {
     const cur = [...slides].findIndex((s) => s.classList.contains("active"));
     heroGo((cur + 1) % slides.length);
   }
 }, 6000);
+(function () {
+  const hero = document.getElementById("hero");
+  if (!hero) return;
+  hero.addEventListener("mouseenter", () => { heroHover = true; });
+  hero.addEventListener("mouseleave", () => { heroHover = false; });
+  hero.addEventListener("focusin", () => { heroHover = true; });
+  hero.addEventListener("focusout", () => { heroHover = false; });
+})();
 
 function togglePw(id, btn) {
   const el = document.getElementById(id);

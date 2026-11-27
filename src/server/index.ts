@@ -57,7 +57,7 @@ app.get("/shop", async (req, res) => {
   const q: any = req.query;
   // B1: ?flash=1 passes flash:true (the 11-product pool) — it used to be
   // mapped to onDiscount, which shows all 44 discounted products.
-  const body: any = { category: q.category || undefined, subcategory: q.subcategory || undefined, search: q.search || undefined, sort: q.sort || undefined, inStock: q.inStock ? true : undefined, onDiscount: q.onDiscount ? true : undefined, flash: q.flash ? true : undefined, limit: 48, offset: Number(q.offset || 0) };
+  const body: any = { category: q.category || undefined, subcategory: q.subcategory || undefined, search: q.search || undefined, sort: q.sort || undefined, inStock: q.inStock ? true : undefined, onDiscount: q.onDiscount ? true : undefined, flash: q.flash ? true : undefined, minPrice: q.minPrice ? Number(q.minPrice) : undefined, maxPrice: q.maxPrice ? Number(q.maxPrice) : undefined, minRating: q.minRating ? Number(q.minRating) : undefined, limit: 24, offset: Number(q.offset || 0) };
   const cats = await db.select().from(s.categories).orderBy(asc(s.categories.sortOrder), asc(s.categories.id));
   // B5: the "Smartwatches only" shortcut renders only when the current
   // category actually has a Smartwatches subcategory.
@@ -80,7 +80,13 @@ app.get("/product/:id", async (req, res) => {
   const full = { ...p, images: imgs.map((i: any) => ({ ...i, url: `/images/products/${(i.storageKey || "").split("/").pop()}` })) };
   const reviews = await db.select().from(s.reviews).where(eq(s.reviews.productId, id));
   const questions = await db.select().from(s.questions).where(eq(s.questions.productId, id));
-  res.send(views.productView(full, reviews, questions));
+  // D2: related products — same category, excluding self, 4 items.
+  let related: any[] = [];
+  try {
+    const rel = await callApiAction("listProducts", { category: p.category, limit: 5 });
+    related = (rel.products || []).filter((x: any) => x.id !== id).slice(0, 4);
+  } catch { related = []; }
+  res.send(views.productView(full, reviews, questions, related));
 });
 
 app.get("/cart", (_req, res) => res.send(views.cartView()));

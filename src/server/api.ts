@@ -469,9 +469,13 @@ export function registerApi(app: Express) {
     const conds: any[] = [];
     if (b.category) conds.push(eq(s.products.category, b.category));
     if (b.subcategory) conds.push(eq(s.products.subcategory, b.subcategory));
-    if (b.search) conds.push(like(sql`lower(${s.products.name} || ' ' || ${s.products.brand} || ' ' || ${s.products.sku})`, `%${escLike(String(b.search).toLowerCase())}%`));
-    if (b.minPrice != null) conds.push(gte(s.products.price, Number(b.minPrice)));
-    if (b.maxPrice != null) conds.push(lte(s.products.price, Number(b.maxPrice)));
+    // C3 (Phase 3): search covers name, brand, SKU, shortDesc,
+    // description AND specs (SQL LIKE, escaped) — "AMOLED", "bio-washed"
+    // and "5ATM" must all hit. D5: price filters use the EFFECTIVE
+    // (sale) price, the price the customer sees and pays — not list price.
+    if (b.search) conds.push(like(sql`lower(${s.products.name} || ' ' || ${s.products.brand} || ' ' || ${s.products.sku} || ' ' || ${s.products.shortDesc} || ' ' || ${s.products.description} || ' ' || ${s.products.specs})`, `%${escLike(String(b.search).toLowerCase())}%`));
+    if (b.minPrice != null) conds.push(gte(effPrice, Number(b.minPrice)));
+    if (b.maxPrice != null) conds.push(lte(effPrice, Number(b.maxPrice)));
     if (b.minRating != null) conds.push(gte(s.products.rating, Number(b.minRating)));
     if (b.inStock) conds.push(sql`${s.products.stock} > 0`);
     if (b.onDiscount) conds.push(sql`${s.products.salePrice} IS NOT NULL AND ${s.products.salePrice} < ${s.products.price}`);

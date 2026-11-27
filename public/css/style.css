@@ -1,6 +1,8 @@
 :root{--navy:#101828;--blue:#315EFB;--amber:#F59E0B;--bg:#F8FAFC;--text:#101828;--dim:#475467;--border:#E2E8F0;--surface:#fff}
 *{box-sizing:border-box}html,body{margin:0;padding:0}
-body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);padding-bottom:56px}
+body{font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+/* E6: visible keyboard-focus ring (amber) on links, buttons and inputs. */
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
 a{color:var(--blue);text-decoration:none}img{max-width:100%;display:block}
 .topbar{background:var(--navy);color:#fff;display:flex;align-items:center;gap:12px;padding:10px 16px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
 .brand{color:#fff;font-weight:800;font-size:20px;letter-spacing:.5px}.brand span{color:var(--amber)}
@@ -23,8 +25,21 @@ h1{font-size:24px}h2{font-size:20px;margin-top:28px}
 .slide{display:none;position:relative}.slide.active{display:block}
 .slide img{width:100%;height:320px;object-fit:cover;opacity:.9}
 .slide-text{position:absolute;left:0;right:0;bottom:0;padding:20px;background:linear-gradient(transparent,rgba(16,24,40,.9))}
-.slide-text h2{margin:0 0 6px;color:#fff}.slide-text p{color:#E6EAF2}
+.headersearch{display:flex;gap:6px;align-items:center;margin-left:auto}.headersearch input{padding:7px 10px;min-width:180px}
+.slide-text h1,.slide-text h2{margin:0 0 6px;color:#fff}
+.slide-text h1{font-size:32px;line-height:1.15}
+.slide-text p{color:#E6EAF2}
 .dots{position:absolute;right:12px;bottom:8px}.dots button{background:none;border:0;color:#fff;cursor:pointer;font-size:10px}
+.dots button.active{color:var(--amber);font-size:15px}
+.flashwrap{position:relative}
+.flash-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:5;background:#fff;border:1px solid var(--border);border-radius:50%;width:38px;height:38px;font-size:22px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(16,24,40,.18);color:var(--navy);display:flex;align-items:center;justify-content:center}
+.flash-arrow.left{left:-8px}.flash-arrow.right{right:-8px}
+@media(min-width:641px){.flashrow{mask-image:linear-gradient(to right,#000 94%,transparent)}}
+.toast{position:fixed;left:50%;bottom:72px;transform:translateX(-50%) translateY(16px);background:#101828;color:#fff;padding:12px 18px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:50;max-width:90vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.toast a{color:#F59E0B;font-weight:700;margin-left:8px}
+.badge.pulse{animation:badgepulse .5s ease}
+@keyframes badgepulse{0%{transform:scale(1)}40%{transform:scale(1.5)}100%{transform:scale(1)}}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
 .flashrow{display:flex;gap:14px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}
 .flashrow .pcard{min-width:236px;max-width:236px;scroll-snap-align:start}
@@ -43,7 +58,7 @@ h1{font-size:24px}h2{font-size:20px;margin-top:28px}
 .collgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
 .collcard{background:var(--navy);color:#fff;border-radius:12px;padding:18px;display:block}.collcard span{display:block;color:#CBD5E1;font-size:14px;margin-top:4px}
 .trustgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.trust{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px}.trust span{display:block;color:var(--dim);font-size:14px;margin-top:4px}
+.trust{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px}.trust svg{width:28px;height:28px;vertical-align:-6px;margin-right:4px}.trust span{display:block;color:var(--dim);font-size:14px;margin-top:4px}
 .revgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
 .review{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px;margin:8px 0}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
@@ -85,8 +100,22 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{border-bottom:1px
 .light-panel{--text:#101828;--dim:#475467;--bg:#fff;--surface:#fff;--border:#E2E8F0;color-scheme:light;background:#fff;color:#101828}
 .light-panel input,.light-panel select,.light-panel textarea{background:#fff;color:#101828;border-color:#CBD5E1}
 .light-panel input::placeholder{color:#64748B}
+/* E3: tablet breakpoint (~900px) — single-column product detail, roomier
+   grids, no overflow at 768px/1024px. The 640px rules below still apply. */
+@media(max-width:900px){
+  .pdetail{grid-template-columns:1fr}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+  .headersearch input{min-width:120px}
+}
 @media(max-width:640px){
   .menu-btn{display:block}.nav{display:none;width:100%;flex-direction:column}.nav.open{display:flex}
+  /* C9: the 56px bottom padding lives ONLY here — the fixed bottom nav is
+     display:none above 640px, so desktop had 56px of dead space. */
+  body{padding-bottom:56px}
   .bottomnav{display:flex}.pdetail{grid-template-columns:1fr}.slide img{height:240px}
   .wrap{padding:12px}.hero{min-height:220px}
+  /* C10: hero headline stays clearly larger than section titles on mobile. */
+  .slide-text h1{font-size:24px}
+  .flash-arrow{display:none}
+  .headersearch{order:3;width:100%;margin-left:0}.headersearch input{flex:1}
 }

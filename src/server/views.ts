@@ -52,9 +52,10 @@ export function dispDesc(s: any): string {
 
 export function layout(title: string, body: string, opts?: { active?: string; noDb?: boolean; admin?: boolean }): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(title)} — NEXORA MARKET</title><link rel="stylesheet" href="/css/style.css"></head>
+<title>${esc(title)} — NEXORA MARKET</title><link rel="stylesheet" href="/css/style.css"><link rel="icon" href="/favicon.ico" type="image/x-icon"></head>
 <body>
 <header class="topbar"><a class="brand" href="/">NEXORA <span>MARKET</span></a>
+<form class="headersearch" method="get" action="/shop" role="search"><input name="search" type="search" placeholder="Search products…" aria-label="Search products"><button class="btn small" type="submit">Search</button></form>
 <button class="menu-btn" onclick="document.getElementById('nav').classList.toggle('open')" aria-label="Menu">☰ Menu</button>
 <nav id="nav" class="nav">
 <a href="/">Home</a><a href="/shop">Shop</a><a href="/merchants">Merchants</a><a href="/help">Help Center</a><a href="/policies/shipping">Policies</a>
@@ -94,19 +95,19 @@ export function homepageView(h: any): string {
   for (const sec of secs) {
     if (sec.key === "hero") {
       const slides = (h.banners || []).map((b: any, i: number) => `<div class="slide ${i === 0 ? "active" : ""}" data-i="${i}">
-${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-text"><h2>${esc(b.headline)}</h2><p>${esc(b.subtext)}</p>
+${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-text"><h1>${esc(b.headline)}</h1><p>${esc(b.subtext)}</p>
 <p><a class="btn" href="/shop?category=${encodeURIComponent(safeTarget(b.ctaTarget).category || "")}">${esc(b.ctaLabel || "Shop now")}</a>
 <a class="btn ghost" href="/shop?category=${encodeURIComponent(safeTarget(b.cta2Target).category || "")}">${esc(b.cta2Label || "")}</a></p>
 </div></div>`).join("");
-      html += `<section class="hero" id="hero">${slides || `<div class="slide active"><div class="slide-text"><h2>NEXORA MARKET</h2><p>Shop Smarter. Live Better.</p></div></div>`}
-<div class="dots">${(h.banners || []).map((_: any, i: number) => `<button onclick="heroGo(${i})" aria-label="Slide ${i + 1}">●</button>`).join("")}</div></section>`;
+      html += `<section class="hero" id="hero">${slides || `<div class="slide active"><div class="slide-text"><h1>NEXORA MARKET</h1><p>Shop Smarter. Live Better.</p></div></div>`}
+<div class="dots">${(h.banners || []).map((_: any, i: number) => `<button class="${i === 0 ? "active" : ""}" onclick="heroGo(${i},true)" aria-label="Slide ${i + 1}">●</button>`).join("")}</div></section>`;
     } else if (sec.key === "categories") {
       html += `<section><h2>Shop by Category</h2><div class="catgrid">${(h.categories || []).map((c: any) => `<a class="catcard" href="/shop?category=${encodeURIComponent(c.category)}">${c.imageUrl ? `<img src="${esc(c.imageUrl)}" alt="">` : ""}<span>${esc(c.category)} (${c.count})</span></a>`).join("")}</div></section>`;
     } else if (sec.key === "flash") {
       const fr = h.flashRow || {};
       html += `<section><h2>⚡ Flash Sale</h2>
 <p class="note">Rotating deals — ${fr.poolSize || 0} flash products, ${fr.rowSize || 5} in this set, new set every ${fr.rotateDays || 2} day(s). Next refresh: ${esc(fr.nextRotationAt || "")}. ${h.flashEndsAt ? `Sale ends ${esc(h.flashEndsAt)}.` : "No countdown — no campaign end is set."}</p>
-<div class="flashrow">${(fr.products || []).map(productCard).join("")}</div>
+<div class="flashwrap"><button class="flash-arrow left" onclick="flashScroll(-1)" aria-label="Scroll flash deals left">‹</button><div class="flashrow" id="flashRow">${(fr.products || []).map(productCard).join("")}</div><button class="flash-arrow right" onclick="flashScroll(1)" aria-label="Scroll flash deals right">›</button></div>
 <p><a class="btn ghost" href="/shop?flash=1">See all flash deals →</a></p></section>`;
     } else if (sec.key === "collections") {
       html += `<section><h2>Featured Collections</h2><div class="collgrid">${(h.collections || []).map((c: any) => `<a class="collcard" href="/shop?category=${encodeURIComponent(c.category)}"><strong>${esc(c.name)}</strong><span>${esc(c.tagline || "")}</span></a>`).join("")}</div></section>`;
@@ -121,11 +122,11 @@ ${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-te
 <div class="grid">${(h.recommended?.products || []).map(productCard).join("")}</div></section>`;
     } else if (sec.key === "trust") {
       html += `<section><h2>Why Shop With NEXORA</h2><div class="trustgrid">
-<div class="trust">🚚 <strong>Delivery info at checkout</strong><span>Standard, Express, Scheduled and Pickup options with arrival dates.</span></div>
-<div class="trust">🔒 <strong>Secure checkout</strong><span>Server-recomputed totals — the client never dictates a price.</span></div>
-<div class="trust">↩️ <strong>14-day return window</strong><span>With a 9-stage refund tracker you can follow.</span></div>
-<div class="trust">📦 <strong>12-step order tracking</strong><span>From Pending to Delivered, end to end.</span></div>
-<div class="trust">💬 <strong>Help Center &amp; support</strong><span>FAQs, support cases and ticket replies.</span></div></div></section>`;
+<div class="trust"><svg viewBox="0 0 24 24" fill="none" stroke="#315EFB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 8h13v8H1z"/><path d="M14 11h4l3 3v2h-7"/><circle cx="6" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg> <strong>Delivery info at checkout</strong><span>Standard, Express, Scheduled and Pickup options with arrival dates.</span></div>
+<div class="trust"><svg viewBox="0 0 24 24" fill="none" stroke="#315EFB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg> <strong>Secure checkout</strong><span>Server-recomputed totals — the client never dictates a price.</span></div>
+<div class="trust"><svg viewBox="0 0 24 24" fill="none" stroke="#315EFB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg> <strong>14-day return window</strong><span>With a 9-stage refund tracker you can follow.</span></div>
+<div class="trust"><svg viewBox="0 0 24 24" fill="none" stroke="#315EFB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg> <strong>12-step order tracking</strong><span>From Pending to Delivered, end to end.</span></div>
+<div class="trust"><svg viewBox="0 0 24 24" fill="none" stroke="#315EFB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-8 8H5l-2 2V12a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg> <strong>Help Center &amp; support</strong><span>FAQs, support cases and ticket replies.</span></div></div></section>`;
     } else if (sec.key === "reviews") {
       html += `<section><h2>What Customers Say</h2><div class="revgrid">${(h.reviews || []).map((r: any) => `<div class="review"><strong>${esc(dispName(r.productName || ""))}</strong><div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div><p>${esc(cleanText(r.text))}</p><small>— ${esc(dispName(r.customerName))} ${r.verified ? "· Verified purchase" : ""}</small></div>`).join("")}</div></section>`;
     }
@@ -134,6 +135,21 @@ ${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-te
 }
 
 function safeTarget(v: any): any { return v && typeof v === "object" ? v : {}; }
+
+// C1: next Load-more URL — keeps only DEFINED query values (no
+// `flash=undefined`), and the next offset is the CURRENT offset plus the
+// number of products on this page (never just the page size, never back).
+function loadMoreQuery(q: any, data: any): string {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(q || {})) {
+    if (k === "offset") continue;
+    if (v === undefined || v === null || v === "") continue;
+    params.set(k, String(v));
+  }
+  const cur = Number(q?.offset || 0);
+  params.set("offset", String(cur + (data.products || []).length));
+  return params.toString();
+}
 
 export function shopView(data: any, q: any): string {
   const cats: any[] = data.categories || [];
@@ -147,9 +163,13 @@ export function shopView(data: any, q: any): string {
 <div class="chips">${chips}</div>
 <form class="filters" method="get" action="/shop">
 <input type="hidden" name="category" value="${esc(q.category || "")}">
+${q.flash ? `<input type="hidden" name="flash" value="1">` : ""}
 <label>Subcategory <select name="subcategory"><option value="">All</option>${subs.map((c: any) => `<option ${q.subcategory === c.name ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
 <label>Search <input name="search" list="sugg" value="${esc(q.search || "")}" placeholder="Search products…"><datalist id="sugg">${(data.suggestions || []).map((s: string) => `<option value="${esc(dispName(s))}">`).join("")}</datalist></label>
 <label>Sort <select name="sort"><option value="">Relevance</option><option value="biggest-discount" ${q.sort === "biggest-discount" ? "selected" : ""}>Biggest discount</option><option value="price-asc" ${q.sort === "price-asc" ? "selected" : ""}>Price: low to high</option><option value="price-desc" ${q.sort === "price-desc" ? "selected" : ""}>Price: high to low</option><option value="rating" ${q.sort === "rating" ? "selected" : ""}>Top rated</option><option value="newest" ${q.sort === "newest" ? "selected" : ""}>Newest</option></select></label>
+<label>Min price (Rs) <input name="minPrice" type="number" min="0" value="${esc(q.minPrice || "")}" placeholder="0"></label>
+<label>Max price (Rs) <input name="maxPrice" type="number" min="0" value="${esc(q.maxPrice || "")}" placeholder="Any"></label>
+<label>Min rating <select name="minRating"><option value="">Any</option>${[4.5, 4, 3.5, 3].map((r) => `<option value="${r}" ${String(q.minRating) === String(r) ? "selected" : ""}>${r}★ &amp; up</option>`).join("")}</select></label>
 <label><input type="checkbox" name="inStock" value="1" ${q.inStock ? "checked" : ""}> In stock only</label>
 <label><input type="checkbox" name="onDiscount" value="1" ${q.onDiscount ? "checked" : ""}> On discount</label>
 <button class="btn small">Apply</button> <a class="btn ghost small" href="/shop">Clear all</a>
@@ -157,11 +177,16 @@ ${q.category && data.hasSmartwatches ? `<a class="btn ghost small" href="/shop?c
 </form>
 <p class="note">${data.total} product(s)${q.flash ? " — full flash list" : ""}</p>
 <div class="grid">${(data.products || []).map(productCard).join("") || "<p>No products match these filters.</p>"}</div>
-${data.total > (data.products || []).length ? `<p><a class="btn" href="/shop?${esc(new URLSearchParams({ ...q, offset: String((data.products || []).length) }).toString())}">Load more</a></p>` : ""}`);
+${data.total > (data.products || []).length ? `<p><a class="btn" href="/shop?${esc(loadMoreQuery(q, data))}">Load more</a></p>` : ""}`);
 }
 
-export function productView(p: any, reviews: any[], questions: any[]): string {
+export function productView(p: any, reviews: any[], questions: any[], related: any[] = []): string {
   const price = p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price;
+  // C5: omit variant lines with no real value — never a bare "—".
+  const variantLines: string[] = [];
+  if (p.colors) variantLines.push(`Colours: ${esc(p.colors)}`);
+  if (p.sizes) variantLines.push(`Sizes: ${esc(p.sizes)}`);
+  if (p.warranty) variantLines.push(`Warranty: ${esc(p.warranty)}`);
   return layout(dispName(p.name), `<div class="pdetail light-panel">
 <div class="pgallery">${p.images?.length ? p.images.map((i: any) => `<figure><img src="${esc(i.url)}" alt="${esc(dispName(p.name))}"></figure>`).join("") : `<div class="tile big">${esc(p.tile || "🛍")}</div><p>No photo yet.</p>`}
 </div>
@@ -175,12 +200,13 @@ export function productView(p: any, reviews: any[], questions: any[]): string {
 <button class="btn ghost" onclick="addToWishlist(${p.id})">♡ Wishlist</button>
 <button class="btn ghost" onclick="shareProduct(${p.id}, '${esc(dispName(p.name))}')">Share</button></p>
 <h3>Specifications</h3><p class="specs">${esc(dispDesc(p.specs || "—"))}</p>
-<p>Colours: ${esc(p.colors || "—")} · Sizes: ${esc(p.sizes || "—")} · Warranty: ${esc(p.warranty || "—")}</p>
+${variantLines.length ? `<p>${variantLines.join(" · ")}</p>` : ""}
 ${p.category === "Mobile Phones" ? "<p>PTA note: check PTA approval status for this device before use in Pakistan.</p>" : ""}
-${p.category === "Smart Wearables" ? "<p>Smart-glasses note: frame, lens, camera, audio, Bluetooth, battery and compatibility are listed in the specifications above.</p>" : ""}
+${p.subcategory === "Smart Glasses" ? "<p>Smart-glasses note: frame, lens, camera, audio, Bluetooth, battery and compatibility are listed in the specifications above.</p>" : ""}
 </div></div>
 <section><h2>Reviews</h2>${reviews.map((r: any) => `<div class="review"><strong>${esc(dispName(r.customerName))}</strong> ${"★".repeat(r.rating)}<p>${esc(cleanText(r.text))}</p>${r.sellerReply ? `<p class="reply">NEXORA reply: ${esc(r.sellerReply)}</p>` : ""}</div>`).join("") || "<p>No reviews yet.</p>"}</section>
-<section><h2>Questions &amp; Answers</h2>${questions.map((x: any) => `<div class="review"><p><strong>Q:</strong> ${esc(cleanText(x.question))} — ${esc(dispName(x.customerName))}</p><p><strong>A:</strong> ${esc(cleanText(x.answer || "Not answered yet."))}</p></div>`).join("") || "<p>No questions yet.</p>"}</section>`);
+<section><h2>Questions &amp; Answers</h2>${questions.map((x: any) => `<div class="review"><p><strong>Q:</strong> ${esc(cleanText(x.question))} — ${esc(dispName(x.customerName))}</p><p><strong>A:</strong> ${esc(cleanText(x.answer || "Not answered yet."))}</p></div>`).join("") || "<p>No questions yet.</p>"}</section>
+${related.length ? `<section><h2>You May Also Like</h2><div class="grid">${related.map(productCard).join("")}</div></section>` : ""}`);
 }
 
 export function trackView(): string {

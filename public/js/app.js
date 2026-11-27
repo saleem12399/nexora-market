@@ -29,9 +29,16 @@ function money(n) { return "Rs. " + Number(n || 0).toLocaleString("en-PK"); }
 // Display helpers: strip stored "(Demo)"/"(Demo Simulated)" labels at render
 // time (live DB rows keep their stored values). Admin views keep raw values.
 function dispName(s) { return String(s == null ? "" : s).replace(/ \(Demo\)$/, ""); }
+// POLISH (owner wording, 2026-11-27): the word "demo" is never shown to
+// customers. Stored "(Demo Simulated)"-style statuses are REWRITTEN to the
+// "(Educational Project)" wording (not stripped) so the honesty label stays.
+// These specific rewrites run BEFORE the generic "(Demo)" strip below.
 function cleanDemo(s) {
   let t = String(s == null ? "" : s);
-  t = t.replace("Demo Simulation — ", "").replace(" (Demo Simulated)", "").replace(" (demo simulation)", "").replace(" — demo only, no charge", "").replace(" — Demo", "").replace(" (Demo)", "").replace(" — simulated demo event.", ".").replace(" in demo data.", ".").replace(" in the demo simulation.", ".").replace("demo electronics", "electronics").replace("demo purchase", "purchase").replace("demo use", "use");
+  t = t.replace(" (Demo Simulated)", " (Educational Project)").replace(" (COD Collected — Demo)", " (COD Collected — Educational Project)");
+  t = t.replace("Refund Pending (Demo)", "Refund Pending (Educational Project)").replace("Awaiting Verification (Demo)", "Awaiting Verification (Educational Project)");
+  t = t.replace("Refunded (Demo)", "Refunded (Educational Project)");
+  t = t.replace("Demo Simulation — ", "").replace(" (demo simulation)", "").replace(" — demo only, no charge", "").replace(" — Demo", "").replace(" (Demo)", "").replace(" — simulated demo event.", ".").replace(" in demo data.", ".").replace(" in the demo simulation.", ".").replace("demo electronics", "electronics").replace("demo purchase", "purchase").replace("demo use", "use");
   return t;
 }
 
@@ -100,13 +107,20 @@ async function refreshCartCount() {
 refreshCartCount();
 
 // C6: the active dot is highlighted; auto-rotation pauses on hover /
-// focus and for 30 s after a manual dot click.
+// focus and for 30 s after a manual dot click. POLISH: a Pause/Resume
+// button next to the dots pauses rotation until pressed again.
 let heroPausedUntil = 0;
 let heroHover = false;
+let heroPausedManual = false;
 function heroGo(i, manual) {
   document.querySelectorAll(".slide").forEach((s, j) => s.classList.toggle("active", j === i));
   document.querySelectorAll(".dots button").forEach((d, j) => d.classList.toggle("active", j === i));
   if (manual) heroPausedUntil = Date.now() + 30000;
+}
+function heroPauseToggle() {
+  heroPausedManual = !heroPausedManual;
+  heroPausedUntil = heroPausedManual ? Date.now() + 3600000 : 0;
+  const b = document.getElementById("heroPauseBtn"); if (b) b.textContent = heroPausedManual ? "Resume" : "Pause";
 }
 // E7: flash-row scroll arrows (desktop affordance; mobile keeps swipe).
 function flashScroll(dir) {
@@ -286,11 +300,13 @@ async function loadCheckout(step) {
 <label><input type="radio" name="ship" value="Express" ${checkoutData.shippingMethod === "Express" ? "checked" : ""}> Express — Rs. 450</label><br>
 <label><input type="radio" name="ship" value="Scheduled" ${checkoutData.shippingMethod === "Scheduled" ? "checked" : ""}> Scheduled — Rs. 450 (pick a date + time window below)</label><br>
 <label><input type="radio" name="ship" value="Pickup" ${checkoutData.shippingMethod === "Pickup" ? "checked" : ""}> Pickup — Rs. 0</label><br>
+<p class="note"><strong>Educational Project</strong> — no real shipment. Delivery options are recorded for the assignment only; no courier is booked.</p>
 <label>Scheduled date <input id="coSlotDate" type="date"></label><label>Time window <select id="coSlotTime"><option>9am–12pm</option><option>12pm–3pm</option><option>3pm–6pm</option><option>6pm–9pm</option></select></label>
 <label>Pickup point <select id="coPickup"><option value="">—</option><option>Karachi Central</option><option>Ghotki Store</option></select></label>
 <p><button class="btn ghost" type="button" onclick="useGps()">📍 Use my device GPS (permission-based)</button> <span id="gpsOut"></span></p>
 <button class="btn">Continue →</button></form>`,
     5: `<h2>Step 5 — Payment</h2><p class="note">Confirm your payment before placing a non-COD order.</p>
+<p class="note"><strong>Educational Project</strong> — no real payment is processed. No payment gateway is connected; confirmation is recorded for the assignment only.</p>
 <div id="payMethods"></div><p><button class="btn" onclick="simulatePayment()">Confirm Payment</button> <span id="payOut"></span></p>
 <p><button class="btn" onclick="saveStep5()">Continue to Summary →</button></p>`,
     6: `<h2>Step 6 — Summary</h2><div id="summaryBox"><p>Loading summary…</p></div><p><a class="btn" href="/checkout?step=7">Continue to Confirm →</a></p>`,
@@ -331,7 +347,7 @@ async function simulatePayment() {
     const pin = prompt("Enter any 4-digit PIN to confirm (it is not sent or stored):");
     if (!pin || pin.length !== 4) { alert("A 4-digit PIN is required to confirm the payment."); return; }
     checkoutData.paymentAccount = acct;
-    checkoutData.paymentRef = "TXN-DEMO-" + Math.floor(10000000 + Math.random() * 89999999);
+    checkoutData.paymentRef = "TXN-" + Math.floor(10000000 + Math.random() * 89999999);
   }
   checkoutData.paymentSimulated = true;
   saveCheckoutData();
@@ -569,7 +585,7 @@ async function showOrderDetailCust(orderNumber, trackingNumber, orderId, status)
   acctPanel(`<h3>${esc(o.orderNumber)} — ${esc(o.status)}</h3>
 <p>${esc(o.customerName)} · ${esc(o.address)}, ${esc(o.city)} ${esc(o.province)}</p>
 <p>Items: ${(r.items || []).map((it) => esc(it.productName) + " × " + it.qty + " — " + money(it.price * it.qty)).join("; ")}</p>
-<p>Total ${money(o.total)} · Payment: ${esc(o.paymentMethod)} — ${esc(o.paymentStatus)} · Courier: ${esc(o.courier)}</p>
+<p>Total ${money(o.total)} · Payment: ${esc(cleanDemo(o.paymentMethod))} — ${esc(cleanDemo(o.paymentStatus))} · Courier: ${esc(cleanDemo(o.courier))}</p>
 <p>Tracking: ${(r.events || []).map((ev) => esc(ev.status)).join(" → ") || "none"}</p>
 ${canCancel ? `<p><button class="btn ghost" onclick="doCancelOrder(${o.id})">Cancel this order</button></p>` : ""}
 ${canReturn ? `<div id="returnForm"></div><p><button class="btn ghost" onclick="showReturnForm('${esc(o.orderNumber)}')">Request a return</button></p>` : ""}
@@ -679,6 +695,22 @@ async function resetStaffPw(id, name) {
 // ---- Admin edit forms (B13) ----
 let lastProducts = [], lastCategories = [], lastCoupons = [];
 function reloadAdminTab(i) { adminTab(i, document.querySelectorAll("#adminTabs .tab")[i]); }
+// POLISH: hero banner image upload (Admin → Homepage). Reads the file in
+// the browser and sends base64 to uploadHeroBannerImage, which stores it
+// as a data URI (no filesystem write — Vercel is read-only).
+async function doUploadHeroBanner(bannerId) {
+  const input = document.getElementById("hbFile-" + bannerId);
+  const msg = document.getElementById("hbMsg-" + bannerId);
+  const file = input && input.files && input.files[0];
+  if (!file) { if (msg) msg.textContent = "Choose an image first."; return; }
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { if (msg) msg.textContent = "Only JPEG/PNG/WebP images are accepted."; return; }
+  if (file.size > 2 * 1024 * 1024) { if (msg) msg.textContent = "Image must be 2 MB or less."; return; }
+  if (msg) msg.textContent = "Uploading…";
+  const dataUrl = await new Promise((resolve, reject) => { const fr = new FileReader(); fr.onload = () => resolve(fr.result); fr.onerror = () => reject(new Error("Could not read the file.")); fr.readAsDataURL(file); });
+  const r = await api("uploadHeroBannerImage", { bannerId, fileName: file.name, dataBase64: dataUrl, mime: file.type });
+  if (r.ok) { showToast("Banner image uploaded — it now shows on the homepage slide."); reloadAdminTab(15); }
+  else if (msg) msg.textContent = r.error || "Upload failed.";
+}
 function editProductForm(id) {
   const p = lastProducts.find((x) => x.id === id); if (!p) return;
   const el = document.getElementById("prodForm"); if (!el) return;
@@ -740,7 +772,7 @@ async function showOrderDetail(orderNumber, trackingNumber) {
   el.innerHTML = `<div class="card" style="border:2px solid #315EFB;padding:12px;margin:10px 0"><h3>${esc(o.orderNumber)} — ${esc(o.status)}</h3>
 <p>${esc(o.customerName)} · ${esc(o.customerEmail)} · ${esc(o.customerPhone)}<br>${esc(o.address)}, ${esc(o.city)} ${esc(o.province)}</p>
 <p>Items: ${(r.items || []).map((it) => esc(it.productName) + " × " + it.qty + " — " + money(it.price * it.qty)).join("; ")}</p>
-<p>Payment: ${esc(o.paymentMethod)} — ${esc(o.paymentStatus)} · Courier: ${esc(o.courier)} · Tracking: ${esc(o.trackingNumber)}</p>
+<p>Payment: ${esc(cleanDemo(o.paymentMethod))} — ${esc(cleanDemo(o.paymentStatus))} · Courier: ${esc(cleanDemo(o.courier))} · Tracking: ${esc(o.trackingNumber)}</p>
 <p>Events: ${(r.events || []).map((ev) => esc(ev.status)).join(" → ") || "none"}</p></div>`;
   el.scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -794,7 +826,9 @@ async function adminTab(i, btn) {
   const root = document.getElementById("adminRoot"); if (!root) return;
   root.innerHTML = "<p>Loading " + esc(ADMIN_TABS[i]) + "…</p>";
   try {
-    if (i === 0) { const r = await api("getAnalytics", {}); const b = await api("getBootstrap", {}); root.innerHTML = `<h2>Dashboard</h2><p>Published products: <strong>${b.publishedProductCount}</strong> · Orders: ${b.orderCount} (legacy-test: ${b.legacyTestOrderCount}) · GMV (real records only): <strong>${money(r.gmv)}</strong> · Avg order: ${money(r.avgOrderValue)} · Refunds requested ${money(r.refundsRequested)} · Refunds completed ${money(r.refundsTotal)}</p><p>Daily sales — last 30 days (Asia/Karachi, zero days = 0), latest 7 days: ${(r.dailySales || []).slice(-7).map((d) => (d.date || "").slice(5) + " " + money(d.total)).join(" · ")}</p><p>Top products: ${(r.topProducts || []).map((t) => "#" + t.productId + " × " + t.qty).join(", ") || "none"}${r.legacyTopQty ? ` · Legacy unresolved items: ${r.legacyTopQty} sold (productId 0/NULL, excluded from top products)` : ""}</p><p>By status: ${Object.entries(r.byStatus).map(([k, v]) => k + " " + v).join(", ")}</p>`; }
+    if (i === 0) { const r = await api("getAnalytics", {}); const b = await api("getBootstrap", {}); root.innerHTML = `<h2>Dashboard</h2>
+<div class="statgrid"><div class="stat"><b>${b.publishedProductCount}</b><span>Published products</span></div><div class="stat"><b>${b.orderCount}</b><span>Orders${b.legacyTestOrderCount ? ` (${b.legacyTestOrderCount} legacy-test)` : ""}</span></div><div class="stat"><b>${money(r.gmv)}</b><span>GMV — real records only</span></div><div class="stat"><b>${money(r.avgOrderValue)}</b><span>Average order</span></div><div class="stat"><b>${money(r.refundsRequested)}</b><span>Refunds requested</span></div><div class="stat"><b>${money(r.refundsTotal)}</b><span>Refunds completed</span></div></div>
+<p>Daily sales — last 30 days (Asia/Karachi, zero days = 0), latest 7 days: ${(r.dailySales || []).slice(-7).map((d) => (d.date || "").slice(5) + " " + money(d.total)).join(" · ")}</p><p>Top products: ${(r.topProducts || []).map((t) => "#" + t.productId + " × " + t.qty).join(", ") || "none"}${r.legacyTopQty ? ` · Legacy unresolved items: ${r.legacyTopQty} sold (productId 0/NULL, excluded from top products)` : ""}</p><p>By status: ${Object.entries(r.byStatus).map(([k, v]) => k + " " + v).join(", ")}</p>`; }
     else if (i === 1) { const r = await api("listProducts", { limit: 100 }); lastProducts = r.products; root.innerHTML = `<h2>Products (${r.total})</h2>
 <div id="prodForm"></div>
 <form onsubmit="return doAddProduct(event)"><h3>Add product</h3><label>SKU <input id="npSku" required></label><label>Name <input id="npName" required></label><label>Category <input id="npCat" required></label><label>Price (Rs) <input id="npPrice" type="number" min="0" required></label><label>Stock <input id="npStock" type="number" min="0" value="0"></label><button class="btn">Add product</button></form>
@@ -830,7 +864,9 @@ async function adminTab(i, btn) {
 <h3>Backup &amp; Restore</h3><p class="note">Export downloads a full JSON snapshot (no passwords, no session tokens). Restore is Owner-only, needs a fresh password + authenticator confirmation, takes a fresh backup first (saved as settings key backupSnapshotAuto), and only runs when you type RESTORE.</p>
 <p><button class="btn ghost" onclick="doExportBackup()">Export backup (download JSON)</button></p>
 <form onsubmit="return doRestoreBackup(event)"><label>Backup JSON file <input id="bkFile" type="file" accept=".json,application/json" required></label><label>Type RESTORE to confirm <input id="bkConfirm" required placeholder="RESTORE"></label><button class="btn">Restore backup</button></form><div id="bkMsg"></div>`; }
-    else if (i === 15) { const r = await api("getHomepageAdmin", {}); root.innerHTML = `<h2>Homepage</h2><p>Flash row: size ${r.flashRowSize} (4–5), new set every ${r.flashRotateDays} day(s), anchor ${r.flashRowAnchor}. Campaign end: ${esc(r.flashEndsAt || "not set — no countdown")}</p><p>Banners: ${r.banners.map((b) => esc(b.headline)).join(" · ")}</p><p>Collections: ${r.collections.map((c) => esc(c.name)).join(" · ")}</p><p>Sections: ${r.sections.map((s) => esc(s.key) + (s.visible ? "" : " (hidden)")).join(", ")}</p><p class="note">Flash Sale countdown: set the campaign end date in Admin → Settings → flashSaleEndsAt (YYYY-MM-DD) — the homepage then shows a live countdown. Until then it honestly says no campaign end is set.</p>`; }
+    else if (i === 15) { const r = await api("getHomepageAdmin", {}); root.innerHTML = `<h2>Homepage</h2><p>Flash row: size ${r.flashRowSize} (4–5), new set every ${r.flashRotateDays} day(s), anchor ${r.flashRowAnchor}. Campaign end: ${esc(r.flashEndsAt || "not set — no countdown")}</p><p>Banners: ${r.banners.map((b) => esc(b.headline)).join(" · ")}</p><p>Collections: ${r.collections.map((c) => esc(c.name)).join(" · ")}</p><p>Sections: ${r.sections.map((s) => esc(s.key) + (s.visible ? "" : " (hidden)")).join(", ")}</p><p class="note">Flash Sale countdown: set the campaign end date in Admin → Settings → flashSaleEndsAt (YYYY-MM-DD) — the homepage then shows a live countdown. Until then it honestly says no campaign end is set.</p>
+<h3>Hero banner images</h3><p class="note">Each slide shows the linked product's photo unless you upload a banner image here — the upload replaces the slide photo (JPEG/PNG/WebP, max 2 MB).</p>
+${r.banners.map((b) => `<div class="card"><strong>${esc(b.headline)}</strong><p class="note">Image now: ${(b.imageKey || "").startsWith("data:image/") ? "Custom uploaded image" : "Linked product photo"}</p><p><input type="file" id="hbFile-${b.id}" accept="image/jpeg,image/png,image/webp"> <button class="btn small" onclick="doUploadHeroBanner(${b.id})">Upload banner image</button> <span id="hbMsg-${b.id}"></span></p></div>`).join("")}`; }
     else if (i === 16) { const r = await api("listDemoMerchants", { limit: 100 }); root.innerHTML = `<h2>Demo Merchants (display only)</h2>` + r.merchants.map((m) => `<p><strong>${esc(m.storeName)}</strong> — ${esc(m.city)} · ★ ${m.rating} · ${esc(m.verification)}</p>`).join(""); }
     else if (i === 17) { root.innerHTML = `<h2>Demo Manager / Reset</h2><p><strong>Browser seeding was removed in Phase 1 (A4).</strong> No public endpoint can reseed or wipe the database anymore — seeding is CLI-only (<code>npm run db:seed</code>, idempotent) or via boot migration on deploy.</p><p><button class="btn ghost" onclick="reauthAndRetry('cleanupInvalidReturns',{}).then(r=>alert(r.ok?('Removed '+r.removed+' invalid returns. Legacy-flagged rows preserved.'):(r.error||'Failed')))">Clean up invalid returns</button> <span class="note">Needs a fresh password + authenticator confirmation.</span></p>`; }
     else if (i === 18) { const r = await api("getPhase2Status", {}); const lg = await api("getLegacyReview", {}); const bt = await api("getBigTestReport", {}); root.innerHTML = `<h2>Phase 2</h2><p><strong>Finance decision:</strong> ${esc(r.financeDecision)}</p><p><strong>Providers:</strong></p><ul>${r.providers.map((p) => `<li>${esc(p.key)} — ${esc(p.status)}</li>`).join("")}</ul><p><strong>Pending owner inputs:</strong></p><ul>${r.pendingOwnerInputs.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p><strong>Legacy returns (decision pending):</strong></p><ul>${lg.discrepancies.map((d) => `<li>${esc(d.returnNumber)} — ${esc(d.fault)}. Offered: ${esc(d.offeredCorrection)}</li>`).join("")}</ul><p><strong>Big Test journey:</strong> ${bt.hasReport ? esc(JSON.stringify(bt.report).slice(0, 400)) : "no report stored"}</p>`; }

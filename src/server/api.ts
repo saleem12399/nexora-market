@@ -256,9 +256,9 @@ export async function productsWithImages(db: Db, products: any[]) {
   });
 }
 
-function orderNumber(): string { return `NX-DEMO-${Math.floor(10000000 + Math.random() * 89999999)}`; }
-function trackingNumber(on: string): string { return on.replace("NX-DEMO-", "TRK-DEMO-"); }
-function txnRef(): string { return `TXN-DEMO-${Math.floor(10000000 + Math.random() * 89999999)}`; }
+function orderNumber(): string { return `NX-${Math.floor(10000000 + Math.random() * 89999999)}`; }
+function trackingNumber(on: string): string { return on.replace("NX-", "TRK-"); }
+function txnRef(): string { return `TXN-${Math.floor(10000000 + Math.random() * 89999999)}`; }
 
 // Stored bigTestReport is a literal pointer string, not JSON — never let
 // JSON.parse throw a 500 (Phase 1 opportunistic fix for C12).
@@ -1087,7 +1087,7 @@ export function registerApi(app: Express) {
       res.json({ ok: true, refused: true, message: "The order has already shipped — a courier return was requested instead of an instant cancellation." });
       return;
     }
-    const prepaid = order.paymentStatus.startsWith("Paid (Demo Simulated)") || order.paymentStatus.startsWith("Paid • Ref");
+    const prepaid = order.paymentStatus.startsWith("Paid (Educational Project)") || order.paymentStatus.startsWith("Paid • Ref");
     // F4: the whole cancellation (status + event + stock release + refund
     // record + notification + audit) commits or rolls back together.
     await db.transaction(async (tx) => {
@@ -1709,7 +1709,7 @@ export function registerApi(app: Express) {
   // ---- 5.5 Payments ----
   a("updatePaymentStatus", async (req, res, db) => {
     const status = String(req.body?.status || "");
-    if (!PAYMENT_STATUSES_SOURCED.includes(status as any) && !status.startsWith("Paid (Demo Simulated)") && !status.startsWith("Paid • Ref")) {
+    if (!PAYMENT_STATUSES_SOURCED.includes(status as any) && !status.startsWith("Paid (Educational Project)") && !status.startsWith("Paid • Ref")) {
       res.status(400).json({ ok: false, error: `Unknown payment status "${status}". Sourced statuses: ${PAYMENT_STATUSES_SOURCED.join(", ")}. The brief promises 10 statuses; the remaining 5 are open (spec §14.9) — verify against the Muse copy before adding more.` });
       return;
     }
@@ -1763,7 +1763,7 @@ export function registerApi(app: Express) {
     if (refundAmount <= 0 || refundAmount > item.price * item.qty) { res.status(400).json({ ok: false, error: `Refund must be more than Rs. 0 and no more than the item's paid value (Rs. ${item.price * item.qty}).` }); return; }
     const open = await db.select().from(s.returns).where(and(eq(s.returns.orderNumber, order.orderNumber), eq(s.returns.productName, b.productName)));
     if (open.some((r: any) => r.refundStage < 8)) { res.status(400).json({ ok: false, error: "There is already an open return for this product on this order." }); return; }
-    const rn = `RET-DEMO-${Math.floor(100000 + Math.random() * 899999)}`;
+    const rn = `RET-${Math.floor(100000 + Math.random() * 899999)}`;
     const row = (await db.insert(s.returns).values({ returnNumber: rn, orderNumber: order.orderNumber, productName: b.productName, qty: Number(b.qty || 1), refundAmount, reason: `${b.reason || ""} • ${b.pickupMethod || "Home Pickup"}`, status: "Requested", refundStage: 0, legacyFlag: false, legacyNote: "", customerName: cust?.name || order.customerName, createdAt: Date.now() }).returning())[0];
     res.json({ ok: true, return: row });
   });
@@ -2229,7 +2229,10 @@ export function registerApi(app: Express) {
     const heroOut = [];
     for (const b of banners) {
       const p = b.productId ? products.find((x: any) => x.id === b.productId) : null;
-      heroOut.push({ ...b, imageUrl: p ? (byId.get(p.id)?.imageUrl || "") : "", imageIsSample: true, ctaTarget: safeJson(b.ctaTarget), cta2Target: safeJson(b.cta2Target) });
+      // POLISH: a banner image uploaded by the owner (data URI in imageKey)
+      // wins over the linked product's photo; otherwise the product photo.
+      const uploaded = typeof b.imageKey === "string" && b.imageKey.startsWith("data:image/") ? b.imageKey : "";
+      heroOut.push({ ...b, imageUrl: uploaded || (p ? (byId.get(p.id)?.imageUrl || "") : ""), imageIsSample: !uploaded, ctaTarget: safeJson(b.ctaTarget), cta2Target: safeJson(b.cta2Target) });
     }
     res.json({
       ok: true, banners: heroOut, collections, sections,
@@ -2263,21 +2266,29 @@ export function registerApi(app: Express) {
     res.json({ ok: true });
   }, { area: "settings" });
 
+  // POLISH (hero banner upload fix, same class as B20): the Vercel
+  // serverless filesystem is READ-ONLY, so the old fs.writeFileSync into
+  // public/images/hero-banners threw on every live upload (HTTP 500).
+  // Bytes are now stored as a data URI in hero_banners.imageKey (text —
+  // no migration needed); getHomepage prefers a data: imageKey over the
+  // linked product's photo. The 2 MB cap bounds the row. The old code also
+  // never displayed an uploaded image at all (getHomepage ignored
+  // imageKey) — that wiring is fixed here too.
   a("uploadHeroBannerImage", async (req, res, db) => {
     const { bannerId, fileName, dataBase64, mime } = req.body || {};
     if (!dataBase64) { res.status(400).json({ ok: false, error: "Image data is required." }); return; }
     const buf = Buffer.from(String(dataBase64).replace(/^data:[^;]+;base64,/, ""), "base64");
     if (buf.length > 2 * 1024 * 1024) { res.status(400).json({ ok: false, error: "Image must be 2 MB or less." }); return; }
     if (!imageMagic(buf)) { res.status(400).json({ ok: false, error: "Only JPEG/PNG/WebP images are accepted (magic bytes verified)." }); return; }
-    const fs = await import("node:fs");
+    if (mime && !["image/jpeg", "image/png", "image/webp"].includes(mime)) { res.status(400).json({ ok: false, error: "Only JPEG/PNG/WebP images are accepted." }); return; }
     const kind = imageMagic(buf)!;
-    const ext = kind === "jpeg" ? "jpg" : kind;
-    const name = `${Date.now()}-${(fileName || "banner").replace(/[^a-zA-Z0-9._-]/g, "_")}.${ext}`;
-    const dir = path.resolve(__dirname, "../../public/images/hero-banners");
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, name), buf);
-    if (bannerId) await db.update(s.heroBanners).set({ imageKey: `hero-banners/${name}` }).where(eq(s.heroBanners.id, Number(bannerId)));
-    res.json({ ok: true, imageKey: `hero-banners/${name}`, url: `/images/hero-banners/${name}` });
+    const dataUri = `data:image/${kind === "jpeg" ? "jpeg" : kind};base64,${buf.toString("base64")}`;
+    if (bannerId) {
+      const row = (await db.select().from(s.heroBanners).where(eq(s.heroBanners.id, Number(bannerId))))[0];
+      if (!row) { res.status(404).json({ ok: false, error: "Banner not found." }); return; }
+      await db.update(s.heroBanners).set({ imageKey: dataUri }).where(eq(s.heroBanners.id, Number(bannerId)));
+    }
+    res.json({ ok: true, imageKey: dataUri, url: dataUri });
   }, { area: "settings" });
 
   a("saveHomeCollection", async (req, res, db) => {

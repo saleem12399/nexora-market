@@ -48,7 +48,7 @@ export const TRACKING_STEP_LOCATIONS: Record<string, string> = {
 };
 
 /**
- * Refund stages 0-8. Stage 0 = Requested, stage 8 = Refunded (Demo) and
+ * Refund stages 0-8. Stage 0 = Requested, stage 8 = Refunded (Educational Project) and
  * restock happens at stage 4 — those are sourced. Labels for stages 1-7 are
  * NOT in any source (REBUILD-SPEC.md §14.1): the labels below are honest
  * working labels derived from the 9-stage tracker behaviour and are marked
@@ -64,7 +64,7 @@ export const REFUND_STAGES = [
   { stage: 5, label: "Refund Processing", verified: false },
   { stage: 6, label: "Refund Approved", verified: false },
   { stage: 7, label: "Refund Sent", verified: false },
-  { stage: 8, label: "Refunded (Demo)", verified: true },
+  { stage: 8, label: "Refunded (Educational Project)", verified: true },
 ] as const;
 
 export const REFUND_STAGE_LABELS: string[] = REFUND_STAGES.map((s) => s.label);
@@ -76,20 +76,20 @@ export const REFUND_STAGE_LABELS: string[] = REFUND_STAGES.map((s) => s.label);
  * updatePaymentStatus during acceptance; do not invent them.
  */
 export const PAYMENT_STATUSES_SOURCED = [
-  "Paid (Demo Simulated)",
+  "Paid (Educational Project)",
   "Pending (COD)",
-  "Paid (COD Collected — Demo)",
-  "Refund Pending (Demo)",
-  "Awaiting Verification (Demo)",
+  "Paid (COD Collected — Educational Project)",
+  "Refund Pending (Educational Project)",
+  "Awaiting Verification (Educational Project)",
 ] as const;
 
 export const PAYMENT_METHODS = [
-  "JazzCash (Demo)",
-  "Easypaisa (Demo)",
-  "Debit Card (Demo)",
-  "Bank Transfer (Demo)",
+  "JazzCash",
+  "Easypaisa",
+  "Debit Card",
+  "Bank Transfer",
   "Cash on Delivery",
-  "Digital Wallet (Demo)",
+  "Digital Wallet",
 ] as const;
 
 export const CHECKOUT_STEPS = [
@@ -118,7 +118,7 @@ export const ROLE_AREAS = [
 
 export const OFFICIAL_STORE_NAME = "NEXORA MARKET — Official Store";
 export const SELLER_ID_OFFICIAL_STORE = 0;
-export const COURIER_NAME = "NEXORA Express (Demo)";
+export const COURIER_NAME = "NEXORA Express";
 export const SHIPMENT_STATUS = "Created";
 export const PAYMENT_MODE_DEMO = "Demo Simulation — no gateway connected";
 export const BRAND = {

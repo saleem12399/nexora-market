@@ -36,8 +36,14 @@ export function dispName(s: any): string {
 // (reviews, Q&A, notifications, merchant names). Live rows were seeded
 // before the seed cleanup, so their "(Demo)" / "demo use" / "demo purchase"
 // / "— simulated demo event" phrasing survives in the DB; never rewrite rows.
+// POLISH (owner wording, 2026-11-27): the word "demo" is never shown to
+// customers. Stored "(Demo Simulated)"-style statuses are REWRITTEN to the
+// "(Educational Project)" wording (not stripped) so the honesty label stays.
 export function cleanText(s: any): string {
   let t = String(s ?? "");
+  t = t.replace(/ \(Demo Simulated\)/g, " (Educational Project)").replace(/ \(COD Collected — Demo\)/g, " (COD Collected — Educational Project)");
+  t = t.replace(/Refund Pending \(Demo\)/g, "Refund Pending (Educational Project)").replace(/Awaiting Verification \(Demo\)/g, "Awaiting Verification (Educational Project)");
+  t = t.replace(/Refunded \(Demo\)/g, "Refunded (Educational Project)");
   t = t.replace(/ \(Demo\)/g, "").replace(/ \(Demo Simulated\)/g, "").replace(/ \(demo simulation\)/g, "");
   t = t.replace(/Demo Simulation — /g, "").replace(/ — demo only, no charge/g, "").replace(/ — simulated demo event\./g, ".");
   t = t.replace(/ in demo data\./g, ".").replace(/ in the demo simulation\./g, ".").replace(/demo electronics/g, "electronics");
@@ -77,6 +83,7 @@ export function layout(title: string, body: string, opts?: { active?: string; no
 <a href="/">Home</a><a href="/shop">Shop</a><a href="/merchants">Merchants</a><a href="/help">Help Center</a><a href="/policies/shipping">Policies</a>
 <a href="/cart">Cart <span class="badge" id="cartCount">0</span></a><a href="/wishlist">Wishlist</a><a href="/compare">Compare <span class="badge" id="compareCount">0</span></a><a href="/account">My Account</a><a href="/admin">Admin</a>
 </nav></header>
+<div class="edu-notice"><strong>EDUCATIONAL PROJECT</strong> — Created for AI Course Assignment. No real orders or payments are processed.</div>
 ${opts?.admin ? `<div class="demo-banner">DEMO / TRIAL MODE — No live payment gateway, courier or messaging provider is connected. Every payment, shipment and tracking step is a simulation.</div>` : ""}
 <main class="wrap">${body}</main>
 <footer class="footer"><p><strong>NEXORA MARKET</strong> — Shop Smarter. Live Better.</p>
@@ -115,11 +122,11 @@ export function homepageView(h: any, details?: BusinessDetails): string {
     if (sec.key === "hero") {
       const slides = (h.banners || []).map((b: any, i: number) => `<div class="slide ${i === 0 ? "active" : ""}" data-i="${i}">
 ${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-text"><${i === 0 ? "h1" : "h2"}>${esc(b.headline)}</${i === 0 ? "h1" : "h2"}><p>${esc(b.subtext)}</p>
-<p><a class="btn" href="/shop?category=${encodeURIComponent(safeTarget(b.ctaTarget).category || "")}">${esc(b.ctaLabel || "Shop now")}</a>
-<a class="btn ghost" href="/shop?category=${encodeURIComponent(safeTarget(b.cta2Target).category || "")}">${esc(b.cta2Label || "")}</a></p>
+<p><a class="btn" href="/shop?category=${encodeURIComponent(safeTarget(b.ctaTarget).category || "")}">${esc(b.ctaLabel || "Shop now")}</a>${(b.cta2Label || "") ? `
+<a class="btn ghost" href="/shop?category=${encodeURIComponent(safeTarget(b.cta2Target).category || "")}">${esc(b.cta2Label)}</a>` : ""}</p>
 </div></div>`).join("");
       html += `<section class="hero" id="hero">${slides || `<div class="slide active"><div class="slide-text"><h1>NEXORA MARKET</h1><p>Shop Smarter. Live Better.</p></div></div>`}
-<div class="dots">${(h.banners || []).map((_: any, i: number) => `<button class="${i === 0 ? "active" : ""}" onclick="heroGo(${i},true)" aria-label="Slide ${i + 1}">●</button>`).join("")}</div></section>`;
+<div class="dots">${(h.banners || []).map((_: any, i: number) => `<button class="${i === 0 ? "active" : ""}" onclick="heroGo(${i},true)" aria-label="Slide ${i + 1}"></button>`).join("")}<button class="hero-pause" id="heroPauseBtn" onclick="heroPauseToggle()" aria-label="Pause slideshow">Pause</button></div></section>`;
     } else if (sec.key === "categories") {
       html += `<section><h2>Shop by Category</h2><div class="catgrid">${(h.categories || []).map((c: any) => `<a class="catcard" href="/shop?category=${encodeURIComponent(c.category)}">${c.imageUrl ? `<img src="${esc(c.imageUrl)}" alt="">` : ""}<span>${esc(c.category)} (${c.count})</span></a>`).join("")}</div></section>`;
     } else if (sec.key === "flash") {
@@ -233,8 +240,9 @@ ${related.length ? `<section><h2>You May Also Like</h2><div class="grid">${relat
 
 export function trackView(details?: BusinessDetails): string {
   return layout("Track Order", `<h1>Track Your Order</h1><p class="note">Enter your order and tracking numbers to follow your parcel.</p>
-<form class="card light-panel" onsubmit="return trackOrder(event)"><label>Order number <input id="tOrder" required placeholder="NX-DEMO-…"></label>
-<label>Tracking number <input id="tTrack" required placeholder="TRK-DEMO-…"></label>
+<p class="note"><strong>Educational Project</strong> — no real shipment. Tracking events are recorded for the assignment only.</p>
+<form class="card light-panel" onsubmit="return trackOrder(event)"><label>Order number <input id="tOrder" required placeholder="NX-…"></label>
+<label>Tracking number <input id="tTrack" required placeholder="TRK-…"></label>
 <button class="btn">Track</button></form><div id="trackResult"></div>`, { details });
 }
 
@@ -332,13 +340,13 @@ export function helpView(details?: BusinessDetails): string {
   return layout("Help Center", `<h1>Help Center</h1><div class="tiles">${tiles.map(([t, href]) => `<a class="tilecard" href="${esc(href)}">${esc(t)}</a>`).join("")}</div>
 <h2>FAQs</h2><div class="card light-panel"><p><strong>How do I pay?</strong> Pay Cash on Delivery, or choose a wallet/card at Step 5 and confirm before placing your order.</p>
 <p><strong>Are the product photos final?</strong> The photos are representative images; real product photos will replace them.</p>
-<p><strong>How do I track an order?</strong> Use Track with your order number (NX-DEMO-…) and tracking number (TRK-DEMO-…).</p></div>
+<p><strong>How do I track an order?</strong> Use Track with your order number (NX-…) and tracking number (TRK-…).</p></div>
 <h2 id="support">Contact support</h2>
 <form class="card light-panel" onsubmit="return doCreateTicket(event)"><p class="note">Open a support case — the team replies on your ticket. Sign in first so the reply reaches your account.</p>
 <label>Your name <input id="tkName" required></label>
 <label>Subject <input id="tkSubject" required placeholder="e.g. My order is late"></label>
 <label>Category <select id="tkCategory"><option>General</option><option>Order</option><option>Payment</option><option>Return</option><option>Delivery</option></select></label>
-<label>Order number (optional) <input id="tkOrder" placeholder="NX-DEMO-…"></label>
+<label>Order number (optional) <input id="tkOrder" placeholder="NX-…"></label>
 <label>Describe the problem <textarea id="tkDesc" required rows="4"></textarea></label>
 <button class="btn">Open support case</button></form><div id="ticketResult"></div>
 <p><a class="btn" href="/track">Track an order</a> <a class="btn ghost" href="/account">Open a support case</a></p>`, { details });

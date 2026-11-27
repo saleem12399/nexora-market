@@ -266,7 +266,10 @@ function parseStoredReport(v: string | undefined): any {
 // capped at 100. Callers that pass no limit keep working — they get the
 // first page plus the total.
 function pageParams(b: any, def = 50): { limit: number; offset: number } {
-  const limit = Math.min(100, Math.max(1, Number(b?.limit ?? def) || def));
+  // D11: standard pagination. Cap 200 (not 100): the categories table
+  // holds 114 rows (9 top + 99 subcategories + 6 deactivated legacy) and
+  // the admin Categories tab must be able to fetch all of them in one call.
+  const limit = Math.min(200, Math.max(1, Number(b?.limit ?? def) || def));
   const offset = Math.max(0, Number(b?.offset || 0) || 0);
   return { limit, offset };
 }

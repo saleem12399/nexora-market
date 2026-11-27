@@ -202,7 +202,7 @@ export function productView(p: any, reviews: any[], questions: any[], related: a
 <h3>Specifications</h3><p class="specs">${esc(dispDesc(p.specs || "—"))}</p>
 ${variantLines.length ? `<p>${variantLines.join(" · ")}</p>` : ""}
 ${p.category === "Mobile Phones" ? "<p>PTA note: check PTA approval status for this device before use in Pakistan.</p>" : ""}
-${p.subcategory === "Smart Glasses" ? "<p>Smart-glasses note: frame, lens, camera, audio, Bluetooth, battery and compatibility are listed in the specifications above.</p>" : ""}
+${(p.subcategory || "").includes("Glasses") ? "<p>Smart-glasses note: frame, lens, camera, audio, Bluetooth, battery and compatibility are listed in the specifications above.</p>" : ""}
 </div></div>
 <section><h2>Reviews</h2>${reviews.map((r: any) => `<div class="review"><strong>${esc(dispName(r.customerName))}</strong> ${"★".repeat(r.rating)}<p>${esc(cleanText(r.text))}</p>${r.sellerReply ? `<p class="reply">NEXORA reply: ${esc(r.sellerReply)}</p>` : ""}</div>`).join("") || "<p>No reviews yet.</p>"}</section>
 <section><h2>Questions &amp; Answers</h2>${questions.map((x: any) => `<div class="review"><p><strong>Q:</strong> ${esc(cleanText(x.question))} — ${esc(dispName(x.customerName))}</p><p><strong>A:</strong> ${esc(cleanText(x.answer || "Not answered yet."))}</p></div>`).join("") || "<p>No questions yet.</p>"}</section>

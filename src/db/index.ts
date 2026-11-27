@@ -21,16 +21,20 @@ export function getDb(): NodePgDatabase<typeof schema> | null {
   // be enabled here. rejectUnauthorized:false is the standard Supabase
   // pooler setting: the pooler certificate does not verify against the
   // default CA store. Without this, every query fails at connect time.
-  // Phase 1: idleTimeoutMillis + connectionTimeoutMillis. The Supabase
-  // session pooler kills server connections idle ~10 min, but pg Pool
-  // kept handing those dead clients out — getHomepage (the only handler
-  // firing concurrent queries via Promise.all) then failed mid-chain on
-  // a stale client with "Failed query ... product_images", while fully
-  // sequential handlers (listProducts) never saw it. Closing clients
-  // idle >10 s makes every checkout open a fresh connection; the 10 s
-  // checkout timeout bounds queueing when the pooler is at max clients
-  // (seen live as EMAXCONNSESSION). No query logic changes.
-  pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 5, idleTimeoutMillis: 10000, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
+  // Phase 1: max 1 + idle/connection timeouts. ROOT CAUSE found live
+  // (2026-11-27 ~11:40 PKT, via the surfaced driver cause):
+  // "(EMAXCONNSESSION) max clients reached in session mode - max
+  // clients are limited to pool_size: 15". The Supabase session
+  // pooler allows 15 clients TOTAL. With max 5 per Vercel instance,
+  // just 3 warm instances filled it; getHomepage's Promise.all
+  // sections then failed when the pool tried to open client 2-5
+  // (the failing product_images param varied run to run), and once
+  // saturated even the first query (settings) failed. max 1 lets up
+  // to 15 warm instances coexist; queries serialize per instance
+  // (getHomepage stays ~6-8 s, inside the 60 s function limit).
+  // idleTimeoutMillis releases the connection 10 s after use, so
+  // idle instances stop holding a pooler slot. No query logic changes.
+  pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1, idleTimeoutMillis: 10000, connectionTimeoutMillis: 10000, ssl: { rejectUnauthorized: false } });
   pool.on("error", (err) => console.error("[db] pool error", err.message));
   db = drizzle(pool, { schema });
   return db;

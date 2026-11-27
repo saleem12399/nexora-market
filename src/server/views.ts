@@ -81,7 +81,7 @@ export function layout(title: string, body: string, opts?: { active?: string; no
 <button class="menu-btn" onclick="document.getElementById('nav').classList.toggle('open')" aria-label="Menu">☰ Menu</button>
 <nav id="nav" class="nav">
 <a href="/">Home</a><a href="/shop">Shop</a><a href="/merchants">Merchants</a><a href="/help">Help Center</a><a href="/policies/shipping">Policies</a>
-<a href="/cart">Cart <span class="badge" id="cartCount">0</span></a><a href="/wishlist">Wishlist</a><a href="/compare">Compare <span class="badge" id="compareCount">0</span></a><a href="/account">My Account</a><a href="/admin">Admin</a>
+<a href="/cart">Cart <span class="badge" id="cartCount">0</span></a><a href="/wishlist">Wishlist</a><a href="/compare">Compare <span class="badge" id="compareCount">0</span></a><a href="/account">My Account</a>
 </nav></header>
 <div class="edu-notice"><strong>EDUCATIONAL PROJECT</strong> — Created for AI Course Assignment. No real orders or payments are processed.</div>
 ${opts?.admin ? `<div class="demo-banner">DEMO / TRIAL MODE — No live payment gateway, courier or messaging provider is connected. Every payment, shipment and tracking step is a simulation.</div>` : ""}
@@ -269,11 +269,25 @@ export function wishlistView(details?: BusinessDetails): string {
 <div id="wishlistRoot"><p>Loading your wishlist…</p></div>`, { details });
 }
 
-export function adminView(details?: BusinessDetails): string {
+// /admin — two server-rendered shapes, decided by the SERVER staff session
+// (cookie nx_staff_token), never by the client:
+// - signed out: a clean Staff Sign In shell only. No demo banner, no badge,
+//   no tab list (the tab names include "Demo Merchants" / "Demo Manager"),
+//   no internal "20 modules" paragraph — a customer who types /admin sees
+//   nothing but the sign-in form. The form itself is rendered by initAdmin()
+//   in app.js after getStaffSession confirms there is no session.
+// - signed in (staff/owner): the full admin shell — demo banner + badge +
+//   tabs, exactly as before. Those are owner/staff-only signals.
+export function adminView(details?: BusinessDetails, signedIn = false): string {
   const tabs = ["Dashboard", "Products", "Categories", "Inventory", "Orders", "Payments", "Returns / Refunds", "Customers", "Support", "Reviews", "Notifications", "Coupons", "Staff & Permissions", "Reports", "Settings", "Homepage", "Demo Merchants", "Demo Manager", "Phase 2", "Audit Log"];
+  if (!signedIn) {
+    return layout("Admin", `<h1>Admin</h1>
+<div id="staffBar"></div>
+<div id="adminRoot" class="card light-panel"><p>Loading…</p></div>
+`, { details });
+  }
   return layout("Admin", `<h1>Admin <span class="demo-tag">DEMO / TRIAL MODE</span></h1>
 <div id="staffBar"></div>
-<p class="note">20 modules (spec §7.7). The Phase 1 lab test observed 21 admin tabs — the extra tab was the Phase 2 tab added later; the actual list below is the 20-module list, with Orders and Tracking kept as one Orders tab (tracking manager inside it). Staff access is by real sign-in (email + password + authenticator code) — the old role dropdown is gone, roles come from the server session, and denials are audit-logged.</p>
 <div class="tabs" id="adminTabs" style="display:none">${tabs.map((t, i) => `<button class="tab ${i === 0 ? "on" : ""}" onclick="adminTab(${i},this)">${esc(t)}</button>`).join("")}</div>
 <div id="adminRoot" class="card light-panel"><p>Loading…</p></div>
 `, { admin: true, details });

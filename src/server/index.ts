@@ -10,7 +10,7 @@ import { checkDb, getDb, isDbConfigured } from "../db";
 import { getBootStatus } from "../db/boot-migrate";
 import * as s from "../db/schema";
 import { asc, desc, eq, inArray } from "drizzle-orm";
-import { callApiAction, imageUrlOf, productsWithImages, registerApi } from "./api";
+import { callApiAction, imageUrlOf, productsWithImages, registerApi, sessionStaff } from "./api";
 import * as views from "./views";
 
 const app = express();
@@ -134,7 +134,17 @@ app.get("/checkout", async (req, res) => {
 });
 app.get("/track", async (_req, res) => res.send(views.trackView(await detailsOrUndefined())));
 app.get("/account", async (_req, res) => res.send(views.accountView(await detailsOrUndefined())));
-app.get("/admin", async (_req, res) => res.send(views.adminView(await detailsOrUndefined())));
+app.get("/admin", async (req, res) => {
+  // Admin visibility fix (2026-11-27): the served /admin shell depends on the
+  // SERVER staff session. Signed out, the page is a clean sign-in shell only
+  // (no demo banner/badge, no tab list, no internal notes). Signed in, the
+  // full admin shell renders. The route itself stays public — staff and the
+  // owner reach sign-in by typing /admin directly. No-DB => signed out.
+  const db = getDb();
+  let signedIn = false;
+  if (db) { try { signedIn = !!(await sessionStaff(db, req)); } catch { signedIn = false; } }
+  res.send(views.adminView(await detailsOrUndefined(), signedIn));
+});
 app.get("/login", async (_req, res) => res.send(views.authView("login", await detailsOrUndefined())));
 app.get("/register", async (_req, res) => res.send(views.authView("register", await detailsOrUndefined())));
 app.get("/compare", async (req, res) => {

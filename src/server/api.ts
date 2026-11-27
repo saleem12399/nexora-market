@@ -102,7 +102,7 @@ function publicStaffRow(st: any) {
   return { ...rest, hasPassword: !!passwordHash, setupPending: !!setupTokenHash };
 }
 
-async function sessionStaff(db: Db, req: Request): Promise<{ staff: any; session: any } | null> {
+export async function sessionStaff(db: Db, req: Request): Promise<{ staff: any; session: any } | null> {
   const token = staffTokenFromRequest(req);
   if (!token) return null;
   const rows = await db.select().from(s.staffSessions).where(eq(s.staffSessions.tokenHash, hashSessionToken(token)));

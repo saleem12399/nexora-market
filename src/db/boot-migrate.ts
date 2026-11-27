@@ -26,11 +26,21 @@ const LOCK_WAIT_MS = 15000;
 
 let bootPromise: Promise<void> | null = null;
 
+// F8 (Phase 2): surface the boot-migration outcome on /health instead of
+// only logging it (function logs are not visible from here). The app still
+// never crashes on a migration failure — it serves and reports honestly.
+export const bootStatus: { ran: boolean; skipped?: string; error?: string; finishedAt?: string } = { ran: false };
+
+export function getBootStatus() {
+  return { ...bootStatus };
+}
+
 export function ensureBootMigrated(): Promise<void> {
   if (!bootPromise) {
     bootPromise = runBootMigration().catch((e) => {
       // Never fail the request because the boot migration failed: the app
       // still serves, and /health reports the database state honestly.
+      bootStatus.error = (e as Error).message;
       console.error("[boot-migrate] failed — serving without boot migration:", (e as Error).message);
     });
   }
@@ -38,8 +48,12 @@ export function ensureBootMigrated(): Promise<void> {
 }
 
 async function runBootMigration(): Promise<void> {
-  if (process.env.RUN_MIGRATIONS_ON_BOOT !== "true") return;
+  if (process.env.RUN_MIGRATIONS_ON_BOOT !== "true") {
+    bootStatus.skipped = "RUN_MIGRATIONS_ON_BOOT is not 'true' — boot migration disabled.";
+    return;
+  }
   if (!process.env.DATABASE_URL) {
+    bootStatus.skipped = "RUN_MIGRATIONS_ON_BOOT=true but DATABASE_URL is not set — skipping.";
     console.log("[boot-migrate] RUN_MIGRATIONS_ON_BOOT=true but DATABASE_URL is not set — skipping.");
     return;
   }
@@ -57,6 +71,7 @@ async function runBootMigration(): Promise<void> {
         if (locked) break;
       }
       if (!locked) {
+        bootStatus.skipped = "Advisory lock still held after 15s — another instance owns the migration; this instance proceeded without migrating.";
         console.log("[boot-migrate] lock still held after 15s — proceeding without migrating (the other instance owns it).");
         return;
       }
@@ -64,6 +79,8 @@ async function runBootMigration(): Promise<void> {
     try {
       await runMigrations();
       await runSeed(false);
+      bootStatus.ran = true;
+      bootStatus.finishedAt = new Date().toISOString();
       console.log("[boot-migrate] boot migration + seed complete.");
     } finally {
       await client.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]);

@@ -6,6 +6,7 @@
 import express from "express";
 import path from "node:path";
 import { checkDb, getDb, isDbConfigured } from "../db";
+import { getBootStatus } from "../db/boot-migrate";
 import * as s from "../db/schema";
 import { asc, desc, eq } from "drizzle-orm";
 import { callApiAction, registerApi } from "./api";
@@ -18,7 +19,17 @@ app.use(express.static(path.resolve(__dirname, "../../public"), { maxAge: "1d" }
 // Health — works without a DB, reports db status honestly.
 app.get("/health", async (_req, res) => {
   const db = await checkDb();
-  res.json({ ok: true, service: "nexora-market", version: "1.0.0", demoMode: true, dbConfigured: isDbConfigured(), db: db.ok ? "connected" : "not configured", dbError: db.ok ? undefined : db.error, time: new Date().toISOString() });
+  // F8: which migrations has the live DB actually applied? (drizzle's own
+  // tracking table — the hash is sha256 of the migration file.)
+  let migrations: string[] | null = null;
+  try {
+    const d = getDb();
+    if (d) {
+      const rows: any = await d.execute('SELECT hash FROM drizzle.__drizzle_migrations ORDER BY created_at');
+      migrations = (rows?.rows || rows || []).map((r: any) => String(r.hash).slice(0, 12));
+    }
+  } catch { migrations = null; }
+  res.json({ ok: true, service: "nexora-market", version: "1.0.0", demoMode: true, dbConfigured: isDbConfigured(), db: db.ok ? "connected" : "not configured", dbError: db.ok ? undefined : db.error, bootMigration: getBootStatus(), migrationsApplied: migrations, time: new Date().toISOString() });
 });
 
 registerApi(app);

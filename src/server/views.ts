@@ -95,7 +95,7 @@ export function homepageView(h: any): string {
   for (const sec of secs) {
     if (sec.key === "hero") {
       const slides = (h.banners || []).map((b: any, i: number) => `<div class="slide ${i === 0 ? "active" : ""}" data-i="${i}">
-${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-text"><h1>${esc(b.headline)}</h1><p>${esc(b.subtext)}</p>
+${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-text"><${i === 0 ? "h1" : "h2"}>${esc(b.headline)}</${i === 0 ? "h1" : "h2"}><p>${esc(b.subtext)}</p>
 <p><a class="btn" href="/shop?category=${encodeURIComponent(safeTarget(b.ctaTarget).category || "")}">${esc(b.ctaLabel || "Shop now")}</a>
 <a class="btn ghost" href="/shop?category=${encodeURIComponent(safeTarget(b.cta2Target).category || "")}">${esc(b.cta2Label || "")}</a></p>
 </div></div>`).join("");
@@ -177,7 +177,7 @@ ${q.category && data.hasSmartwatches ? `<a class="btn ghost small" href="/shop?c
 </form>
 <p class="note">${data.total} product(s)${q.flash ? " — full flash list" : ""}</p>
 <div class="grid">${(data.products || []).map(productCard).join("") || "<p>No products match these filters.</p>"}</div>
-${data.total > (data.products || []).length ? `<p><a class="btn" href="/shop?${esc(loadMoreQuery(q, data))}">Load more</a></p>` : ""}`);
+${data.total > (Number(q.offset || 0) + (data.products || []).length) ? `<p><a class="btn" href="/shop?${esc(loadMoreQuery(q, data))}">Load more</a></p>` : ""}`);
 }
 
 export function productView(p: any, reviews: any[], questions: any[], related: any[] = []): string {

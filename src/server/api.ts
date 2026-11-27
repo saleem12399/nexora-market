@@ -19,13 +19,13 @@ import { OFFICIAL_STORE_NAME, PAYMENT_MODE_DEMO, PAYMENT_STATUSES_SOURCED, REFUN
 import { computeFlashRow, todayYmdKarachi } from "../lib/flash";
 import { computeOrderTotals, couponDiscount, formatPkr, validateCouponRules, type ShippingMethod } from "../lib/money";
 import { PermissionDeniedError, requirePermission, runRoleSelfTest, type RoleArea } from "../lib/roles";
-import { isValidEmail, isValidPkMobile, validateCustomerInfo } from "../lib/validation";
+import { isValidEmail, isValidPkMobile, validateCustomerInfo, validatePassword } from "../lib/validation";
 
 type Db = NonNullable<ReturnType<typeof getDb>>;
 
 function dbOr503(res: Response): Db | null {
   const db = getDb();
-  if (!db) { res.status(503).json({ ok: false, error: "database not configured — set DATABASE_URL and run migrations + seed (see RENDER-DEPLOY.md)" }); return null; }
+  if (!db) { res.status(503).json({ ok: false, error: "database not configured — set DATABASE_URL and run migrations + seed (see VERCEL-DEPLOY.md)" }); return null; }
   return db;
 }
 
@@ -147,11 +147,10 @@ async function requireStaffReauth(db: Db, req: Request, res: Response, actionNam
   return true;
 }
 
-// Staff password rule (new staff/owner passwords only): 8+ characters
-// with at least one letter and one number. Customer passwords keep the
-// existing 6+ rule (C16 unifies this in Phase 3).
+// Staff password rule (new staff/owner passwords only): the SAME shared
+// C16 rule as customers — 8+ characters, letters + numbers.
 function validStaffPassword(pw: string): boolean {
-  return typeof pw === "string" && pw.length >= 8 && /[A-Za-z]/.test(pw) && /[0-9]/.test(pw);
+  return validatePassword(pw).ok;
 }
 
 async function createStaffSession(db: Db, staffId: number): Promise<string> {
@@ -337,13 +336,15 @@ export function registerApi(app: Express) {
         }
         await handler(req, res, db);
       } catch (e) {
-        // Surface the underlying driver cause (same pattern as /health):
-        // Drizzle's message alone ("Failed query: ... params: ...") hides
-        // whether the pooler refused, reset, or timed out the connection.
+        // C12: log the FULL error server-side (with a reference id), but
+        // return only a generic message to the client — driver/table
+        // details must never leak (Phase 1's cause-surfacing was a
+        // diagnostic aid; it stays in the server log only).
         const cause = (e as any)?.cause;
         const msg = cause?.message ? `${(e as Error).message} — caused by: ${cause.message}` : (e as Error).message;
-        console.error(`[api/${name}]`, msg);
-        if (!res.headersSent) res.status(500).json({ ok: false, error: msg });
+        const errId = `ERR-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1296).toString(36).toUpperCase().padStart(2, "0")}`;
+        console.error(`[api/${name}] ${errId}`, msg);
+        if (!res.headersSent) res.status(500).json({ ok: false, error: `Something went wrong. Reference: ${errId}` });
       }
     });
   };
@@ -381,6 +382,11 @@ export function registerApi(app: Express) {
     "flashSaleEndsAt", "supportEmail", "supportPhone",
     "profileName", "profileEmail", "profilePhone", "profileAddress",
     "profileCity", "profileProvince", "profileLanguage",
+    // C7: business details for the footer / policy / About / Contact
+    // pages. The VALUES are owner-supplied (BLOCKED until he supplies
+    // them); the keys exist so the structure reads from settings.
+    "businessName", "businessNTN", "businessAddress", "businessPhone",
+    "businessEmail", "returnsAddress",
     "demoMode", "catalogV2",
   ]);
   a("saveSettings", async (req, res, db) => {
@@ -416,8 +422,8 @@ export function registerApi(app: Express) {
       ok: true,
       financeDecision: "Seller payouts / cash-out are FORMALLY EXCLUDED from scope: NEXORA MARKET is a single-company store, so there are no sellers, commissions or payouts to build. Finance scope = customer payments, refunds and reconciliation only.",
       providers,
-      hostingAssessment: ["One Render free web service + Supabase free Postgres (this rebuild). Render sleeps after 15 min idle (~30–60 s wake); Supabase free pauses after 1 week idle (one click resumes, no expiry).", "No Firebase, no PWA, no external staging URL beyond the Render test-server link."],
-      pendingOwnerInputs: ["Payment merchant approvals + sandbox credentials (JazzCash, Easypaisa, card acquirer)", "Courier corporate accounts + API credentials (TCS / Leopards / PostEx)", "Real company bank account details for Bank Transfer instructions (current ones are fictional demo data)", "Legal business details for policies: registered business name, NTN, business address, returns warehouse address", "Coupon production values: expiry date and usage limit for coupons 000, WELCOME10 and FLASH500", "Real product photographs for the catalogue", "Legacy returns decision: RET-DEMO-001 and RET-DEMO-002", "Owner's order email correction for NX-DEMO-98524600 (approval pending)"],
+      hostingAssessment: ["One Vercel Hobby deployment + Supabase free Postgres (this rebuild). Vercel serverless functions (max 60 s per function); Supabase free pauses after 1 week idle (one click resumes, no expiry).", "No Firebase, no PWA, no external staging URL beyond the Vercel test-server link."],
+      pendingOwnerInputs: ["Payment merchant approvals + sandbox credentials (JazzCash, Easypaisa, card acquirer)", "Courier corporate accounts + API credentials (TCS / Leopards / PostEx)", "Real company bank account details for Bank Transfer instructions (current ones are fictional demo data)", "Legal business details for policies: registered business name, NTN, business address, returns warehouse address", "Coupon production values: expiry date and usage limit for coupons 000, WELCOME10 and FLASH500", "Real product photographs for the catalogue", "Legacy returns decision: RET-DEMO-001 and RET-DEMO-002", "Owner's order email correction for NX-DEMO-98524600 (approval pending)", "Payment statuses: only 5 of the 10 promised statuses are sourced; the remaining 5 are pending owner confirmation from the original copy (or formally close the gap at 5) — do not invent them"],
       environment: "Demo / test server — live payments, courier booking and public sales stay OFF until the owner approves production activation.",
     });
   }, { area: "reports" });
@@ -981,7 +987,11 @@ export function registerApi(app: Express) {
     if (!cust) { res.json({ ok: true, authenticated: false, orders: [] }); return; }
     const rows = await db.select().from(s.orders).where(sql`lower(${s.orders.customerEmail}) = lower(${cust.email})`).orderBy(desc(s.orders.createdAt));
     const buckets = {
-      toPay: rows.filter((o: any) => o.paymentMethod !== "Cash on Delivery" && ["Pending", "Awaiting Verification (Demo)"].includes(o.paymentStatus)).length,
+      // C19: "To Pay" from the REAL payment-status set. Non-COD orders are
+      // "Paid • Ref …" once paid; unpaid ones are "Awaiting Verification
+      // (Demo)" (or a bare "Pending"). "Pending (COD)" is COD-only and
+      // never counts here; "Refund …" states are refunds, not payments due.
+      toPay: rows.filter((o: any) => o.paymentMethod !== "Cash on Delivery" && !String(o.paymentStatus || "").startsWith("Paid") && !String(o.paymentStatus || "").startsWith("Refund")).length,
       toShip: rows.filter((o: any) => ["Pending", "Confirmed", "Payment Confirmed", "Processing", "Packed", "Ready for Dispatch"].includes(o.status)).length,
       toReceive: rows.filter((o: any) => ["Shipped", "In Transit", "Arrived at Sorting Facility", "Arrived in Destination City", "Out for Delivery"].includes(o.status)).length,
       toReview: rows.filter((o: any) => o.status === "Delivered").length,
@@ -1016,7 +1026,8 @@ export function registerApi(app: Express) {
     if (rateLimited("register:ip:" + clientIp(req), 5, 60 * 60 * 1000)) { res.status(429).json(rateLimitBody()); return; }
     const v = validateCustomerInfo({ email: b.email, phone: b.phone, name: b.name });
     if (!v.ok) { res.status(400).json({ ok: false, errors: v.errors }); return; }
-    if (!b.password || String(b.password).length < 6) { res.status(400).json({ ok: false, error: "Password must be at least 6 characters." }); return; }
+    const pwCheck = validatePassword(String(b.password || ""));
+    if (!pwCheck.ok) { res.status(400).json({ ok: false, error: pwCheck.error }); return; }
     if (b.confirmPassword != null && b.confirmPassword !== b.password) { res.status(400).json({ ok: false, error: "Passwords do not match." }); return; }
     const existing = (await db.select().from(s.customers).where(sql`lower(${s.customers.email}) = lower(${b.email})`))[0];
     if (existing) { res.status(400).json({ ok: false, error: "An account with this email already exists." }); return; }
@@ -1103,8 +1114,22 @@ export function registerApi(app: Express) {
   a("changePassword", async (req, res, db) => {
     const cust = await requireCustomer(db, req, res); if (!cust) return;
     const { currentPassword, newPassword, confirmNewPassword } = req.body || {};
-    if (!cust.passwordHash || !verifyPassword(String(currentPassword || ""), cust.passwordHash)) { res.status(400).json({ ok: false, error: "Current password is incorrect." }); return; }
-    if (!newPassword || String(newPassword).length < 6) { res.status(400).json({ ok: false, error: "New password must be at least 6 characters." }); return; }
+    // C20: accept legacy SHA-256 hashes here, exactly like loginCustomer
+    // does — and upgrade to PBKDF2 on success.
+    let curOk = false;
+    if (cust.passwordHash) {
+      if (cust.passwordHash.startsWith("pbkdf2$")) curOk = verifyPassword(String(currentPassword || ""), cust.passwordHash);
+      else if (isLegacySha256Hash(cust.passwordHash)) {
+        curOk = verifyLegacySha256(String(currentPassword || ""), cust.passwordHash);
+        if (curOk) {
+          await db.update(s.customers).set({ passwordHash: hashPassword(String(currentPassword)) }).where(eq(s.customers.id, cust.id));
+          await audit(db, "Legacy password hash upgraded to PBKDF2", cust.email, `customer ${cust.id} (via changePassword)`);
+        }
+      }
+    }
+    if (!curOk) { res.status(400).json({ ok: false, error: "Current password is incorrect." }); return; }
+    const pwCheck = validatePassword(String(newPassword || ""));
+    if (!pwCheck.ok) { res.status(400).json({ ok: false, error: pwCheck.error }); return; }
     if (confirmNewPassword != null && confirmNewPassword !== newPassword) { res.status(400).json({ ok: false, error: "New passwords do not match." }); return; }
     await db.update(s.customers).set({ passwordHash: hashPassword(String(newPassword)), mustResetPassword: false }).where(eq(s.customers.id, cust.id));
     // A2: revoke every OTHER session (stolen/old sessions die on password change).
@@ -1144,7 +1169,8 @@ export function registerApi(app: Express) {
     const hash = crypto.createHash("sha256").update(String(token)).digest("hex");
     const cust = (await db.select().from(s.customers).where(eq(s.customers.resetTokenHash, hash)))[0];
     if (!cust || !cust.resetExpiresAt || cust.resetExpiresAt < Date.now()) { res.status(400).json({ ok: false, error: "This reset token is invalid or expired." }); return; }
-    if (!newPassword || String(newPassword).length < 6) { res.status(400).json({ ok: false, error: "New password must be at least 6 characters." }); return; }
+    const pwCheck = validatePassword(String(newPassword || ""));
+    if (!pwCheck.ok) { res.status(400).json({ ok: false, error: pwCheck.error }); return; }
     if (confirmNewPassword != null && confirmNewPassword !== newPassword) { res.status(400).json({ ok: false, error: "New passwords do not match." }); return; }
     await db.update(s.customers).set({ passwordHash: hashPassword(String(newPassword)), mustResetPassword: false, resetTokenHash: null, resetExpiresAt: null }).where(eq(s.customers.id, cust.id));
     // A2: revoke ALL sessions — a reset logs every device out.
@@ -1802,12 +1828,14 @@ export function registerApi(app: Express) {
     const live = orders.filter((o: any) => !o.legacyTest && o.status !== "Cancelled");
     const legacy = orders.filter((o: any) => o.legacyTest);
     const gmv = live.reduce((a: number, o: any) => a + o.total, 0);
-    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-    const dailySales = days.map((day) => ({ day, total: 0 }));
-    const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", weekday: "long" });
+    // C22: REAL daily sales — last 30 days, date-keyed (Asia/Karachi),
+    // zero-filled. The old code summed ALL-TIME totals into weekday
+    // buckets (Monday–Sunday), which mislabelled the chart.
+    const fmtDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi", year: "numeric", month: "2-digit", day: "2-digit" });
+    const dailySales: { date: string; total: number }[] = [];
+    for (let i = 29; i >= 0; i--) dailySales.push({ date: fmtDate.format(new Date(Date.now() - i * 86400000)), total: 0 });
     for (const o of live) {
-      const day = fmt.format(new Date(o.createdAt));
-      const slot = dailySales.find((d) => d.day === day);
+      const slot = dailySales.find((d) => d.date === fmtDate.format(new Date(o.createdAt)));
       if (slot) slot.total += o.total;
     }
     const byStatus: Record<string, number> = {};
@@ -1820,9 +1848,16 @@ export function registerApi(app: Express) {
     const items = await db.select().from(s.orderItems);
     const liveIds = new Set(live.map((o: any) => o.id));
     const byProduct: Record<number, number> = {};
-    for (const it of items) if (liveIds.has(it.orderId)) byProduct[it.productId || 0] = (byProduct[it.productId || 0] || 0) + it.qty;
+    // C17: exclude productId 0/NULL (legacy unresolved items) from
+    // topProducts; their quantity is reported separately as legacyTopQty.
+    let legacyTopQty = 0;
+    for (const it of items) {
+      if (!liveIds.has(it.orderId)) continue;
+      if (!it.productId) { legacyTopQty += it.qty; continue; }
+      byProduct[it.productId] = (byProduct[it.productId] || 0) + it.qty;
+    }
     const topProducts = Object.entries(byProduct).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([pid, qty]) => ({ productId: Number(pid), qty }));
-    res.json({ ok: true, gmv, avgOrderValue: live.length ? Math.round(gmv / live.length) : 0, orderCount: live.length, dailySales, byStatus, byPayment, refundsTotal, refundsRequested, legacyOrders: legacy.length, topProducts, note: "Real records only — zero days report 0; cancelled and legacy-test orders excluded from revenue." });
+    res.json({ ok: true, gmv, avgOrderValue: live.length ? Math.round(gmv / live.length) : 0, orderCount: live.length, dailySales, byStatus, byPayment, refundsTotal, refundsRequested, legacyOrders: legacy.length, topProducts, legacyTopQty, note: "Real records only — zero days report 0; cancelled and legacy-test orders excluded from revenue. Daily sales are the last 30 days (date-keyed); topProducts excludes legacy unresolved items (productId 0/NULL), counted separately as legacyTopQty." });
   }, { area: "reports" });
 
   a("listStaff", async (_req, res, db) => {

@@ -19,6 +19,15 @@ export function isValidPkMobile(phone: string): boolean {
   return /^03\d{9}$/.test(d);
 }
 
+/** C16: ONE password rule in one place — 8+ characters with at least one
+ * letter and one number. Used server-side by register / change / reset
+ * (customer) and by owner/staff setup; the UI text must match it. */
+export function validatePassword(pw: string): { ok: boolean; error?: string } {
+  if (!pw || pw.length < 8) return { ok: false, error: "Password must be at least 8 characters with letters and numbers." };
+  if (!/[A-Za-z]/.test(pw) || !/[0-9]/.test(pw)) return { ok: false, error: "Password must include both letters and numbers." };
+  return { ok: true };
+}
+
 /** Legacy gibberish values from the annotated legacy-test orders (spec §6.4). */
 export const LEGACY_INVALID_EMAILS = ["test", "abc", "xyz123"];
 export const LEGACY_INVALID_PHONES = ["000", "123", "999"];

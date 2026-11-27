@@ -6,6 +6,22 @@
 import { formatPkr } from "../lib/money";
 import { REFUND_STAGE_LABELS } from "../lib/constants";
 
+export interface BusinessDetails { name?: string; ntn?: string; address?: string; phone?: string; email?: string; returnsAddress?: string; }
+
+// C7: footer / policy / About / Contact render the business details from
+// settings when the owner has supplied them; until then the honest
+// [OWNER TO SUPPLY] placeholder stays — details are NEVER invented.
+export function detailsBlock(d?: BusinessDetails): string {
+  if (!d || !d.name) return `<p><strong>[OWNER TO SUPPLY]</strong> — registered business name, NTN, business address, returns warehouse address, phone/email. These details will appear here once the owner supplies them.</p>`;
+  const parts: string[] = [`<strong>${esc(d.name)}</strong>`];
+  if (d.address) parts.push(esc(d.address));
+  if (d.phone) parts.push(esc(d.phone));
+  if (d.email) parts.push(`<a href="mailto:${esc(d.email)}">${esc(d.email)}</a>`);
+  if (d.ntn) parts.push(`NTN ${esc(d.ntn)}`);
+  if (d.returnsAddress) parts.push(`Returns: ${esc(d.returnsAddress)}`);
+  return `<p>${parts.join(" · ")}</p>`;
+}
+
 export function esc(s: any): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
@@ -50,7 +66,7 @@ export function dispDesc(s: any): string {
   return t.replace(/\s{2,}/g, " ").trim();
 }
 
-export function layout(title: string, body: string, opts?: { active?: string; noDb?: boolean; admin?: boolean }): string {
+export function layout(title: string, body: string, opts?: { active?: string; noDb?: boolean; admin?: boolean; details?: BusinessDetails }): string {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(title)} — NEXORA MARKET</title><link rel="stylesheet" href="/css/style.css"><link rel="icon" href="/favicon.ico" type="image/x-icon"></head>
 <body>
@@ -65,7 +81,8 @@ ${opts?.admin ? `<div class="demo-banner">DEMO / TRIAL MODE — No live payment 
 <main class="wrap">${body}</main>
 <footer class="footer"><p><strong>NEXORA MARKET</strong> — Shop Smarter. Live Better.</p>
 <p>All prices in PKR. Cash on Delivery is collected only at delivery. 14-day return window.</p>
-<p><a href="/policies/privacy">Privacy</a> · <a href="/policies/terms">Terms</a> · <a href="/policies/shipping">Shipping</a> · <a href="/policies/returns">Returns &amp; Refunds</a></p></footer>
+${detailsBlock(opts?.details)}
+<p><a href="/about">About</a> · <a href="/contact">Contact</a> · <a href="/policies/privacy">Privacy</a> · <a href="/policies/terms">Terms</a> · <a href="/policies/shipping">Shipping</a> · <a href="/policies/returns">Returns &amp; Refunds</a></p></footer>
 <nav class="bottomnav"><a href="/">Home</a><a href="/shop">Shop</a><a href="/wishlist">Wishlist</a><a href="/cart">Cart</a><a href="/track">Track</a><a href="/account">Account</a></nav>
 <script src="/js/app.js"></script></body></html>`;
 }
@@ -73,7 +90,7 @@ ${opts?.admin ? `<div class="demo-banner">DEMO / TRIAL MODE — No live payment 
 export function noDbPage(feature: string): string {
   return layout("Database not configured", `<div class="card light-panel"><h1>Database not configured</h1>
 <p>The ${esc(feature)} needs a database. This test server has no <code>DATABASE_URL</code> set yet.</p>
-<p>To finish setup: create the Supabase Postgres database, set <code>DATABASE_URL</code> (plus <code>SUPABASE_URL</code> and <code>SUPABASE_PUBLISHABLE_KEY</code>) in Render, then run <code>npm run db:migrate &amp;&amp; npm run db:seed</code>. See <code>RENDER-DEPLOY.md</code>.</p>
+<p>To finish setup: create the Supabase Postgres database, set <code>DATABASE_URL</code> (plus <code>SUPABASE_URL</code> and <code>SUPABASE_PUBLISHABLE_KEY</code>) in your host's environment variables (Vercel: Settings → Environment Variables), then run <code>npm run db:migrate &amp;&amp; npm run db:seed</code>. See <code>VERCEL-DEPLOY.md</code>.</p>
 <p><a class="btn" href="/health">Check /health</a></p></div>`);
 }
 
@@ -89,7 +106,7 @@ export function productCard(p: any): string {
 <p class="soldby">Sold by NEXORA Official Store</p></article>`;
 }
 
-export function homepageView(h: any): string {
+export function homepageView(h: any, details?: BusinessDetails): string {
   const secs: any[] = (h.sections || []).filter((x: any) => x.visible).sort((a: any, b: any) => a.sortOrder - b.sortOrder);
   let html = "";
   for (const sec of secs) {
@@ -131,7 +148,7 @@ ${b.imageUrl ? `<img src="${esc(b.imageUrl)}" alt="">` : ""}<div class="slide-te
       html += `<section><h2>What Customers Say</h2><div class="revgrid">${(h.reviews || []).map((r: any) => `<div class="review"><strong>${esc(dispName(r.productName || ""))}</strong><div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div><p>${esc(cleanText(r.text))}</p><small>— ${esc(dispName(r.customerName))} ${r.verified ? "· Verified purchase" : ""}</small></div>`).join("")}</div></section>`;
     }
   }
-  return layout("Home", html);
+  return layout("Home", html, { details });
 }
 
 function safeTarget(v: any): any { return v && typeof v === "object" ? v : {}; }
@@ -151,7 +168,7 @@ function loadMoreQuery(q: any, data: any): string {
   return params.toString();
 }
 
-export function shopView(data: any, q: any): string {
+export function shopView(data: any, q: any, details?: BusinessDetails): string {
   const cats: any[] = data.categories || [];
   const top = cats.filter((c: any) => !c.parent && c.active);
   const subs = q.category ? cats.filter((c: any) => c.parent === q.category && c.active) : [];
@@ -177,10 +194,10 @@ ${q.category && data.hasSmartwatches ? `<a class="btn ghost small" href="/shop?c
 </form>
 <p class="note">${data.total} product(s)${q.flash ? " — full flash list" : ""}</p>
 <div class="grid">${(data.products || []).map(productCard).join("") || "<p>No products match these filters.</p>"}</div>
-${data.total > (Number(q.offset || 0) + (data.products || []).length) ? `<p><a class="btn" href="/shop?${esc(loadMoreQuery(q, data))}">Load more</a></p>` : ""}`);
+${data.total > (Number(q.offset || 0) + (data.products || []).length) ? `<p><a class="btn" href="/shop?${esc(loadMoreQuery(q, data))}">Load more</a></p>` : ""}`, { details });
 }
 
-export function productView(p: any, reviews: any[], questions: any[], related: any[] = []): string {
+export function productView(p: any, reviews: any[], questions: any[], related: any[] = [], details?: BusinessDetails): string {
   const price = p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price;
   // C5: omit variant lines with no real value — never a bare "—".
   const variantLines: string[] = [];
@@ -206,83 +223,83 @@ ${(p.subcategory || "").includes("Glasses") ? "<p>Smart-glasses note: frame, len
 </div></div>
 <section><h2>Reviews</h2>${reviews.map((r: any) => `<div class="review"><strong>${esc(dispName(r.customerName))}</strong> ${"★".repeat(r.rating)}<p>${esc(cleanText(r.text))}</p>${r.sellerReply ? `<p class="reply">NEXORA reply: ${esc(r.sellerReply)}</p>` : ""}</div>`).join("") || "<p>No reviews yet.</p>"}</section>
 <section><h2>Questions &amp; Answers</h2>${questions.map((x: any) => `<div class="review"><p><strong>Q:</strong> ${esc(cleanText(x.question))} — ${esc(dispName(x.customerName))}</p><p><strong>A:</strong> ${esc(cleanText(x.answer || "Not answered yet."))}</p></div>`).join("") || "<p>No questions yet.</p>"}</section>
-${related.length ? `<section><h2>You May Also Like</h2><div class="grid">${related.map(productCard).join("")}</div></section>` : ""}`);
+${related.length ? `<section><h2>You May Also Like</h2><div class="grid">${related.map(productCard).join("")}</div></section>` : ""}`, { details });
 }
 
-export function trackView(): string {
+export function trackView(details?: BusinessDetails): string {
   return layout("Track Order", `<h1>Track Your Order</h1><p class="note">Enter your order and tracking numbers to follow your parcel.</p>
 <form class="card light-panel" onsubmit="return trackOrder(event)"><label>Order number <input id="tOrder" required placeholder="NX-DEMO-…"></label>
 <label>Tracking number <input id="tTrack" required placeholder="TRK-DEMO-…"></label>
-<button class="btn">Track</button></form><div id="trackResult"></div>`);
+<button class="btn">Track</button></form><div id="trackResult"></div>`, { details });
 }
 
-export function accountView(): string {
+export function accountView(details?: BusinessDetails): string {
   return layout("My Account", `<div class="dash" id="accountRoot"><p>Loading your dashboard…</p></div>
-`);
+`, { details });
 }
 
 // B2: the wishlist page — a real route, not a hidden panel. Filled by
 // loadWishlist() in app.js from listWishlist (server-scoped key).
-export function wishlistView(): string {
+export function wishlistView(details?: BusinessDetails): string {
   return layout("My Wishlist", `<h1>My Wishlist</h1><p class="note">Items you saved — sign in and they follow your account; guests keep them in this browser.</p>
 <div id="wishlistRoot"><p>Loading your wishlist…</p></div>
-<p><a class="btn ghost" href="/shop">Continue shopping →</a></p>`);
+<p><a class="btn ghost" href="/shop">Continue shopping →</a></p>`, { details });
 }
 
-export function adminView(): string {
+export function adminView(details?: BusinessDetails): string {
   const tabs = ["Dashboard", "Products", "Categories", "Inventory", "Orders", "Payments", "Returns / Refunds", "Customers", "Support", "Reviews", "Notifications", "Coupons", "Staff & Permissions", "Reports", "Settings", "Homepage", "Demo Merchants", "Demo Manager", "Phase 2", "Audit Log"];
   return layout("Admin", `<h1>Admin <span class="demo-tag">DEMO / TRIAL MODE</span></h1>
 <div id="staffBar"></div>
 <p class="note">20 modules (spec §7.7). The Phase 1 lab test observed 21 admin tabs — the extra tab was the Phase 2 tab added later; the actual list below is the 20-module list, with Orders and Tracking kept as one Orders tab (tracking manager inside it). Staff access is by real sign-in (email + password + authenticator code) — the old role dropdown is gone, roles come from the server session, and denials are audit-logged.</p>
 <div class="tabs" id="adminTabs" style="display:none">${tabs.map((t, i) => `<button class="tab ${i === 0 ? "on" : ""}" onclick="adminTab(${i},this)">${esc(t)}</button>`).join("")}</div>
 <div id="adminRoot" class="card light-panel"><p>Loading…</p></div>
-`, { admin: true });
+`, { admin: true, details });
 }
 
 // Owner first-password setup (/admin/setup). The page is a two-step form:
 // step 1 — setup token + new password; step 2 — authenticator secret +
 // 6-digit code. Usable ONLY while no owner setup is complete.
-export function ownerSetupView(): string {
+export function ownerSetupView(details?: BusinessDetails): string {
   return layout("Owner Setup", `<h1>Owner Setup — NEXORA MARKET</h1>
 <div class="card light-panel" id="ownerSetupRoot"><p>Loading setup status…</p></div>
-<p class="note">First time here? 1) Pick a secret setup token and set it as the Vercel env var <code>NEXORA_OWNER_SETUP_TOKEN</code> (Production), then redeploy. 2) Come back here, type the token and your new password. 3) Add the authenticator secret to your authenticator app and type the 6-digit code. Never share the token or your password in chat.</p>`);
+<p class="note">First time here? 1) Pick a secret setup token and set it as the Vercel env var <code>NEXORA_OWNER_SETUP_TOKEN</code> (Production), then redeploy. 2) Come back here, type the token and your new password. 3) Add the authenticator secret to your authenticator app and type the 6-digit code. Never share the token or your password in chat.</p>`, { details });
 }
 
 // Staff activation (/staff/setup?email=…&token=…). Same two-step pattern
 // as owner setup, with the one-time token the owner sent out of band.
-export function staffSetupView(): string {
+export function staffSetupView(details?: BusinessDetails): string {
   return layout("Staff Setup", `<h1>Staff Setup — NEXORA MARKET</h1>
 <div class="card light-panel" id="staffSetupRoot"><p>Loading…</p></div>
-<p class="note">Use the one-time setup token the owner sent you (e.g. WhatsApp). It expires in 24 hours. After setup, sign in at /admin with your email, password and authenticator code.</p>`);
+<p class="note">Use the one-time setup token the owner sent you (e.g. WhatsApp). It expires in 24 hours. After setup, sign in at /admin with your email, password and authenticator code.</p>`, { details });
 }
 
-export function checkoutView(step: number): string {
+export function checkoutView(step: number, details?: BusinessDetails): string {
   const steps = ["Cart Review", "Customer Info", "Delivery Address", "Shipping", "Payment", "Summary", "Confirm"];
   return layout(`Checkout — ${steps[step - 1]}`, `<h1>Checkout</h1>
 <ol class="steps">${steps.map((s, i) => `<li class="${i + 1 === step ? "on" : i + 1 < step ? "done" : ""}">${i + 1}. ${s}</li>`).join("")}</ol>
 <div id="checkoutRoot" class="card light-panel" data-step="${step}"><p>Loading step ${step}…</p></div>
-`);
+`, { details });
 }
 
-export function cartView(): string {
-  return layout("Cart", `<h1>Your Cart</h1><div id="cartRoot"><p>Loading cart…</p></div>`);
+export function cartView(details?: BusinessDetails): string {
+  return layout("Cart", `<h1>Your Cart</h1><div id="cartRoot"><p>Loading cart…</p></div>`, { details });
 }
 
-export function authView(kind: "login" | "register"): string {
+export function authView(kind: "login" | "register", details?: BusinessDetails): string {
   const isLogin = kind === "login";
   return layout(isLogin ? "Sign In" : "Register", `<h1>${isLogin ? "Sign In" : "Create Account"}</h1>
 <div class="card light-panel"><form onsubmit="return ${isLogin ? "doLogin" : "doRegister"}(event)">
 <label>Name ${isLogin ? "" : '<input id="aName" required>'} </label>
 <label>Email <input id="aEmail" type="email" required></label>
 <label>Phone <input id="aPhone" placeholder="03XXXXXXXXX" ${isLogin ? "" : "required"}></label>
-<label>Password <span class="pw"><input id="aPass" type="password" required minlength="6"><button type="button" onclick="togglePw('aPass',this)">👁️</button></span></label>
-${isLogin ? "" : '<label>Confirm password <input id="aPass2" type="password" required minlength="6"></label><p class="note">Password strength: use 8+ characters with a mix of letters and numbers.</p>'}
+<label>Password <span class="pw"><input id="aPass" type="password" required minlength="8"><button type="button" onclick="togglePw('aPass',this)">👁️</button></span></label>
+${isLogin ? "" : '<label>Confirm password <input id="aPass2" type="password" required minlength="8"></label><p class="note">Password strength: use 8+ characters with a mix of letters and numbers.</p>'}
 <button class="btn">${isLogin ? "Sign In" : "Register"}</button></form>
 <p>${isLogin ? `No account? <a href="/register">Register</a> · <a href="#" onclick="forgotPassword(event)">Forgot password?</a>` : `Already have an account? <a href="/login">Sign In</a>`}</p>
-<p class="note">Seeded accounts have NO usable password yet (the export contained no hash values). Password reset by email is not available yet — no email provider is connected. Contact the store owner to set a password. Never share a password in chat.</p></div>`);
+<p class="note">Seeded accounts have NO usable password yet (the export contained no hash values). Password reset by email is not available yet — no email provider is connected. Contact the store owner to set a password. Never share a password in chat.</p></div>`, { details });
 }
 
-export function policyView(page: string): string {
+export function policyView(page: string, details?: BusinessDetails): string {
   const titles: Record<string, string> = { privacy: "Privacy Policy", terms: "Terms of Service", shipping: "Shipping Policy", returns: "Returns & Refunds Policy" };
   const bodies: Record<string, string> = {
     privacy: "<p>We collect only what checkout and support need: name, email, phone and delivery address. No payment card numbers are stored — only a •••• last-4 label. Verification emails are not sent yet.</p>",
@@ -290,15 +307,15 @@ export function policyView(page: string): string {
     shipping: "<p>Standard Rs. 250 (free at Rs. 5,000+ after discount), Express Rs. 450, Scheduled Rs. 450, Pickup Rs. 0. Delivery times are estimates.</p>",
     returns: "<p>14-day return window. Returns follow a 9-stage tracker (Requested → Refunded); stock is restocked at stage 4.</p>",
   };
-  return layout(titles[page] || "Policy", `<h1>${titles[page] || "Policy"}</h1><div class="card light-panel">${bodies[page] || ""}<p><strong>[OWNER TO SUPPLY]</strong> — registered business name, NTN, business address, returns warehouse address.</p></div>`);
+  return layout(titles[page] || "Policy", `<h1>${titles[page] || "Policy"}</h1><div class="card light-panel">${bodies[page] || ""}${detailsBlock(details)}</div>`, { details });
 }
 
-export function merchantsView(merchants: any[]): string {
+export function merchantsView(merchants: any[], details?: BusinessDetails): string {
   return layout("Merchants", `<h1>Merchants</h1><p class="note">A directory of the featured stores in NEXORA MARKET.</p>
-<div class="grid">${merchants.map((m: any) => `<div class="card light-panel"><h3>${esc(dispName(m.storeName))}</h3><p>${esc(dispName(m.ownerName))} · ${esc(m.city)}</p><p>Focus: ${esc(m.categoryFocus)}</p><p>★ ${m.rating} (${m.reviewsCount} reviews) · ${esc(m.verification)} · Joined ${esc(m.joined)}</p></div>`).join("")}</div>`);
+<div class="grid">${merchants.map((m: any) => `<div class="card light-panel"><h3>${esc(dispName(m.storeName))}</h3><p>${esc(dispName(m.ownerName))} · ${esc(m.city)}</p><p>Focus: ${esc(m.categoryFocus)}</p><p>★ ${m.rating} (${m.reviewsCount} reviews) · ${esc(m.verification)} · Joined ${esc(m.joined)}</p></div>`).join("")}</div>`, { details });
 }
 
-export function helpView(): string {
+export function helpView(details?: BusinessDetails): string {
   // B15: every tile goes to its real destination — nothing points at /track
   // unless it is actually about tracking.
   const tiles: [string, string][] = [
@@ -319,11 +336,22 @@ export function helpView(): string {
 <label>Order number (optional) <input id="tkOrder" placeholder="NX-DEMO-…"></label>
 <label>Describe the problem <textarea id="tkDesc" required rows="4"></textarea></label>
 <button class="btn">Open support case</button></form><div id="ticketResult"></div>
-<p><a class="btn" href="/track">Track an order</a> <a class="btn ghost" href="/account">Open a support case</a></p>`);
+<p><a class="btn" href="/track">Track an order</a> <a class="btn ghost" href="/account">Open a support case</a></p>`, { details });
 }
 
-export function compareView(): string {
-  return layout("Compare", `<h1>Compare Products</h1><div class="card light-panel"><p><strong>Clearly-marked stub.</strong> The Compare page exists in the Muse copy (named among its inspected views) but no flow details appear in any source (REBUILD-SPEC.md §14.11), so its contents were not invented here. Add products from the Shop and this page will compare them once the behaviour is verified against the Muse copy during acceptance.</p><p><a class="btn" href="/shop">Browse the Shop</a></p></div>`);
+export function compareView(details?: BusinessDetails): string {
+  return layout("Compare", `<h1>Compare Products</h1><div class="card light-panel"><p><strong>Clearly-marked stub.</strong> The Compare page exists in the Muse copy (named among its inspected views) but no flow details appear in any source (REBUILD-SPEC.md §14.11), so its contents were not invented here. Add products from the Shop and this page will compare them once the behaviour is verified against the Muse copy during acceptance.</p><p><a class="btn" href="/shop">Browse the Shop</a></p></div>`, { details });
+}
+
+// C7/D6: About + Contact page shells — they render whatever business
+// details are configured in settings, and the [OWNER TO SUPPLY]
+// placeholder until the owner supplies them. Never invented.
+export function aboutView(details?: BusinessDetails): string {
+  return layout("About", `<h1>About NEXORA MARKET</h1><div class="card light-panel"><p>NEXORA MARKET is a single-company online store in Pakistan — fashion, phones, wearables, audio, jewelry, beauty and kids' wear, with Cash on Delivery and a 14-day return window.</p>${detailsBlock(details)}</div>`, { details });
+}
+
+export function contactView(details?: BusinessDetails): string {
+  return layout("Contact", `<h1>Contact Us</h1><div class="card light-panel"><p>Questions about an order, a return or a product? Reach the store below — or open a support case from the <a href="/help">Help Center</a>.</p>${detailsBlock(details)}</div>`, { details });
 }
 
 export { REFUND_STAGE_LABELS };

@@ -13,6 +13,21 @@ import { callApiAction, registerApi } from "./api";
 import * as views from "./views";
 
 const app = express();
+// C13: security headers. No helmet dependency — the headers are set
+// directly. CSP allows the site's own scripts/styles/images; inline
+// handlers ('unsafe-inline') are still required because the storefront
+// uses inline onclick handlers throughout — a strict CSP without them
+// would break the site, so removing inline handlers is future work, not
+// silently done here. frame-ancestors 'self' blocks clickjacking;
+// CORS is same-origin only (no Access-Control-Allow-Origin is ever set).
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'");
+  next();
+});
 app.use(express.json({ limit: "10mb" }));
 app.use(express.static(path.resolve(__dirname, "../../public"), { maxAge: "1d" }));
 
@@ -38,6 +53,21 @@ function noDb(res: express.Response, feature: string) {
   res.status(503).send(views.noDbPage(feature));
 }
 
+// C7: business details for the footer / policy / About / Contact pages,
+// read from settings on every page render. Empty until the owner supplies
+// them (see views.detailsBlock — never invented).
+async function businessDetails(db: any): Promise<views.BusinessDetails> {
+  const rows = await db.select().from(s.settings);
+  const m: Record<string, string> = {};
+  for (const r of rows) m[r.key] = r.value;
+  return { name: m.businessName || "", ntn: m.businessNTN || "", address: m.businessAddress || "", phone: m.businessPhone || "", email: m.businessEmail || "", returnsAddress: m.returnsAddress || "" };
+}
+async function detailsOrUndefined(): Promise<views.BusinessDetails | undefined> {
+  const db = getDb();
+  if (!db) return undefined;
+  try { return await businessDetails(db); } catch { return undefined; }
+}
+
 // ---- Storefront pages ----
 // Storefront pages call the API actions in-process (callApiAction) instead
 // of HTTP-fetching their own server: the payload is identical, and it works
@@ -47,8 +77,8 @@ app.get("/", async (_req, res) => {
   if (!db) return noDb(res, "the homepage");
   try {
     const h = await callApiAction("getHomepage", {});
-    res.send(views.homepageView(h));
-  } catch (e) { res.status(500).send(views.layout("Error", `<div class="card light-panel"><p>Homepage failed to load: ${views.esc((e as Error).message)}</p></div>`)); }
+    res.send(views.homepageView(h, await businessDetails(db)));
+  } catch (e) { console.error("[homepage]", (e as Error).message); res.status(500).send(views.layout("Error", `<div class="card light-panel"><p>Homepage failed to load. Please try again.</p></div>`)); }
 });
 
 app.get("/shop", async (req, res) => {
@@ -67,13 +97,15 @@ app.get("/shop", async (req, res) => {
     hasSmartwatches = subs.some((r: any) => r.sub === "Smartwatches");
   }
   const data: any = await callApiAction("listProducts", body);
-  res.send(views.shopView({ ...data, categories: cats, hasSmartwatches }, { ...(q as any), flash: q.flash }));
+  res.send(views.shopView({ ...data, categories: cats, hasSmartwatches }, { ...(q as any), flash: q.flash }, await businessDetails(db)));
 });
 
 app.get("/product/:id", async (req, res) => {
   const db = getDb();
   if (!db) return noDb(res, "product pages");
+  // C12: validate the route param first — /product/abc is a 404, not a 500.
   const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(404).send(views.layout("Not found", "<p>Product not found.</p>")); return; }
   const p = (await db.select().from(s.products).where(eq(s.products.id, id)))[0];
   if (!p) { res.status(404).send(views.layout("Not found", "<p>Product not found.</p>")); return; }
   const imgs = await db.select().from(s.productImages).where(eq(s.productImages.productId, id)).orderBy(asc(s.productImages.sortOrder));
@@ -86,40 +118,46 @@ app.get("/product/:id", async (req, res) => {
     const rel = await callApiAction("listProducts", { category: p.category, limit: 5 });
     related = (rel.products || []).filter((x: any) => x.id !== id).slice(0, 4);
   } catch { related = []; }
-  res.send(views.productView(full, reviews, questions, related));
+  res.send(views.productView(full, reviews, questions, related, await businessDetails(db)));
 });
 
-app.get("/cart", (_req, res) => res.send(views.cartView()));
-app.get("/wishlist", (_req, res) => res.send(views.wishlistView()));
-app.get("/admin/setup", (_req, res) => res.send(views.ownerSetupView()));
-app.get("/staff/setup", (_req, res) => res.send(views.staffSetupView()));
-app.get("/checkout", (req, res) => {
+app.get("/cart", async (_req, res) => res.send(views.cartView(await detailsOrUndefined())));
+app.get("/wishlist", async (_req, res) => res.send(views.wishlistView(await detailsOrUndefined())));
+app.get("/admin/setup", async (_req, res) => res.send(views.ownerSetupView(await detailsOrUndefined())));
+app.get("/staff/setup", async (_req, res) => res.send(views.staffSetupView(await detailsOrUndefined())));
+app.get("/checkout", async (req, res) => {
   const step = Math.min(7, Math.max(1, Number(req.query.step || 1)));
-  res.send(views.checkoutView(step));
+  res.send(views.checkoutView(step, await detailsOrUndefined()));
 });
-app.get("/track", (_req, res) => res.send(views.trackView()));
-app.get("/account", (_req, res) => res.send(views.accountView()));
-app.get("/admin", (_req, res) => res.send(views.adminView()));
-app.get("/login", (_req, res) => res.send(views.authView("login")));
-app.get("/register", (_req, res) => res.send(views.authView("register")));
-app.get("/compare", (_req, res) => res.send(views.compareView()));
-app.get("/help", (_req, res) => res.send(views.helpView()));
-app.get("/policies/:page", (req, res) => {
+app.get("/track", async (_req, res) => res.send(views.trackView(await detailsOrUndefined())));
+app.get("/account", async (_req, res) => res.send(views.accountView(await detailsOrUndefined())));
+app.get("/admin", async (_req, res) => res.send(views.adminView(await detailsOrUndefined())));
+app.get("/login", async (_req, res) => res.send(views.authView("login", await detailsOrUndefined())));
+app.get("/register", async (_req, res) => res.send(views.authView("register", await detailsOrUndefined())));
+app.get("/compare", async (_req, res) => res.send(views.compareView(await detailsOrUndefined())));
+app.get("/help", async (_req, res) => res.send(views.helpView(await detailsOrUndefined())));
+app.get("/policies/:page", async (req, res) => {
   if (!["privacy", "terms", "shipping", "returns"].includes(req.params.page)) { res.status(404).send(views.layout("Not found", "<p>Policy not found.</p>")); return; }
-  res.send(views.policyView(req.params.page));
+  res.send(views.policyView(req.params.page, await detailsOrUndefined()));
 });
+// C7/D6: About + Contact shells (render configured details, or the
+// [OWNER TO SUPPLY] placeholder until the owner supplies them).
+app.get("/about", async (_req, res) => res.send(views.aboutView(await detailsOrUndefined())));
+app.get("/contact", async (_req, res) => res.send(views.contactView(await detailsOrUndefined())));
 app.get("/merchants", async (_req, res) => {
   const db = getDb();
   if (!db) return noDb(res, "the Merchants directory");
   const rows = await db.select().from(s.demoMerchants).orderBy(desc(s.demoMerchants.rating));
-  res.send(views.merchantsView(rows));
+  res.send(views.merchantsView(rows, await businessDetails(db)));
 });
 
-// API 404 + error handler
+// API 404 + error handler (C12: generic message to the client, full
+// error in the server log only).
 app.use("/api", (_req, res) => res.status(404).json({ ok: false, error: "Unknown API action." }));
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err);
-  res.status(500).json({ ok: false, error: err?.message || "Server error" });
+  const errId = `ERR-${Date.now().toString(36).toUpperCase()}`;
+  console.error("[express]", errId, err);
+  res.status(500).json({ ok: false, error: `Something went wrong. Reference: ${errId}` });
 });
 
 export const PORT = Number(process.env.PORT || 3000);

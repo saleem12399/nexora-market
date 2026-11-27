@@ -4,7 +4,7 @@
 // Demo mode: every payment/courier/messaging step is labelled DEMO/simulated;
 // no live gateway, courier or messaging provider is connected.
 
-import { execFile } from "node:child_process";
+import { execFile } from "node:child_process"; // A4 removes this with seedDemo (commit 2)
 import crypto from "node:crypto";
 import path from "node:path";
 import type { Express, Request, Response } from "express";
@@ -30,13 +30,47 @@ async function audit(db: Db, action: string, actor: string, detail: string) {
   try { await db.insert(s.auditLogs).values({ action, actor, detail, createdAt: Date.now() }); } catch { /* audit must never break the action */ }
 }
 
-function staffRole(req: Request): string {
-  const r = (req.headers["x-nexora-role"] as string) || (req.body && req.body.staffRole) || "Super Admin";
-  return String(r);
+// Phase 1 (A1): there is NO staff session system yet — the staff table has
+// no password and no session table. Until real staff auth is built, the role
+// is asserted by the caller (header x-nexora-role / body staffRole, set by
+// the Admin role dropdown). The fail-closed rule is: NO role supplied at
+// all => 401 StaffAuthRequiredError. A supplied role without the area =>
+// 403 PermissionDeniedError. Never default to Super Admin.
+export class StaffAuthRequiredError extends Error {
+  constructor() { super("Staff sign-in required — no staff role was supplied."); this.name = "StaffAuthRequiredError"; }
+}
+
+function staffRole(req: Request): string | null {
+  const r = (req.headers["x-nexora-role"] as string) || (req.body && req.body.staffRole);
+  return r ? String(r) : null;
+}
+
+// Label for audit/actor fields only — NEVER used as authorisation.
+function staffRoleLabel(req: Request): string {
+  return staffRole(req) || "anonymous";
 }
 
 function enforce(req: Request, area: RoleArea) {
-  requirePermission(staffRole(req), area);
+  const role = staffRole(req);
+  if (!role) throw new StaffAuthRequiredError();
+  requirePermission(role, area);
+}
+
+// Same 401/403 mapping as the route wrapper, for handlers that decide the
+// gate themselves (customer-or-staff actions). Audit-logs denials.
+async function enforceOr401(db: Db, req: Request, res: Response, area: RoleArea, actionName: string): Promise<boolean> {
+  try { enforce(req, area); return true; }
+  catch (e) {
+    if (e instanceof PermissionDeniedError) {
+      await audit(db, "PERMISSION DENIED", staffRoleLabel(req), `${actionName} — role "${staffRoleLabel(req)}" denied area "${area}"`);
+      res.status(403).json({ ok: false, error: e.message }); return false;
+    }
+    if (e instanceof StaffAuthRequiredError) {
+      await audit(db, "STAFF AUTH REQUIRED", "anonymous", `${actionName} — no staff role supplied for area "${area}"`);
+      res.status(401).json({ ok: false, error: e.message }); return false;
+    }
+    throw e;
+  }
 }
 
 function bearerToken(req: Request): string | null {
@@ -82,6 +116,13 @@ async function productWithImages(db: Db, p: any) {
 function orderNumber(): string { return `NX-DEMO-${Math.floor(10000000 + Math.random() * 89999999)}`; }
 function trackingNumber(on: string): string { return on.replace("NX-DEMO-", "TRK-DEMO-"); }
 function txnRef(): string { return `TXN-DEMO-${Math.floor(10000000 + Math.random() * 89999999)}`; }
+
+// Stored bigTestReport is a literal pointer string, not JSON — never let
+// JSON.parse throw a 500 (Phase 1 opportunistic fix for C12).
+function parseStoredReport(v: string | undefined): any {
+  if (!v) return null;
+  try { return JSON.parse(v); } catch { return null; }
+}
 
 async function settingsMap(db: Db): Promise<Record<string, string>> {
   const rows = await db.select().from(s.settings);
@@ -139,8 +180,12 @@ export function registerApi(app: Express) {
           try { enforce(req, opts.area); }
           catch (e) {
             if (e instanceof PermissionDeniedError) {
-              await audit(db, "PERMISSION DENIED", staffRole(req), `${name} — role "${staffRole(req)}" denied area "${opts.area}"`);
+              await audit(db, "PERMISSION DENIED", staffRoleLabel(req), `${name} — role "${staffRoleLabel(req)}" denied area "${opts.area}"`);
               res.status(403).json({ ok: false, error: e.message }); return;
+            }
+            if (e instanceof StaffAuthRequiredError) {
+              await audit(db, "STAFF AUTH REQUIRED", "anonymous", `${name} — no staff role supplied for area "${opts.area}"`);
+              res.status(401).json({ ok: false, error: e.message }); return;
             }
             throw e;
           }
@@ -163,7 +208,7 @@ export function registerApi(app: Express) {
     const orders = await db.select().from(s.orders);
     const live = orders.filter((o: any) => !o.legacyTest && o.status !== "Cancelled");
     res.json({ ok: true, config: cfg, categories: cats, staff, coupons, publishedProductCount: Number(published[0]?.n || 0), orderCount: orders.length, legacyTestOrderCount: orders.filter((o: any) => o.legacyTest).length, revenueExcludingLegacy: live.reduce((a: number, o: any) => a + o.total, 0) });
-  });
+  }, { area: "settings" });
 
   a("seedDemo", async (req, res) => {
     const db = getDb()!;
@@ -185,7 +230,7 @@ export function registerApi(app: Express) {
       if (k.startsWith("provider_")) enforce(req, "settings");
       await db.insert(s.settings).values({ key: k, value: v }).onConflictDoUpdate({ target: s.settings.key, set: { value: v } });
     }
-    await audit(db, "Settings saved", staffRole(req), Object.keys(entries).join(", "));
+    await audit(db, "Settings saved", staffRoleLabel(req), Object.keys(entries).join(", "));
     res.json({ ok: true });
   }, { area: "settings" });
 
@@ -211,12 +256,13 @@ export function registerApi(app: Express) {
       pendingOwnerInputs: ["Payment merchant approvals + sandbox credentials (JazzCash, Easypaisa, card acquirer)", "Courier corporate accounts + API credentials (TCS / Leopards / PostEx)", "Real company bank account details for Bank Transfer instructions (current ones are fictional demo data)", "Legal business details for policies: registered business name, NTN, business address, returns warehouse address", "Coupon production values: expiry date and usage limit for coupons 000, WELCOME10 and FLASH500", "Real product photographs for the catalogue", "Legacy returns decision: RET-DEMO-001 and RET-DEMO-002", "Owner's order email correction for NX-DEMO-98524600 (approval pending)"],
       environment: "Demo / test server — live payments, courier booking and public sales stay OFF until the owner approves production activation.",
     });
-  });
+  }, { area: "reports" });
 
   a("getBigTestReport", async (_req, res, db) => {
     const cfg = await settingsMap(db);
-    res.json({ ok: true, hasReport: !!cfg.bigTestReport, report: cfg.bigTestReport ? JSON.parse(cfg.bigTestReport) : null, passwordState: "All stored customer passwords use salted PBKDF2 hashes." });
-  });
+    const report = parseStoredReport(cfg.bigTestReport);
+    res.json({ ok: true, hasReport: !!cfg.bigTestReport, report, reportUnparseable: !!cfg.bigTestReport && report === null, passwordState: "All stored customer passwords use salted PBKDF2 hashes." });
+  }, { area: "reports" });
 
   a("getRoleMatrix", async (_req, res) => {
     const { ROLE_MATRIX } = await import("../lib/roles");
@@ -238,12 +284,13 @@ export function registerApi(app: Express) {
       try { requirePermission(role, area); allowed.push(`${role} -> ${area} allowed`); } catch { denied.push(`${role} -> ${area} denied (unexpected)`); }
     }
     res.json({ ok: true, allowed: t.allowed, denied: t.denied, checks: t.checks, liveDenied: denied, liveAllowed: allowed, note: "Sandbox reference: 41 allowed / 58 denied." });
-  });
+  }, { area: "reports" });
 
   a("runCorrectionAndJourney", async (_req, res, db) => {
     const cfg = await settingsMap(db);
-    res.json({ ok: true, alreadyRan: true, report: cfg.bigTestReport ? JSON.parse(cfg.bigTestReport) : null, note: "Idempotent: re-runs return the stored report. This action must NOT be re-runnable into duplicate data; the journey is re-proven by placing a fresh order through createOrder/advanceOrder in the rebuilt service." });
-  });
+    const report = parseStoredReport(cfg.bigTestReport);
+    res.json({ ok: true, alreadyRan: true, report, reportUnparseable: !!cfg.bigTestReport && report === null, note: "Idempotent: re-runs return the stored report. This action must NOT be re-runnable into duplicate data; the journey is re-proven by placing a fresh order through createOrder/advanceOrder in the rebuilt service." });
+  }, { area: "reports" });
 
   // ---- 5.2 Catalogue ----
   a("listProducts", async (req, res, db) => {
@@ -285,7 +332,7 @@ export function registerApi(app: Express) {
     let row;
     if (p.id) { await db.update(s.products).set(data).where(eq(s.products.id, p.id)); row = (await db.select().from(s.products).where(eq(s.products.id, p.id)))[0]; }
     else { row = (await db.insert(s.products).values(data).returning())[0]; }
-    await audit(db, "Product saved", staffRole(req), `${data.sku} ${data.name}`);
+    await audit(db, "Product saved", staffRoleLabel(req), `${data.sku} ${data.name}`);
     res.json({ ok: true, product: row });
   }, { area: "products" });
 
@@ -333,7 +380,7 @@ export function registerApi(app: Express) {
     const storageKey = `product-images/${prod.id}/${name}`;
     const row = (await db.insert(s.productImages).values({ productId: prod.id, storageKey, blobUrl: "", fileName: name, sortOrder: 0, isSample: false }).returning())[0];
     res.json({ ok: true, image: { ...row, url: `/images/products/${name}`, isSample: false } });
-  });
+  }, { area: "products" });
 
   a("listProductImages", async (req, res, db) => {
     const rows = await db.select().from(s.productImages).where(eq(s.productImages.productId, Number(req.body?.productId))).orderBy(asc(s.productImages.sortOrder));
@@ -350,13 +397,13 @@ export function registerApi(app: Express) {
       if (file && row.isSample === false) { try { fs.unlinkSync(path.resolve(__dirname, "../../public/images/products", file)); } catch { /* already gone */ } }
     }
     res.json({ ok: true });
-  });
+  }, { area: "products" });
 
   a("reorderProductImages", async (req, res, db) => {
     const ids: number[] = req.body?.ids || [];
     for (let i = 0; i < ids.length; i++) await db.update(s.productImages).set({ sortOrder: i }).where(eq(s.productImages.id, ids[i]));
     res.json({ ok: true });
-  });
+  }, { area: "products" });
 
   a("seedSampleProductImages", async (_req, res, db) => {
     const products = await db.select().from(s.products).where(eq(s.products.status, "Published"));
@@ -578,13 +625,27 @@ export function registerApi(app: Express) {
     const order = (await db.select().from(s.orders).where(eq(s.orders.id, Number(req.body?.orderId))))[0];
     if (!order) { res.status(404).json({ ok: false, error: "Order not found." }); return; }
     await db.update(s.orders).set({ status }).where(eq(s.orders.id, order.id));
-    await db.insert(s.orderEvents).values({ orderId: order.id, status, note: `Status set to ${status} by ${staffRole(req)} (demo simulation).`, location: "NEXORA Head Office (Demo)", actor: staffRole(req), createdAt: Date.now() });
+    await db.insert(s.orderEvents).values({ orderId: order.id, status, note: `Status set to ${status} by ${staffRoleLabel(req)} (demo simulation).`, location: "NEXORA Head Office (Demo)", actor: staffRoleLabel(req), createdAt: Date.now() });
     res.json({ ok: true });
   }, { area: "orders" });
 
+  // A3: cancelOrder requires a staff session with the orders area OR the
+  // owning customer's session. Ownership is checked server-side from the
+  // session, never from the request body. 401 no session/role, 403 another
+  // customer's order, 404 unknown id.
   a("cancelOrder", async (req, res, db) => {
+    let cust: any = null;
+    let actor: string;
+    if (staffRole(req)) {
+      if (!await enforceOr401(db, req, res, "orders", "cancelOrder")) return;
+      actor = `staff:${staffRoleLabel(req)}`;
+    } else {
+      cust = await requireCustomer(db, req, res); if (!cust) return;
+      actor = `customer:${cust.email}`;
+    }
     const order = (await db.select().from(s.orders).where(eq(s.orders.id, Number(req.body?.orderId))))[0];
     if (!order) { res.status(404).json({ ok: false, error: "Order not found." }); return; }
+    if (cust && order.customerEmail.toLowerCase() !== cust.email.toLowerCase()) { res.status(403).json({ ok: false, error: "This order belongs to another customer." }); return; }
     const reason = String(req.body?.reason || "Cancelled by customer");
     const now = Date.now();
     if (order.status === "Cancelled") { res.status(400).json({ ok: false, error: "This order is already cancelled." }); return; }
@@ -592,6 +653,7 @@ export function registerApi(app: Express) {
     if (["Shipped", "In Transit", "Arrived at Sorting Facility", "Arrived in Destination City", "Out for Delivery"].includes(order.status)) {
       await db.insert(s.orderEvents).values({ orderId: order.id, status: order.status, note: `Cancellation requested while ${order.status} — refusal workflow: courier return requested (demo simulation). Reason: ${reason}`, location: "NEXORA Express (Demo)", actor: "System", createdAt: now });
       await db.insert(s.notifications).values({ title: "Cancellation requested (Demo)", body: `${order.orderNumber} is already ${order.status}; a courier return has been requested (demo simulation).`, type: "Order", isRead: false, createdAt: now });
+      await audit(db, "Order cancellation requested (shipped)", actor, `${order.orderNumber} — ${order.status}`);
       res.json({ ok: true, refused: true, message: "The order has already shipped — a courier return was requested instead of an instant cancellation (demo simulation)." });
       return;
     }
@@ -612,6 +674,7 @@ export function registerApi(app: Express) {
       await db.insert(s.paymentTransactions).values({ orderId: order.id, orderNumber: order.orderNumber, method: order.paymentMethod, provider: order.paymentMethod.replace(" (Demo)", ""), account: order.paymentAccount, reference: order.paymentRef, amount: order.total, status: "Refund Pending (Demo)", mode: PAYMENT_MODE_DEMO, createdAt: now });
     }
     await db.insert(s.notifications).values({ title: "Order cancelled (Demo)", body: `${order.orderNumber} was cancelled. ${prepaid ? "Refund Pending (Demo)." : ""}`, type: "Order", isRead: false, createdAt: now });
+    await audit(db, "Order cancelled", actor, `${order.orderNumber} — ${reason}`);
     res.json({ ok: true, cancelled: true, refundPending: prepaid });
   });
 
@@ -774,7 +837,11 @@ export function registerApi(app: Express) {
     const data: any = { customerId: cust.id, label: b.label || "Home", recipient: b.recipient || cust.name, phone: b.phone || cust.phone, address: b.address || "", area: b.area || "", city: b.city || "", province: b.province || "", postalCode: b.postalCode || "", landmark: b.landmark || "", instructions: b.instructions || "", deliverySlot: b.deliverySlot || "", pickupPoint: b.pickupPoint || "", isDefault: !!b.isDefault };
     if (b.isDefault) await db.update(s.customerAddresses).set({ isDefault: false }).where(eq(s.customerAddresses.customerId, cust.id));
     let row;
-    if (b.id) { await db.update(s.customerAddresses).set(data).where(eq(s.customerAddresses.id, b.id)); row = (await db.select().from(s.customerAddresses).where(eq(s.customerAddresses.id, b.id)))[0]; }
+    if (b.id) {
+      const updated = await db.update(s.customerAddresses).set(data).where(and(eq(s.customerAddresses.id, b.id), eq(s.customerAddresses.customerId, cust.id))).returning();
+      if (!updated.length) { res.status(404).json({ ok: false, error: "Address not found." }); return; }
+      row = updated[0];
+    }
     else row = (await db.insert(s.customerAddresses).values(data).returning())[0];
     res.json({ ok: true, address: row });
   });
@@ -796,21 +863,42 @@ export function registerApi(app: Express) {
     if (!order) { res.status(404).json({ ok: false, error: "Order not found." }); return; }
     await db.update(s.orders).set({ paymentStatus: status }).where(eq(s.orders.id, order.id));
     await db.insert(s.paymentTransactions).values({ orderId: order.id, orderNumber: order.orderNumber, method: order.paymentMethod, provider: order.paymentMethod.replace(" (Demo)", ""), account: order.paymentAccount, reference: order.paymentRef, amount: order.total, status, mode: PAYMENT_MODE_DEMO, createdAt: Date.now() });
-    await audit(db, "Payment status updated", staffRole(req), `${order.orderNumber} -> ${status}`);
+    await audit(db, "Payment status updated", staffRoleLabel(req), `${order.orderNumber} -> ${status}`);
     res.json({ ok: true });
   }, { area: "payments" });
 
   a("listPaymentTransactions", async (req, res, db) => {
-    const rows = await db.select().from(s.paymentTransactions).orderBy(desc(s.paymentTransactions.createdAt));
-    res.json({ ok: true, transactions: rows });
+    // A1/B9: staff read (payments area) returns the full ledger. A signed-in
+    // customer without a staff role sees only their own orders' rows (the
+    // account Payment History panel). Anyone else gets 401.
+    if (staffRole(req)) {
+      if (!await enforceOr401(db, req, res, "payments", "listPaymentTransactions")) return;
+      const rows = await db.select().from(s.paymentTransactions).orderBy(desc(s.paymentTransactions.createdAt));
+      res.json({ ok: true, transactions: rows });
+      return;
+    }
+    const cust = await sessionCustomer(db, req);
+    if (!cust) { res.status(401).json({ ok: false, authenticated: false, error: "Sign in again — no valid session." }); return; }
+    const myOrders = await db.select().from(s.orders).where(sql`lower(${s.orders.customerEmail}) = lower(${cust.email})`);
+    const nums = new Set(myOrders.map((o: any) => o.orderNumber));
+    const rows = (await db.select().from(s.paymentTransactions).orderBy(desc(s.paymentTransactions.createdAt))).filter((t: any) => nums.has(t.orderNumber));
+    res.json({ ok: true, transactions: rows, mine: true });
   });
 
   // ---- 5.6 Returns & refunds ----
   a("createReturn", async (req, res, db) => {
-    const cust = await sessionCustomer(db, req);
+    // A3: staff (refunds area) or the owning customer only. 401 with
+    // neither, 403 for another customer's order.
+    let cust: any = null;
+    if (staffRole(req)) {
+      if (!await enforceOr401(db, req, res, "refunds", "createReturn")) return;
+    } else {
+      cust = await requireCustomer(db, req, res); if (!cust) return;
+    }
     const b = req.body || {};
     const order = (await db.select().from(s.orders).where(eq(s.orders.orderNumber, String(b.orderNumber || ""))))[0];
     if (!order) { res.status(400).json({ ok: false, error: "Order not found." }); return; }
+    if (cust && order.customerEmail.toLowerCase() !== cust.email.toLowerCase()) { res.status(403).json({ ok: false, error: "This order belongs to another customer." }); return; }
     if (order.status !== "Delivered") { res.status(400).json({ ok: false, error: "Returns are only accepted for Delivered orders." }); return; }
     const items = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, order.id));
     const item = items.find((i: any) => i.productName === b.productName);
@@ -838,7 +926,7 @@ export function registerApi(app: Express) {
         if (prod) {
           const newStock = prod.stock + ret.qty;
           await db.update(s.products).set({ stock: newStock }).where(eq(s.products.id, prod.id));
-          await db.insert(s.inventoryMovements).values({ productId: prod.id, sku: prod.sku, type: "Return Restock (Stock-In)", qty: ret.qty, balanceAfter: newStock, reference: ref, actor: staffRole(req), note: `Restocked at refund stage 4 for ${ret.returnNumber}`, createdAt: Date.now() });
+          await db.insert(s.inventoryMovements).values({ productId: prod.id, sku: prod.sku, type: "Return Restock (Stock-In)", qty: ret.qty, balanceAfter: newStock, reference: ref, actor: staffRoleLabel(req), note: `Restocked at refund stage 4 for ${ret.returnNumber}`, createdAt: Date.now() });
         }
       }
     }
@@ -846,14 +934,21 @@ export function registerApi(app: Express) {
   }, { area: "refunds" });
 
   a("listReturns", async (req, res, db) => {
-    const cust = await sessionCustomer(db, req);
-    let rows = await db.select().from(s.returns).orderBy(desc(s.returns.createdAt));
-    if (req.body?.mine && cust) {
+    // A1/B9: customer view (mine:true) is scoped to the caller's own orders
+    // and needs a customer session (401 without one). Any other call is a
+    // staff read behind the refunds area.
+    const mapRows = (rows: any[]) => rows.map((r: any) => ({ ...r, stageLabel: REFUND_STAGE_LABELS[r.refundStage] ?? `Stage ${r.refundStage}`, stageLabelsVerified: [0, 2, 8].includes(r.refundStage) }));
+    if (req.body?.mine) {
+      const cust = await requireCustomer(db, req, res); if (!cust) return;
       const myOrders = await db.select().from(s.orders).where(sql`lower(${s.orders.customerEmail}) = lower(${cust.email})`);
       const nums = new Set(myOrders.map((o: any) => o.orderNumber));
-      rows = rows.filter((r: any) => nums.has(r.orderNumber));
+      const rows = (await db.select().from(s.returns).orderBy(desc(s.returns.createdAt))).filter((r: any) => nums.has(r.orderNumber));
+      res.json({ ok: true, returns: mapRows(rows) });
+      return;
     }
-    res.json({ ok: true, returns: rows.map((r: any) => ({ ...r, stageLabel: REFUND_STAGE_LABELS[r.refundStage] ?? `Stage ${r.refundStage}`, stageLabelsVerified: [0, 2, 8].includes(r.refundStage) })) });
+    if (!await enforceOr401(db, req, res, "refunds", "listReturns")) return;
+    const rows = await db.select().from(s.returns).orderBy(desc(s.returns.createdAt));
+    res.json({ ok: true, returns: mapRows(rows) });
   });
 
   a("getLegacyReview", async (_req, res, db) => {
@@ -871,8 +966,8 @@ export function registerApi(app: Express) {
       const order = (await db.select().from(s.orders).where(eq(s.orders.orderNumber, r2.orderNumber)))[0];
       discrepancies.push({ returnNumber: "RET-DEMO-002", fault: `Order is ${order?.status}; product is not an item on the order`, product: r2.productName, orderStatus: order?.status, offeredCorrection: "None — correction correctly refused in the Muse copy" });
     }
-    res.json({ ok: true, discrepancies, decision: "PENDING — owner must choose correctLegacyReturn or markLegacyReturns per return (ownerApproved:true required). Until decided, both rows are seeded exactly as exported." });
-  });
+    res.json({ ok: true, discrepancies, decision: "PENDING — owner must choose correctLegacyReturn or markLegacyReturns per return (staff 'refunds' area + ownerApproved:true required). Until decided, both rows are seeded exactly as exported." });
+  }, { area: "refunds" });
 
   a("correctLegacyReturn", async (req, res, db) => {
     if (!req.body?.ownerApproved) { res.status(403).json({ ok: false, error: "ownerApproved:true is required — this is an owner-gated treatment." }); return; }
@@ -882,9 +977,9 @@ export function registerApi(app: Express) {
     if (!order || order.status !== "Delivered") { res.status(400).json({ ok: false, error: "Correction is only allowed when the sole fault is the product mapping on a Delivered order. This return does not qualify." }); return; }
     const original = `${ret.productName} — Rs ${ret.refundAmount}`;
     await db.update(s.returns).set({ productName: "Aurora X5 Wireless Earbuds (Demo)", refundAmount: 5499, legacyNote: `Corrected by owner approval. Original: ${original}` }).where(eq(s.returns.id, ret.id));
-    await audit(db, "Legacy return corrected", "Owner", `RET-DEMO-001 original preserved in note: ${original}`);
+    await audit(db, "Legacy return corrected", staffRoleLabel(req), `RET-DEMO-001 original preserved in note: ${original}`);
     res.json({ ok: true });
-  });
+  }, { area: "refunds" });
 
   a("markLegacyReturns", async (req, res, db) => {
     if (!req.body?.ownerApproved) { res.status(403).json({ ok: false, error: "ownerApproved:true is required — this is an owner-gated treatment." }); return; }
@@ -892,9 +987,9 @@ export function registerApi(app: Express) {
     for (const n of nums) {
       await db.update(s.returns).set({ legacyFlag: true, legacyNote: "Marked as legacy by owner approval — original record preserved untouched." }).where(eq(s.returns.returnNumber, n));
     }
-    await audit(db, "Legacy returns marked", "Owner", nums.join(", "));
+    await audit(db, "Legacy returns marked", staffRoleLabel(req), nums.join(", "));
     res.json({ ok: true, marked: nums });
-  });
+  }, { area: "refunds" });
 
   a("cleanupInvalidReturns", async (_req, res, db) => {
     // Removes invalid returns (refund <= 0 or order missing) but preserves
@@ -913,7 +1008,7 @@ export function registerApi(app: Express) {
   a("listTickets", async (_req, res, db) => {
     const rows = await db.select().from(s.tickets).orderBy(desc(s.tickets.createdAt));
     res.json({ ok: true, tickets: rows });
-  });
+  }, { area: "customers" });
   a("createTicket", async (req, res, db) => {
     const b = req.body || {};
     const n = `TKT-DEMO-${String(Math.floor(100 + Math.random() * 899))}`;
@@ -935,7 +1030,7 @@ export function registerApi(app: Express) {
   a("listReviews", async (req, res, db) => {
     const rows = await db.select().from(s.reviews).orderBy(desc(s.reviews.id));
     res.json({ ok: true, reviews: rows });
-  });
+  }, { area: "customers" });
   a("submitReview", async (req, res, db) => {
     const b = req.body || {};
     const p = (await db.select().from(s.products).where(eq(s.products.id, Number(b.productId))))[0];
@@ -945,11 +1040,11 @@ export function registerApi(app: Express) {
   a("replyReview", async (req, res, db) => {
     await db.update(s.reviews).set({ sellerReply: String(req.body?.reply || "") }).where(eq(s.reviews.id, req.body.id));
     res.json({ ok: true });
-  });
+  }, { area: "customers" });
   a("deleteReview", async (req, res, db) => {
     await db.delete(s.reviews).where(eq(s.reviews.id, req.body.id));
     res.json({ ok: true });
-  });
+  }, { area: "customers" });
 
   a("listQuestions", async (req, res, db) => {
     const rows = await db.select().from(s.questions).orderBy(asc(s.questions.id));
@@ -958,7 +1053,7 @@ export function registerApi(app: Express) {
   a("answerQuestion", async (req, res, db) => {
     await db.update(s.questions).set({ answer: String(req.body?.answer || "") }).where(eq(s.questions.id, req.body.id));
     res.json({ ok: true });
-  });
+  }, { area: "customers" });
 
   a("listNotifications", async (_req, res, db) => {
     const rows = await db.select().from(s.notifications).orderBy(desc(s.notifications.createdAt));
@@ -988,19 +1083,19 @@ export function registerApi(app: Express) {
     const delta = Number(req.body?.delta || 0);
     const newStock = Math.max(0, p.stock + delta);
     await db.update(s.products).set({ stock: newStock }).where(eq(s.products.id, p.id));
-    await db.insert(s.inventoryMovements).values({ productId: p.id, sku: p.sku, type: "Manual Adjustment", qty: delta, balanceAfter: newStock, reference: String(req.body?.reference || "manual"), actor: staffRole(req), note: String(req.body?.note || ""), createdAt: Date.now() });
+    await db.insert(s.inventoryMovements).values({ productId: p.id, sku: p.sku, type: "Manual Adjustment", qty: delta, balanceAfter: newStock, reference: String(req.body?.reference || "manual"), actor: staffRoleLabel(req), note: String(req.body?.note || ""), createdAt: Date.now() });
     res.json({ ok: true, stock: newStock });
   }, { area: "inventory" });
 
   a("listInventoryMovements", async (_req, res, db) => {
     const rows = await db.select().from(s.inventoryMovements).orderBy(desc(s.inventoryMovements.createdAt));
     res.json({ ok: true, movements: rows });
-  });
+  }, { area: "inventory" });
 
   a("listShipments", async (_req, res, db) => {
     const rows = await db.select().from(s.shipments).orderBy(desc(s.shipments.createdAt));
     res.json({ ok: true, shipments: rows, note: "Shipments stay labelled simulated — no courier API connected; tracking shows the last verified event only." });
-  });
+  }, { area: "shipments" });
 
   a("getAnalytics", async (_req, res, db) => {
     const orders = await db.select().from(s.orders);
@@ -1028,12 +1123,12 @@ export function registerApi(app: Express) {
     for (const it of items) if (liveIds.has(it.orderId)) byProduct[it.productId || 0] = (byProduct[it.productId || 0] || 0) + it.qty;
     const topProducts = Object.entries(byProduct).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([pid, qty]) => ({ productId: Number(pid), qty }));
     res.json({ ok: true, gmv, avgOrderValue: live.length ? Math.round(gmv / live.length) : 0, orderCount: live.length, dailySales, byStatus, byPayment, refundsTotal, refundsRequested, legacyOrders: legacy.length, topProducts, note: "Real records only — zero days report 0; cancelled and legacy-test orders excluded from revenue." });
-  });
+  }, { area: "reports" });
 
   a("listStaff", async (_req, res, db) => {
     const rows = await db.select().from(s.staff).orderBy(asc(s.staff.id));
     res.json({ ok: true, staff: rows });
-  });
+  }, { area: "staff" });
   a("saveStaff", async (req, res, db) => {
     const b = req.body || {};
     let row;
@@ -1047,7 +1142,7 @@ export function registerApi(app: Express) {
     const q = String(req.body?.search || "").toLowerCase();
     const filtered = q ? rows.filter((r: any) => (r.action + " " + r.actor + " " + r.detail).toLowerCase().includes(q)) : rows;
     res.json({ ok: true, logs: filtered });
-  });
+  }, { area: "reports" });
 
   a("saveCoupon", async (req, res, db) => {
     const c = req.body || {};
@@ -1135,7 +1230,7 @@ export function registerApi(app: Express) {
     const collections = await db.select().from(s.homeCollections).orderBy(asc(s.homeCollections.sortOrder));
     const sections = await db.select().from(s.homeSections).orderBy(asc(s.homeSections.sortOrder));
     res.json({ ok: true, banners, collections, sections, flashRowSize: Number(cfg.flashRowSize || 5), flashRotateDays: Number(cfg.flashRotateDays || 2), flashRowAnchor: cfg.flashRowAnchor || "2026-11-25", flashEndsAt: cfg.flashSaleEndsAt || "" });
-  });
+  }, { area: "settings" });
 
   a("saveHeroBanner", async (req, res, db) => {
     const b = req.body || {};
@@ -1166,7 +1261,7 @@ export function registerApi(app: Express) {
     fs.writeFileSync(path.join(dir, name), buf);
     if (bannerId) await db.update(s.heroBanners).set({ imageKey: `hero-banners/${name}` }).where(eq(s.heroBanners.id, Number(bannerId)));
     res.json({ ok: true, imageKey: `hero-banners/${name}`, url: `/images/hero-banners/${name}` });
-  });
+  }, { area: "settings" });
 
   a("saveHomeCollection", async (req, res, db) => {
     const c = req.body || {};

@@ -97,13 +97,15 @@ scripts/      smoke-test.cjs
   of the order's stored checkout email (totals/items untouched).
 - **Customer passwords:** the export contains no hash values. All 3 seeded
   customers have `passwordHash = NULL` and `mustResetPassword = true`. The
-  owner sets passwords via the reset flow (`requestPasswordReset` →
-  `resetPassword`; the token is shown once in the UI because no email provider
-  is connected, labelled staging-only, never logged). **Never invent or
-  default a password.**
-- **Sample photos stay labelled "Sample image"** everywhere until the owner
-  supplies real photos (upload pipeline unchanged; the sample seeder never
-  overwrites a product that already has any photo).
+  owner sets passwords (owner-assisted reset). Self-service reset by email
+  is unavailable: `requestPasswordReset` never returns a token and no email
+  provider is connected — Phase 2 must decide owner-assisted reset via admin
+  OR self-service reset disabled until an email provider is connected.
+  **Never invent or default a password.**
+- **Sample photos stay unlabeled** (owner order 2026-11-27: all customer-facing
+  DEMO/"Sample image" labels removed) until the owner supplies real photos
+  (upload pipeline unchanged; the sample seeder never overwrites a product
+  that already has any photo).
 - **RBAC:** server-side `requirePermission` per the 9×11 role matrix; denials
   are audit-logged ("PERMISSION DENIED"). `runRoleSelfTest` = 41 allowed /
   58 denied (99 checks).

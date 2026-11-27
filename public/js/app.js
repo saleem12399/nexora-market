@@ -7,11 +7,13 @@ function guestKey() {
   return k;
 }
 function token() { return localStorage.getItem("nx_session_token") || ""; }
-function staffRole() { return localStorage.getItem("nx_staff_role") || "Super Admin"; }
+// Phase 2: staff auth is a server session (HttpOnly cookie nx_staff_token,
+// set by loginStaff). The client never asserts a role — there is no
+// x-nexora-role header anymore. fetch() sends same-origin cookies by
+// default, so staff calls just work once signed in.
 async function api(name, body, opts) {
   const headers = { "content-type": "application/json", "x-guest-key": guestKey() };
   if (token()) headers["authorization"] = "Bearer " + token();
-  if (opts && opts.role) headers["x-nexora-role"] = staffRole();
   const r = await fetch("/api/" + name, { method: "POST", headers, body: JSON.stringify(body || {}) });
   return r.json();
 }
@@ -84,14 +86,10 @@ async function forgotPassword(e) {
   const email = prompt("Enter your account email for a password reset:");
   if (!email) return false;
   const r = await api("requestPasswordReset", { email });
-  if (r.resetToken) {
-    const nt = prompt("No email provider is connected yet, so your one-time reset token is shown here (staging only, expires in 30 minutes):\n\n" + r.resetToken + "\n\nEnter a new password:");
-    if (!nt) return false;
-    const np = prompt("New password (6+ characters):");
-    if (!np) return false;
-    const r2 = await api("resetPassword", { token: r.resetToken, newPassword: np, confirmNewPassword: np });
-    alert(r2.ok ? "Password set. Please sign in." : (r2.error || "Reset failed."));
-  } else alert(r.note || "If an account exists, a reset was created.");
+  // A2: the API never returns a reset token (no email provider is
+  // connected, so a self-service reset cannot deliver one). The response
+  // is the same whether or not the account exists.
+  alert(r.note || r.error || "If an account exists, a reset was requested.");
   return false;
 }
 function signOut() {
@@ -313,11 +311,11 @@ async function placeOrder() {
   out.innerHTML = `<div class="card light-panel"><h3>Order placed ✓</h3><p>Order <strong>${esc(r.order.orderNumber)}</strong> · Total <strong>${money(r.order.total)}</strong></p>
 <p>Tracking: ${esc(r.order.trackingNumber)} · Courier: ${esc(cleanDemo(r.order.courier))}</p>
 <p>${(r.adjustments || []).map(esc).join("<br>")}</p>
-<p><button class="btn" onclick="simulateDelivery(${r.order.id})">Advance to Next Step</button> <a class="btn ghost" href="/track">Track Order</a> <a class="btn ghost" href="/account">My Orders</a></p></div>`;
+<p><a class="btn" href="/track">Track Order</a> <a class="btn ghost" href="/account">My Orders</a></p></div>`;
   clearCheckoutData();
 }
 async function simulateDelivery(orderId) {
-  const r = await api("advanceOrder", { orderId }, { role: true });
+  const r = await api("advanceOrder", { orderId });
   alert(r.ok ? ("Advanced to " + r.advancedTo + ".") : (r.error || "Could not advance."));
   if (r.ok && r.advancedTo !== "Delivered") { /* stay on the page; tap again to advance */ }
 }
@@ -333,8 +331,7 @@ async function trackOrder(e) {
 <p>Courier: ${esc(cleanDemo(r.courier))} · Tracking: ${esc(r.order.trackingNumber)} · Total ${money(r.order.total)}</p>
 <div style="background:#E2E8F0;border-radius:999px;height:10px"><div style="width:${pct}%;background:#315EFB;height:10px;border-radius:999px"></div></div>
 <ol>${r.events.map((ev) => `<li><strong>${esc(cleanDemo(ev.status))}</strong> — ${esc(cleanDemo(ev.note || ""))} <small>(${esc(cleanDemo(ev.location || ""))})</small></li>`).join("")}</ol>
-<p class="note">Parcel shown at the last verified event location.</p>
-<p><button class="btn" onclick="simulateDelivery(${r.order.id})">Advance to Next Step</button></p></div>`;
+<p class="note">Parcel shown at the last verified event location.</p></div>`;
   return false;
 }
 
@@ -371,7 +368,7 @@ async function loadAccount() {
 <div class="stat"><b>${st.delivered}</b><span>Delivered Orders</span></div>
 <div class="stat"><b>${st.wishlistItems}</b><span>Wishlist Items</span></div></div>
 <h3 style="color:#fff">Recent Orders</h3>
-${recent.length ? recent.map((o) => `<p>${esc(o.orderNumber)} — ${esc(o.status)} — ${money(o.total)} <a href="/track" style="color:#fff">Track</a> <button class="btn ghost small" onclick="simulateDelivery(${o.id})">Advance to Next Step</button></p>`).join("") : "<p class='muted'>No orders yet.</p>"}
+${recent.length ? recent.map((o) => `<p>${esc(o.orderNumber)} — ${esc(o.status)} — ${money(o.total)} <a href="/track" style="color:#fff">Track</a></p>`).join("") : "<p class='muted'>No orders yet.</p>"}
 <p><a href="/account" style="color:#fff">View All →</a></p>
 <h3 style="color:#fff">Quick Services</h3><div class="qgrid">
 <a class="qcard" href="/shop">🛍 Shop</a><a class="qcard" href="/track">📦 Track Order</a><a class="qcard" href="/cart">🛒 Cart</a>
@@ -417,30 +414,30 @@ async function adminTab(i, btn) {
   const root = document.getElementById("adminRoot"); if (!root) return;
   root.innerHTML = "<p>Loading " + esc(ADMIN_TABS[i]) + "…</p>";
   try {
-    if (i === 0) { const r = await api("getAnalytics", {}, { role: true }); const b = await api("getBootstrap", {}, { role: true }); root.innerHTML = `<h2>Dashboard</h2><p>Published products: <strong>${b.publishedProductCount}</strong> · Orders: ${b.orderCount} (legacy-test: ${b.legacyTestOrderCount}) · GMV (real records only): <strong>${money(r.gmv)}</strong> · Avg order: ${money(r.avgOrderValue)} · Refunds requested ${money(r.refundsRequested)} · Refunds completed ${money(r.refundsTotal)}</p><p>Daily sales (Asia/Karachi, zero days = 0): ${r.dailySales.map((d) => d.day.slice(0, 3) + " " + money(d.total)).join(" · ")}</p><p>By status: ${Object.entries(r.byStatus).map(([k, v]) => k + " " + v).join(", ")}</p>`; }
+    if (i === 0) { const r = await api("getAnalytics", {}); const b = await api("getBootstrap", {}); root.innerHTML = `<h2>Dashboard</h2><p>Published products: <strong>${b.publishedProductCount}</strong> · Orders: ${b.orderCount} (legacy-test: ${b.legacyTestOrderCount}) · GMV (real records only): <strong>${money(r.gmv)}</strong> · Avg order: ${money(r.avgOrderValue)} · Refunds requested ${money(r.refundsRequested)} · Refunds completed ${money(r.refundsTotal)}</p><p>Daily sales (Asia/Karachi, zero days = 0): ${r.dailySales.map((d) => d.day.slice(0, 3) + " " + money(d.total)).join(" · ")}</p><p>By status: ${Object.entries(r.byStatus).map(([k, v]) => k + " " + v).join(", ")}</p>`; }
     else if (i === 1) { const r = await api("listProducts", { limit: 100 }); root.innerHTML = `<h2>Products (${r.total})</h2><div class="tablewrap"><table><tr><th>SKU</th><th>Name</th><th>Price</th><th>Sale</th><th>Stock</th><th>Flash</th><th>Status</th></tr>${r.products.map((p) => `<tr><td>${esc(p.sku)}</td><td>${esc(p.name)}${p.imageIsSample ? " • Sample" : ""}</td><td>${money(p.price)}</td><td>${p.salePrice ? money(p.salePrice) : "—"}</td><td>${p.stock}</td><td>${p.isFlash ? "✓" : ""}</td><td>${esc(p.status)}</td></tr>`).join("")}</table></div><p class="note">Product Photos manager: every product carries one sample photo ("• Sample" tag). Uploads replace samples via uploadProductImage; the sample seeder never overwrites a product that already has any photo.</p>`; }
     else if (i === 2) { const r = await api("listCategories", {}); root.innerHTML = `<h2>Categories (${r.categories.length})</h2><p>9 active top categories + 99 active subcategories + 6 deactivated legacy top categories.</p><div class="tablewrap"><table><tr><th>Name</th><th>Parent</th><th>Active</th><th>Products</th></tr>${r.categories.map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.parent || "—")}</td><td>${c.active ? "✓" : "✗"}</td><td>${c.productCount}</td></tr>`).join("")}</table></div>`; }
-    else if (i === 3) { const r = await api("listInventoryMovements", {}, { role: true }); root.innerHTML = `<h2>Inventory ledger (${r.movements.length})</h2><div class="tablewrap"><table><tr><th>SKU</th><th>Type</th><th>Qty</th><th>Balance</th><th>Reference</th></tr>${r.movements.map((m) => `<tr><td>${esc(m.sku)}</td><td>${esc(m.type)}</td><td>${m.qty}</td><td>${m.balanceAfter}</td><td>${esc(m.reference)}</td></tr>`).join("")}</table></div>`; }
-    else if (i === 4) { const r = await api("listOrders", {}, { role: true }); if (!r.ok) { root.innerHTML = "<p>" + esc(r.error || "Denied.") + "</p>"; return; } root.innerHTML = `<h2>Orders (${r.orders.length})</h2><p class="note">Tracking manager lives here too (12-step validated — free-text statuses are rejected).</p><div class="tablewrap"><table><tr><th>Order</th><th>Status</th><th>Total</th><th>Payment</th><th>Legacy</th><th></th></tr>${r.orders.map((o) => `<tr><td>${esc(o.orderNumber)}</td><td>${esc(o.status)}</td><td>${money(o.total)}</td><td>${esc(o.paymentStatus)}</td><td>${o.legacyTest ? "legacy-test" : ""}</td><td><button class="btn ghost small" onclick="simulateDelivery(${o.id})">Advance (Demo)</button></td></tr>`).join("")}</table></div>`; }
-    else if (i === 5) { const r = await api("listPaymentTransactions", {}, { role: true }); root.innerHTML = `<h2>Payments — ledger (${r.transactions.length})</h2><p class="note">Demo Simulation — no gateway connected. Bank transfers start "Awaiting Verification (Demo)".</p><div class="tablewrap"><table><tr><th>Order</th><th>Method</th><th>Account</th><th>Ref</th><th>Amount</th><th>Status</th></tr>${r.transactions.map((t) => `<tr><td>${esc(t.orderNumber)}</td><td>${esc(t.method)}</td><td>${esc(t.account)}</td><td>${esc(t.reference)}</td><td>${money(t.amount)}</td><td>${esc(t.status)}</td></tr>`).join("")}</table></div>`; }
-    else if (i === 6) { const r = await api("listReturns", {}, { role: true }); root.innerHTML = `<h2>Returns / Refunds (${r.returns.length})</h2><p class="note">9-stage tracker (cap 8, restock at stage 4). Stage labels 1–7 are working labels, to verify against the Muse copy's returns UI.</p><div class="tablewrap"><table><tr><th>Return</th><th>Order</th><th>Product</th><th>Refund</th><th>Stage</th><th>Status</th></tr>${r.returns.map((x) => `<tr><td>${esc(x.returnNumber)}</td><td>${esc(x.orderNumber)}</td><td>${esc(x.productName)}</td><td>${money(x.refundAmount)}</td><td>${x.refundStage} — ${esc(x.stageLabel)}</td><td>${esc(x.status)}</td></tr>`).join("")}</table></div>`; }
-    else if (i === 7) { const r = await api("listRegisteredCustomers", {}, { role: true }); root.innerHTML = `<h2>Registered customers</h2><div class="tablewrap"><table><tr><th>Name</th><th>Email</th><th>Phone</th><th>Verified</th><th>Password</th></tr>${(r.customers || []).map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.email)}</td><td>${esc(c.phone)}</td><td>${c.emailVerified ? "Email ✓" : "Email ✗"} / ${c.phoneVerified ? "Phone ✓" : "Phone ✗"}</td><td>${c.mustResetPassword ? "No password yet — reset flow" : "PBKDF2"}</td></tr>`).join("")}</table></div>`; }
-    else if (i === 8) { const r = await api("listTickets", {}, { role: true }); root.innerHTML = `<h2>Support tickets</h2><div class="tablewrap"><table><tr><th>Ticket</th><th>Subject</th><th>Status</th><th>Agent</th><th>Last reply</th></tr>${r.tickets.map((t) => `<tr><td>${esc(t.ticketNumber)}</td><td>${esc(t.subject)}</td><td>${esc(t.status)}</td><td>${esc(t.agent)}</td><td>${esc(t.lastReply || "—")}</td></tr>`).join("")}</table></div>`; }
-    else if (i === 9) { const r = await api("listReviews", {}, { role: true }); root.innerHTML = `<h2>Reviews (${r.reviews.length})</h2>` + r.reviews.map((x) => `<p><strong>${esc(x.productName)}</strong> ${"★".repeat(x.rating)} — ${esc(x.text)} <small>(${esc(x.customerName)})</small></p>`).join(""); }
+    else if (i === 3) { const r = await api("listInventoryMovements", {}); root.innerHTML = `<h2>Inventory ledger (${r.movements.length})</h2><div class="tablewrap"><table><tr><th>SKU</th><th>Type</th><th>Qty</th><th>Balance</th><th>Reference</th></tr>${r.movements.map((m) => `<tr><td>${esc(m.sku)}</td><td>${esc(m.type)}</td><td>${m.qty}</td><td>${m.balanceAfter}</td><td>${esc(m.reference)}</td></tr>`).join("")}</table></div>`; }
+    else if (i === 4) { const r = await api("listOrders", {}); if (!r.ok) { root.innerHTML = "<p>" + esc(r.error || "Denied.") + "</p>"; return; } root.innerHTML = `<h2>Orders (${r.orders.length})</h2><p class="note">Tracking manager lives here too (12-step validated — free-text statuses are rejected).</p><div class="tablewrap"><table><tr><th>Order</th><th>Status</th><th>Total</th><th>Payment</th><th>Legacy</th><th></th></tr>${r.orders.map((o) => `<tr><td>${esc(o.orderNumber)}</td><td>${esc(o.status)}</td><td>${money(o.total)}</td><td>${esc(o.paymentStatus)}</td><td>${o.legacyTest ? "legacy-test" : ""}</td><td><button class="btn ghost small" onclick="simulateDelivery(${o.id})">Advance (Demo)</button></td></tr>`).join("")}</table></div>`; }
+    else if (i === 5) { const r = await api("listPaymentTransactions", {}); root.innerHTML = `<h2>Payments — ledger (${r.transactions.length})</h2><p class="note">Demo Simulation — no gateway connected. Bank transfers start "Awaiting Verification (Demo)".</p><div class="tablewrap"><table><tr><th>Order</th><th>Method</th><th>Account</th><th>Ref</th><th>Amount</th><th>Status</th></tr>${r.transactions.map((t) => `<tr><td>${esc(t.orderNumber)}</td><td>${esc(t.method)}</td><td>${esc(t.account)}</td><td>${esc(t.reference)}</td><td>${money(t.amount)}</td><td>${esc(t.status)}</td></tr>`).join("")}</table></div>`; }
+    else if (i === 6) { const r = await api("listReturns", {}); root.innerHTML = `<h2>Returns / Refunds (${r.returns.length})</h2><p class="note">9-stage tracker (cap 8, restock at stage 4). Stage labels 1–7 are working labels, to verify against the Muse copy's returns UI.</p><div class="tablewrap"><table><tr><th>Return</th><th>Order</th><th>Product</th><th>Refund</th><th>Stage</th><th>Status</th></tr>${r.returns.map((x) => `<tr><td>${esc(x.returnNumber)}</td><td>${esc(x.orderNumber)}</td><td>${esc(x.productName)}</td><td>${money(x.refundAmount)}</td><td>${x.refundStage} — ${esc(x.stageLabel)}</td><td>${esc(x.status)}</td></tr>`).join("")}</table></div>`; }
+    else if (i === 7) { const r = await api("listRegisteredCustomers", {}); root.innerHTML = `<h2>Registered customers</h2><div class="tablewrap"><table><tr><th>Name</th><th>Email</th><th>Phone</th><th>Verified</th><th>Password</th></tr>${(r.customers || []).map((c) => `<tr><td>${esc(c.name)}</td><td>${esc(c.email)}</td><td>${esc(c.phone)}</td><td>${c.emailVerified ? "Email ✓" : "Email ✗"} / ${c.phoneVerified ? "Phone ✓" : "Phone ✗"}</td><td>${c.mustResetPassword ? "No password yet — ask owner" : "PBKDF2"}</td></tr>`).join("")}</table></div>`; }
+    else if (i === 8) { const r = await api("listTickets", {}); root.innerHTML = `<h2>Support tickets</h2><div class="tablewrap"><table><tr><th>Ticket</th><th>Subject</th><th>Status</th><th>Agent</th><th>Last reply</th></tr>${r.tickets.map((t) => `<tr><td>${esc(t.ticketNumber)}</td><td>${esc(t.subject)}</td><td>${esc(t.status)}</td><td>${esc(t.agent)}</td><td>${esc(t.lastReply || "—")}</td></tr>`).join("")}</table></div>`; }
+    else if (i === 9) { const r = await api("listReviews", {}); root.innerHTML = `<h2>Reviews (${r.reviews.length})</h2>` + r.reviews.map((x) => `<p><strong>${esc(x.productName)}</strong> ${"★".repeat(x.rating)} — ${esc(x.text)} <small>(${esc(x.customerName)})</small></p>`).join(""); }
     else if (i === 10) { const r = await api("listNotifications", {}); root.innerHTML = `<h2>Notifications (${r.notifications.length}, ${r.unread} unread)</h2>` + r.notifications.slice(0, 15).map((n) => `<p><strong>${esc(n.title)}</strong> — ${esc(n.body)} ${n.isRead ? "" : "(unread)"}</p>`).join(""); }
-    else if (i === 11) { const r = await api("getBootstrap", {}, { role: true }); root.innerHTML = `<h2>Coupons / Promotions</h2><div class="tablewrap"><table><tr><th>Code</th><th>Type</th><th>Value</th><th>Min</th><th>Status</th><th>Expires</th><th>Limit</th><th>Uses</th></tr>${r.coupons.map((c) => `<tr><td>${esc(c.code)}</td><td>${esc(c.discountType)}</td><td>${c.value}${c.discountType === "percent" ? "%" : ""}</td><td>${money(c.minOrder)}</td><td>${esc(c.status)}</td><td>${esc(c.expiresAt || "— (unbounded)")}</td><td>${c.usageLimit || "unbounded"}</td><td>${c.uses}</td></tr>`).join("")}</table></div><p class="note">Production expiry/limit values for 000 / WELCOME10 / FLASH500 are owner inputs — deliberately not invented. BIGTEST5 is a temporary test coupon (expires 2026-12-25, limit 20, per-customer 3).</p>`; }
-    else if (i === 12) { const r = await api("listStaff", {}, { role: true }); const m = await api("getRoleMatrix", {}); const t = await api("runRoleSelfTest", {}, { role: true }); root.innerHTML = `<h2>Staff &amp; Permissions</h2><div class="tablewrap"><table><tr><th>Name</th><th>Role</th><th>Department</th><th>Email</th></tr>${r.staff.map((x) => `<tr><td>${esc(x.name)}</td><td>${esc(x.role)}</td><td>${esc(x.department)}</td><td>${esc(x.email)}</td></tr>`).join("")}</table></div><p>Role self-test: <strong>${t.allowed} allowed / ${t.denied} denied</strong> (99 checks; sandbox reference 41/58). Live probes: ${t.liveDenied.join("; ")}; ${t.liveAllowed.join("; ")}.</p><p class="note">Matrix: ${m.roles.map((x) => esc(x.role) + " → " + x.permissions.join(", ")).join(" | ")}</p>`; }
-    else if (i === 13) { const r = await api("getAnalytics", {}, { role: true }); root.innerHTML = `<h2>Reports / Analytics</h2><p>GMV ${money(r.gmv)} · Avg order ${money(r.avgOrderValue)} · Legacy orders excluded: ${r.legacyOrders}</p><p>CSV export: <button class="btn ghost small" onclick="exportCsv()">Download orders CSV</button></p>`; }
-    else if (i === 14) { const r = await api("getBootstrap", {}, { role: true }); root.innerHTML = `<h2>Settings</h2><pre>${esc(JSON.stringify(r.config, null, 2))}</pre><p class="note">Brand: NEXORA MARKET — navy #101828, blue #315EFB, amber #F59E0B. Demo mode ON.</p>`; }
-    else if (i === 15) { const r = await api("getHomepageAdmin", {}, { role: true }); root.innerHTML = `<h2>Homepage</h2><p>Flash row: size ${r.flashRowSize} (4–5), new set every ${r.flashRotateDays} day(s), anchor ${r.flashRowAnchor}. Campaign end: ${esc(r.flashEndsAt || "not set — no countdown")}</p><p>Banners: ${r.banners.map((b) => esc(b.headline)).join(" · ")}</p><p>Collections: ${r.collections.map((c) => esc(c.name)).join(" · ")}</p><p>Sections: ${r.sections.map((s) => esc(s.key) + (s.visible ? "" : " (hidden)")).join(", ")}</p>`; }
+    else if (i === 11) { const r = await api("getBootstrap", {}); root.innerHTML = `<h2>Coupons / Promotions</h2><div class="tablewrap"><table><tr><th>Code</th><th>Type</th><th>Value</th><th>Min</th><th>Status</th><th>Expires</th><th>Limit</th><th>Uses</th></tr>${r.coupons.map((c) => `<tr><td>${esc(c.code)}</td><td>${esc(c.discountType)}</td><td>${c.value}${c.discountType === "percent" ? "%" : ""}</td><td>${money(c.minOrder)}</td><td>${esc(c.status)}</td><td>${esc(c.expiresAt || "— (unbounded)")}</td><td>${c.usageLimit || "unbounded"}</td><td>${c.uses}</td></tr>`).join("")}</table></div><p class="note">Production expiry/limit values for 000 / WELCOME10 / FLASH500 are owner inputs — deliberately not invented. BIGTEST5 is a temporary test coupon (expires 2026-12-25, limit 20, per-customer 3).</p>`; }
+    else if (i === 12) { const r = await api("listStaff", {}); const m = await api("getRoleMatrix", {}); const t = await api("runRoleSelfTest", {}); root.innerHTML = `<h2>Staff &amp; Permissions</h2><div class="tablewrap"><table><tr><th>Name</th><th>Role</th><th>Department</th><th>Email</th></tr>${r.staff.map((x) => `<tr><td>${esc(x.name)}</td><td>${esc(x.role)}</td><td>${esc(x.department)}</td><td>${esc(x.email)}</td></tr>`).join("")}</table></div><p>Role self-test: <strong>${t.allowed} allowed / ${t.denied} denied</strong> (110 checks; reference 52/58). Live probes: ${t.liveDenied.join("; ")}; ${t.liveAllowed.join("; ")}.</p><p class="note">Matrix: ${m.roles.map((x) => esc(x.role) + " → " + x.permissions.join(", ")).join(" | ")}</p>`; }
+    else if (i === 13) { const r = await api("getAnalytics", {}); root.innerHTML = `<h2>Reports / Analytics</h2><p>GMV ${money(r.gmv)} · Avg order ${money(r.avgOrderValue)} · Legacy orders excluded: ${r.legacyOrders}</p><p>CSV export: <button class="btn ghost small" onclick="exportCsv()">Download orders CSV</button></p>`; }
+    else if (i === 14) { const r = await api("getBootstrap", {}); root.innerHTML = `<h2>Settings</h2><pre>${esc(JSON.stringify(r.config, null, 2))}</pre><p class="note">Brand: NEXORA MARKET — navy #101828, blue #315EFB, amber #F59E0B. Demo mode ON.</p>`; }
+    else if (i === 15) { const r = await api("getHomepageAdmin", {}); root.innerHTML = `<h2>Homepage</h2><p>Flash row: size ${r.flashRowSize} (4–5), new set every ${r.flashRotateDays} day(s), anchor ${r.flashRowAnchor}. Campaign end: ${esc(r.flashEndsAt || "not set — no countdown")}</p><p>Banners: ${r.banners.map((b) => esc(b.headline)).join(" · ")}</p><p>Collections: ${r.collections.map((c) => esc(c.name)).join(" · ")}</p><p>Sections: ${r.sections.map((s) => esc(s.key) + (s.visible ? "" : " (hidden)")).join(", ")}</p>`; }
     else if (i === 16) { const r = await api("listDemoMerchants", {}); root.innerHTML = `<h2>Demo Merchants (display only)</h2>` + r.merchants.map((m) => `<p><strong>${esc(m.storeName)}</strong> — ${esc(m.city)} · ★ ${m.rating} · ${esc(m.verification)}</p>`).join(""); }
-    else if (i === 17) { root.innerHTML = `<h2>Demo Manager / Reset</h2><p><strong>Browser seeding was removed in Phase 1 (A4).</strong> No public endpoint can reseed or wipe the database anymore — seeding is CLI-only (<code>npm run db:seed</code>, idempotent) or via boot migration on deploy.</p><p><button class="btn ghost" onclick="api('cleanupInvalidReturns',{}, {role:true}).then(r=>alert(r.ok?('Removed '+r.removed+' invalid returns. Legacy-flagged rows preserved.'):(r.error||'Failed')))">Clean up invalid returns</button></p>`; }
-    else if (i === 18) { const r = await api("getPhase2Status", {}, { role: true }); const lg = await api("getLegacyReview", {}, { role: true }); const bt = await api("getBigTestReport", {}, { role: true }); root.innerHTML = `<h2>Phase 2</h2><p><strong>Finance decision:</strong> ${esc(r.financeDecision)}</p><p><strong>Providers:</strong></p><ul>${r.providers.map((p) => `<li>${esc(p.key)} — ${esc(p.status)}</li>`).join("")}</ul><p><strong>Pending owner inputs:</strong></p><ul>${r.pendingOwnerInputs.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p><strong>Legacy returns (decision pending):</strong></p><ul>${lg.discrepancies.map((d) => `<li>${esc(d.returnNumber)} — ${esc(d.fault)}. Offered: ${esc(d.offeredCorrection)}</li>`).join("")}</ul><p><strong>Big Test journey:</strong> ${bt.hasReport ? esc(JSON.stringify(bt.report).slice(0, 400)) : "no report stored"}</p>`; }
-    else if (i === 19) { const r = await api("listAudit", {}, { role: true }); root.innerHTML = `<h2>Audit Log (${r.logs.length})</h2><div class="tablewrap"><table><tr><th>#</th><th>Action</th><th>Actor</th><th>Detail</th></tr>${r.logs.slice(0, 50).map((l) => `<tr><td>${l.id}</td><td>${esc(l.action)}</td><td>${esc(l.actor)}</td><td>${esc(l.detail)}</td></tr>`).join("")}</table></div>`; }
+    else if (i === 17) { root.innerHTML = `<h2>Demo Manager / Reset</h2><p><strong>Browser seeding was removed in Phase 1 (A4).</strong> No public endpoint can reseed or wipe the database anymore — seeding is CLI-only (<code>npm run db:seed</code>, idempotent) or via boot migration on deploy.</p><p><button class="btn ghost" onclick="reauthAndRetry('cleanupInvalidReturns',{}).then(r=>alert(r.ok?('Removed '+r.removed+' invalid returns. Legacy-flagged rows preserved.'):(r.error||'Failed')))">Clean up invalid returns</button> <span class="note">Needs a fresh password + authenticator confirmation.</span></p>`; }
+    else if (i === 18) { const r = await api("getPhase2Status", {}); const lg = await api("getLegacyReview", {}); const bt = await api("getBigTestReport", {}); root.innerHTML = `<h2>Phase 2</h2><p><strong>Finance decision:</strong> ${esc(r.financeDecision)}</p><p><strong>Providers:</strong></p><ul>${r.providers.map((p) => `<li>${esc(p.key)} — ${esc(p.status)}</li>`).join("")}</ul><p><strong>Pending owner inputs:</strong></p><ul>${r.pendingOwnerInputs.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><p><strong>Legacy returns (decision pending):</strong></p><ul>${lg.discrepancies.map((d) => `<li>${esc(d.returnNumber)} — ${esc(d.fault)}. Offered: ${esc(d.offeredCorrection)}</li>`).join("")}</ul><p><strong>Big Test journey:</strong> ${bt.hasReport ? esc(JSON.stringify(bt.report).slice(0, 400)) : "no report stored"}</p>`; }
+    else if (i === 19) { const r = await api("listAudit", {}); root.innerHTML = `<h2>Audit Log (${r.logs.length})</h2><div class="tablewrap"><table><tr><th>#</th><th>Action</th><th>Actor</th><th>Detail</th></tr>${r.logs.slice(0, 50).map((l) => `<tr><td>${l.id}</td><td>${esc(l.action)}</td><td>${esc(l.actor)}</td><td>${esc(l.detail)}</td></tr>`).join("")}</table></div>`; }
   } catch (e) { root.innerHTML = "<p>Failed to load " + esc(ADMIN_TABS[i]) + ": " + esc(e.message || e) + "</p><p><button class=\"btn\" onclick=\"adminTab(" + i + ")\">Retry</button></p>"; }
 }
 async function exportCsv() {
-  const r = await api("listOrders", {}, { role: true });
+  const r = await api("listOrders", {});
   const csv = "orderNumber,status,total,paymentStatus,customerEmail\n" + (r.orders || []).map((o) => [o.orderNumber, o.status, o.total, o.paymentStatus, o.customerEmail].join(",")).join("\n");
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "nexora-orders.csv"; a.click();
 }
@@ -455,11 +452,188 @@ function initPage() {
   const co = document.getElementById("checkoutRoot");
   if (co) { loadCheckout(Number(co.dataset.step || 1)); return; }
   if (document.getElementById("accountRoot")) { loadAccount(); return; }
-  if (document.getElementById("adminRoot")) {
-    const sel = document.getElementById("staffRole");
-    if (sel) sel.value = localStorage.getItem("nx_staff_role") || "Super Admin";
-    adminTab(0);
-  }
+  if (document.getElementById("adminRoot")) { initAdmin(); return; }
+  if (document.getElementById("ownerSetupRoot")) { loadOwnerSetup(); return; }
+  if (document.getElementById("staffSetupRoot")) { loadStaffSetup(); return; }
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initPage);
 else initPage();
+
+// ---- Staff sign-in / admin gating (Phase 2) ----
+// /admin shows NO data until a staff member signs in (email + password +
+// authenticator code). The session is an HttpOnly cookie; the client never
+// holds or asserts a role.
+let staffSession = null;
+async function initAdmin() {
+  const root = document.getElementById("adminRoot");
+  const tabs = document.getElementById("adminTabs");
+  let r;
+  try { r = await api("getStaffSession", {}); } catch (e) { root.innerHTML = loadErrorHtml("Network error: " + (e.message || e), "initAdmin()"); return; }
+  if (!r.authenticated) {
+    staffSession = null;
+    if (tabs) tabs.style.display = "none";
+    root.innerHTML = `<h2>Staff Sign In</h2><p class="note">Admin access needs a staff account — email, password and authenticator code. First time? The owner sets up his account at <a href="/admin/setup">Owner Setup</a>; other staff use the setup token the owner sent them at <a href="/staff/setup">Staff Setup</a>.</p>
+<form onsubmit="return doStaffLogin(event)"><label>Email <input id="sEmail" type="email" required></label>
+<label>Password <span class="pw"><input id="sPass" type="password" required><button type="button" onclick="togglePw('sPass',this)">👁️</button></span></label>
+<div id="staffTotpBox"></div><p id="staffLoginMsg"></p><button class="btn">Sign In</button></form>`;
+    return;
+  }
+  staffSession = r.staff;
+  if (tabs) tabs.style.display = "";
+  renderStaffBar(r.staff);
+  adminTab(0);
+}
+function renderStaffBar(st) {
+  const bar = document.getElementById("staffBar"); if (!bar) return;
+  bar.innerHTML = `<p>Signed in as <strong>${esc(st.name)}</strong> (${esc(st.email)} · ${esc(st.role)}) ${st.totpEnabled ? "· Authenticator on" : "· Authenticator OFF"}
+<button class="btn ghost small" onclick="staffChangePassword()">Change Password</button>
+<button class="btn ghost small" onclick="staffSignOutEverywhere()">Sign Out Everywhere</button>
+<button class="btn ghost small" onclick="staffSignOut()">Sign Out</button></p>`;
+}
+async function doStaffLogin(e) {
+  e.preventDefault();
+  const msg = document.getElementById("staffLoginMsg");
+  const email = document.getElementById("sEmail").value, password = document.getElementById("sPass").value;
+  const codeEl = document.getElementById("sTotp");
+  const r = await api("loginStaff", { email, password, totpCode: codeEl ? codeEl.value : undefined });
+  if (r.ok) { location.reload(); return false; }
+  if (r.totpRequired) {
+    document.getElementById("staffTotpBox").innerHTML = `<label>Authenticator code <input id="sTotp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="6-digit code"></label>`;
+    msg.textContent = "Enter the 6-digit code from your authenticator app, then Sign In again.";
+    return false;
+  }
+  if (r.totpSetupRequired) {
+    document.getElementById("staffTotpBox").innerHTML = `<div class="card"><p><strong>Authenticator setup required.</strong> Add this key to your authenticator app (Google/Microsoft Authenticator → add account → enter setup key manually):</p>
+<p>Secret: <code>${esc(r.totpSecretDisplay)}</code> <button type="button" class="btn ghost small" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(r.totpSecret)}')">Copy secret</button></p>
+<p>Or open this link on your phone: <code>${esc(r.otpauthUrl)}</code></p>
+<label>Authenticator code <input id="sTotp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="6-digit code"></label></div>`;
+    msg.textContent = "After adding the key, enter the 6-digit code and Sign In — this also verifies your enrolment.";
+    // Swap the submit to the enrolment endpoint for this attempt.
+    const form = document.querySelector("#adminRoot form");
+    if (form) form.onsubmit = (ev) => doStaffTotpVerify(ev, email, password);
+    return false;
+  }
+  msg.textContent = r.error || "Sign-in failed.";
+  return false;
+}
+async function doStaffTotpVerify(e, email, password) {
+  e.preventDefault();
+  const code = (document.getElementById("sTotp") || {}).value || "";
+  const r = await api("staffTotpVerify", { email, password, totpCode: code });
+  if (r.ok) { location.reload(); return false; }
+  document.getElementById("staffLoginMsg").textContent = r.error || "Verification failed.";
+  return false;
+}
+function staffSignOut() {
+  if (!confirm("Sign out of Admin?")) return;
+  api("logoutStaff", {}).finally(() => location.reload());
+}
+function staffSignOutEverywhere() {
+  if (!confirm("Sign out on ALL devices (including this one)?")) return;
+  api("logoutStaffEverywhere", {}).finally(() => location.reload());
+}
+function staffChangePassword() {
+  const cur = prompt("Current password:");
+  if (!cur) return;
+  const nw = prompt("New password (8+ characters, letters + numbers):");
+  if (!nw) return;
+  const nw2 = prompt("Confirm new password:");
+  if (nw !== nw2) { alert("New passwords do not match."); return; }
+  api("changeStaffPassword", { currentPassword: cur, newPassword: nw, confirmNewPassword: nw2 }).then((r) => alert(r.ok ? "Password changed. Other devices were signed out." : (r.error || "Could not change password.")));
+}
+// Destructive admin actions need a fresh password + authenticator
+// confirmation (10-minute window). Prompts for it, then retries the call once.
+async function ensureReauth() {
+  const pw = prompt("Confirm your password to continue:");
+  if (!pw) return false;
+  let code;
+  if (staffSession && staffSession.totpEnabled) { code = prompt("Authenticator code (6 digits):"); if (!code) return false; }
+  const r = await api("staffReauth", { password: pw, totpCode: code });
+  if (!r.ok) { alert(r.error || "Confirmation failed."); return false; }
+  return true;
+}
+async function reauthAndRetry(name, body) {
+  let r = await api(name, body);
+  if (r.reauthRequired) {
+    if (!(await ensureReauth())) return { ok: false, error: "Not confirmed." };
+    r = await api(name, body);
+  }
+  return r;
+}
+
+// ---- Owner setup (/admin/setup) ----
+let ownerSetupToken = "";
+async function loadOwnerSetup() {
+  const root = document.getElementById("ownerSetupRoot");
+  const r = await api("getOwnerSetupStatus", {});
+  if (!r.setupAvailable) {
+    root.innerHTML = `<h2>Owner setup is already complete</h2><p>The owner account is active. Sign in at <a href="/admin">Admin</a>.</p>`;
+    return;
+  }
+  root.innerHTML = `<h2>Step 1 — Set your password</h2><p>Owner: <strong>${esc(r.ownerName)}</strong> (${esc(r.ownerEmail)})</p>
+${r.hasEnvToken ? "" : `<p><strong>Not configured yet:</strong> set the Vercel env var <code>NEXORA_OWNER_SETUP_TOKEN</code> (Production) to a secret only you know, then redeploy — this page will accept it after the deploy.</p>`}
+<form onsubmit="return doOwnerSetup(event)"><label>Setup token <input id="oToken" required autocomplete="off" placeholder="The token you set in Vercel"></label>
+<label>New password <span class="pw"><input id="oPass" type="password" required minlength="8"><button type="button" onclick="togglePw('oPass',this)">👁️</button></span></label>
+<label>Confirm password <input id="oPass2" type="password" required minlength="8"></label>
+<p class="note">Password: 8+ characters with letters and numbers. This password is yours only — never share it in chat.</p>
+<p id="oMsg"></p><button class="btn">Continue →</button></form><div id="oStep2"></div>`;
+}
+async function doOwnerSetup(e) {
+  e.preventDefault();
+  const token = document.getElementById("oToken").value;
+  const p1 = document.getElementById("oPass").value, p2 = document.getElementById("oPass2").value;
+  if (p1 !== p2) { document.getElementById("oMsg").textContent = "Passwords do not match."; return false; }
+  const r = await api("ownerSetup", { setupToken: token, password: p1, confirmPassword: p2 });
+  if (!r.ok) { document.getElementById("oMsg").textContent = r.error || "Setup failed."; return false; }
+  ownerSetupToken = token;
+  document.getElementById("oStep2").innerHTML = `<h2>Step 2 — Authenticator app</h2>
+<p>Add this key to your authenticator app (Google/Microsoft Authenticator → add account → enter setup key manually):</p>
+<p>Secret: <code>${esc(r.totpSecretDisplay)}</code> <button type="button" class="btn ghost small" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(r.totpSecret)}')">Copy secret</button></p>
+<p>Or open this link on your phone: <code>${esc(r.otpauthUrl)}</code></p>
+<form onsubmit="return doOwnerSetupVerify(event)"><label>6-digit code from the app <input id="oCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="123456"></label>
+<p id="oMsg2"></p><button class="btn">Finish Setup — Sign Me In</button></form>`;
+  return false;
+}
+async function doOwnerSetupVerify(e) {
+  e.preventDefault();
+  const r = await api("ownerSetupVerify", { setupToken: ownerSetupToken, totpCode: document.getElementById("oCode").value });
+  if (!r.ok) { document.getElementById("oMsg2").textContent = r.error || "Verification failed."; return false; }
+  location.href = "/admin";
+  return false;
+}
+
+// ---- Staff setup (/staff/setup) ----
+async function loadStaffSetup() {
+  const root = document.getElementById("staffSetupRoot");
+  const q = new URLSearchParams(location.search);
+  const email = q.get("email") || "", token = q.get("token") || "";
+  root.innerHTML = `<h2>Step 1 — Set your password</h2>
+<form onsubmit="return doStaffSetup(event)"><label>Email <input id="stEmail" type="email" required value="${esc(email)}"></label>
+<label>Setup token <input id="stToken" required autocomplete="off" value="${esc(token)}"></label>
+<label>New password <span class="pw"><input id="stPass" type="password" required minlength="8"><button type="button" onclick="togglePw('stPass',this)">👁️</button></span></label>
+<label>Confirm password <input id="stPass2" type="password" required minlength="8"></label>
+<p class="note">Password: 8+ characters with letters and numbers.</p>
+<p id="stMsg"></p><button class="btn">Continue →</button></form><div id="stStep2"></div>`;
+}
+async function doStaffSetup(e) {
+  e.preventDefault();
+  const email = document.getElementById("stEmail").value, token = document.getElementById("stToken").value;
+  const p1 = document.getElementById("stPass").value, p2 = document.getElementById("stPass2").value;
+  if (p1 !== p2) { document.getElementById("stMsg").textContent = "Passwords do not match."; return false; }
+  const r = await api("staffSetup", { email, setupToken: token, password: p1, confirmPassword: p2 });
+  if (!r.ok) { document.getElementById("stMsg").textContent = r.error || "Setup failed."; return false; }
+  document.getElementById("stStep2").innerHTML = `<h2>Step 2 — Authenticator app</h2>
+<p>Add this key to your authenticator app:</p>
+<p>Secret: <code>${esc(r.totpSecretDisplay)}</code> <button type="button" class="btn ghost small" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(r.totpSecret)}')">Copy secret</button></p>
+<p>Or open this link on your phone: <code>${esc(r.otpauthUrl)}</code></p>
+<form onsubmit="return doStaffSetupVerify(event)"><label>6-digit code from the app <input id="stCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="123456"></label>
+<p id="stMsg2"></p><button class="btn">Finish Setup — Sign Me In</button></form>`;
+  return false;
+}
+async function doStaffSetupVerify(e) {
+  e.preventDefault();
+  const r = await api("staffSetupVerify", { email: document.getElementById("stEmail").value, setupToken: document.getElementById("stToken").value, totpCode: document.getElementById("stCode").value });
+  if (!r.ok) { document.getElementById("stMsg2").textContent = r.error || "Verification failed."; return false; }
+  location.href = "/admin";
+  return false;
+}

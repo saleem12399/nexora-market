@@ -8,6 +8,13 @@
       "when": 1795684609114,
       "tag": "0001_consolidated",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795763854287,
+      "tag": "0002_phase2_auth",
+      "breakpoints": true
     }
   ]
 }

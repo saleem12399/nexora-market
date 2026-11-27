@@ -198,10 +198,28 @@ export function accountView(): string {
 export function adminView(): string {
   const tabs = ["Dashboard", "Products", "Categories", "Inventory", "Orders", "Payments", "Returns / Refunds", "Customers", "Support", "Reviews", "Notifications", "Coupons", "Staff & Permissions", "Reports", "Settings", "Homepage", "Demo Merchants", "Demo Manager", "Phase 2", "Audit Log"];
   return layout("Admin", `<h1>Admin <span class="demo-tag">DEMO / TRIAL MODE</span></h1>
-<p class="note">20 modules (spec §7.7). The Phase 1 lab test observed 21 admin tabs — the extra tab was the Phase 2 tab added later; the actual list below is the 20-module list, with Orders and Tracking kept as one Orders tab (tracking manager inside it). Staff role for this demo session: <select id="staffRole" onchange="localStorage.setItem('nx_staff_role',this.value)"><option>Super Admin</option><option>Admin</option><option>Product Manager</option><option>Inventory Manager</option><option>Order Manager</option><option>Finance Officer</option><option>Customer Support Agent</option><option>Warehouse Staff</option><option>Delivery Manager</option></select> — permissions are enforced server-side and denials are audit-logged.</p>
-<div class="tabs">${tabs.map((t, i) => `<button class="tab ${i === 0 ? "on" : ""}" onclick="adminTab(${i},this)">${esc(t)}</button>`).join("")}</div>
+<div id="staffBar"></div>
+<p class="note">20 modules (spec §7.7). The Phase 1 lab test observed 21 admin tabs — the extra tab was the Phase 2 tab added later; the actual list below is the 20-module list, with Orders and Tracking kept as one Orders tab (tracking manager inside it). Staff access is by real sign-in (email + password + authenticator code) — the old role dropdown is gone, roles come from the server session, and denials are audit-logged.</p>
+<div class="tabs" id="adminTabs" style="display:none">${tabs.map((t, i) => `<button class="tab ${i === 0 ? "on" : ""}" onclick="adminTab(${i},this)">${esc(t)}</button>`).join("")}</div>
 <div id="adminRoot" class="card light-panel"><p>Loading…</p></div>
 `, { admin: true });
+}
+
+// Owner first-password setup (/admin/setup). The page is a two-step form:
+// step 1 — setup token + new password; step 2 — authenticator secret +
+// 6-digit code. Usable ONLY while no owner setup is complete.
+export function ownerSetupView(): string {
+  return layout("Owner Setup", `<h1>Owner Setup — NEXORA MARKET</h1>
+<div class="card light-panel" id="ownerSetupRoot"><p>Loading setup status…</p></div>
+<p class="note">First time here? 1) Pick a secret setup token and set it as the Vercel env var <code>NEXORA_OWNER_SETUP_TOKEN</code> (Production), then redeploy. 2) Come back here, type the token and your new password. 3) Add the authenticator secret to your authenticator app and type the 6-digit code. Never share the token or your password in chat.</p>`);
+}
+
+// Staff activation (/staff/setup?email=…&token=…). Same two-step pattern
+// as owner setup, with the one-time token the owner sent out of band.
+export function staffSetupView(): string {
+  return layout("Staff Setup", `<h1>Staff Setup — NEXORA MARKET</h1>
+<div class="card light-panel" id="staffSetupRoot"><p>Loading…</p></div>
+<p class="note">Use the one-time setup token the owner sent you (e.g. WhatsApp). It expires in 24 hours. After setup, sign in at /admin with your email, password and authenticator code.</p>`);
 }
 
 export function checkoutView(step: number): string {
@@ -227,7 +245,7 @@ export function authView(kind: "login" | "register"): string {
 ${isLogin ? "" : '<label>Confirm password <input id="aPass2" type="password" required minlength="6"></label><p class="note">Password strength: use 8+ characters with a mix of letters and numbers.</p>'}
 <button class="btn">${isLogin ? "Sign In" : "Register"}</button></form>
 <p>${isLogin ? `No account? <a href="/register">Register</a> · <a href="#" onclick="forgotPassword(event)">Forgot password?</a>` : `Already have an account? <a href="/login">Sign In</a>`}</p>
-<p class="note">Seeded accounts have NO usable password yet (the export contained no hash values). Use "Forgot password?" to set a password via the reset flow — the owner sets passwords after first deploy. Never share a password in chat.</p></div>`);
+<p class="note">Seeded accounts have NO usable password yet (the export contained no hash values). Password reset by email is not available yet — no email provider is connected. Contact the store owner to set a password. Never share a password in chat.</p></div>`);
 }
 
 export function policyView(page: string): string {

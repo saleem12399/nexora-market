@@ -8,10 +8,13 @@
 import crypto from "node:crypto";
 import path from "node:path";
 import type { Express, Request, Response } from "express";
-import { and, asc, desc, eq, gte, inArray, like, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, like, lt, ne, sql } from "drizzle-orm";
 import { getDb } from "../db";
 import * as s from "../db/schema";
 import { hashPassword, hashSessionToken, isLegacySha256Hash, newResetToken, newSessionToken, RESET_TOKEN_TTL_MS, SESSION_TTL_MS, verifyLegacySha256, verifyPassword } from "../lib/auth";
+import { clientIp, rateLimited, rateLimitBody } from "../lib/rate-limit";
+import { OWNER_ROLE } from "../lib/roles";
+import { newTotpSecret, totpAuthUrl, totpSecretDisplay, verifyTotp } from "../lib/totp";
 import { OFFICIAL_STORE_NAME, PAYMENT_MODE_DEMO, PAYMENT_STATUSES_SOURCED, REFUND_STAGE_LABELS, SHIPMENT_STATUS, TRACKING_STEPS, TRACKING_STEP_LOCATIONS, TRACKING_STEP_NOTES } from "../lib/constants";
 import { computeFlashRow, todayYmdKarachi } from "../lib/flash";
 import { computeOrderTotals, couponDiscount, formatPkr, validateCouponRules, type ShippingMethod } from "../lib/money";
@@ -30,24 +33,117 @@ async function audit(db: Db, action: string, actor: string, detail: string) {
   try { await db.insert(s.auditLogs).values({ action, actor, detail, createdAt: Date.now() }); } catch { /* audit must never break the action */ }
 }
 
-// Phase 1 (A1): there is NO staff session system yet — the staff table has
-// no password and no session table. Until real staff auth is built, the role
-// is asserted by the caller (header x-nexora-role / body staffRole, set by
-// the Admin role dropdown). The fail-closed rule is: NO role supplied at
-// all => 401 StaffAuthRequiredError. A supplied role without the area =>
-// 403 PermissionDeniedError. Never default to Super Admin.
+// Phase 1 (A1) + Phase 2: there is now a REAL staff session system
+// (staff table has passwordHash + TOTP, staff_sessions table, HttpOnly
+// cookie nx_staff_token). staffRole() reads the SERVER session only —
+// the client-asserted x-nexora-role header and body.staffRole are GONE:
+// supplying them no longer grants anything (a caller who sends
+// x-nexora-role: Super Admin gets 401, as before, but now also with a
+// real session system behind it). The fail-closed rule is: NO staff
+// session at all => 401 StaffAuthRequiredError. A session whose role
+// lacks the area => 403 PermissionDeniedError. Never default to Super
+// Admin.
 export class StaffAuthRequiredError extends Error {
   constructor() { super("Staff sign-in required — no staff role was supplied."); this.name = "StaffAuthRequiredError"; }
 }
 
-function staffRole(req: Request): string | null {
-  const r = (req.headers["x-nexora-role"] as string) || (req.body && req.body.staffRole);
-  return r ? String(r) : null;
+// Staff session cookie (HttpOnly). The same token is accepted as a Bearer
+// token for API/curl use; the cookie is what the browser admin UI uses.
+const STAFF_COOKIE = "nx_staff_token";
+const REAUTH_WINDOW_MS = 10 * 60 * 1000; // destructive actions need a fresh re-auth
+
+function parseCookies(req: Request): Record<string, string> {
+  const out: Record<string, string> = {};
+  const raw = req.headers.cookie || "";
+  for (const part of String(raw).split(";")) {
+    const i = part.indexOf("=");
+    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return out;
 }
 
-// Label for audit/actor fields only — NEVER used as authorisation.
+function staffTokenFromRequest(req: Request): string | null {
+  const cookies = parseCookies(req);
+  if (cookies[STAFF_COOKIE]) return cookies[STAFF_COOKIE];
+  const h = req.headers.authorization || "";
+  if (h.startsWith("Bearer ")) return h.slice(7);
+  return null;
+}
+
+function setStaffCookie(req: Request, res: Response, token: string) {
+  if (typeof (res as any).cookie !== "function") return;
+  const secure = (req as any).secure || req.headers["x-forwarded-proto"] === "https";
+  (res as any).cookie(STAFF_COOKIE, token, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: SESSION_TTL_MS });
+}
+
+function clearStaffCookie(res: Response) {
+  if (typeof (res as any).clearCookie === "function") (res as any).clearCookie(STAFF_COOKIE, { path: "/" });
+}
+
+// Staff rows must never leak credentials: strip them everywhere a staff
+// row is returned (getBootstrap, listStaff, saveStaff, getStaffSession).
+function publicStaffRow(st: any) {
+  if (!st) return null;
+  const { passwordHash, totpSecret, setupTokenHash, ...rest } = st;
+  return rest;
+}
+
+async function sessionStaff(db: Db, req: Request): Promise<{ staff: any; session: any } | null> {
+  const token = staffTokenFromRequest(req);
+  if (!token) return null;
+  const rows = await db.select().from(s.staffSessions).where(eq(s.staffSessions.tokenHash, hashSessionToken(token)));
+  const sess = rows[0];
+  if (!sess) return null;
+  if (sess.expiresAt < Date.now()) {
+    // B17: purge the expired session row instead of leaving it forever.
+    await db.delete(s.staffSessions).where(eq(s.staffSessions.id, sess.id));
+    return null;
+  }
+  const st = (await db.select().from(s.staff).where(eq(s.staff.id, sess.staffId)))[0];
+  if (!st || st.status !== "Active") return null;
+  return { staff: st, session: sess };
+}
+
+function staffRole(req: Request): string | null {
+  return (req as any).staff?.role ?? null;
+}
+
+function staffSession(req: Request): any | null {
+  return (req as any).staffSession ?? null;
+}
+
+// Real identity for audit/actor fields — NEVER used as authorisation
+// (that is staffRole, from the server session).
 function staffRoleLabel(req: Request): string {
-  return staffRole(req) || "anonymous";
+  const st = (req as any).staff;
+  return st ? `staff:${st.name} <${st.email}> (${st.role})` : "anonymous";
+}
+
+// Destructive actions (legacy-return correction, invalid-return cleanup,
+// cancelled-order purge) need a password+TOTP re-auth within the last
+// 10 minutes. Returns true when the caller may proceed, else sends the
+// 403 and returns false.
+async function requireStaffReauth(db: Db, req: Request, res: Response, actionName: string): Promise<boolean> {
+  const sess = staffSession(req);
+  if (!sess || !sess.reauthAt || Date.now() - sess.reauthAt > REAUTH_WINDOW_MS) {
+    await audit(db, "RE-AUTH REQUIRED", staffRoleLabel(req), `${actionName} — destructive action needs a fresh password + authenticator confirmation`);
+    res.status(403).json({ ok: false, reauthRequired: true, error: "Confirm your password and authenticator code to continue — this action needs a fresh sign-in confirmation." });
+    return false;
+  }
+  return true;
+}
+
+// Staff password rule (new staff/owner passwords only): 8+ characters
+// with at least one letter and one number. Customer passwords keep the
+// existing 6+ rule (C16 unifies this in Phase 3).
+function validStaffPassword(pw: string): boolean {
+  return typeof pw === "string" && pw.length >= 8 && /[A-Za-z]/.test(pw) && /[0-9]/.test(pw);
+}
+
+async function createStaffSession(db: Db, staffId: number): Promise<string> {
+  const { token, tokenHash } = newSessionToken();
+  await db.insert(s.staffSessions).values({ staffId, tokenHash, expiresAt: Date.now() + SESSION_TTL_MS, reauthAt: null, createdAt: Date.now() });
+  return token;
 }
 
 function enforce(req: Request, area: RoleArea) {
@@ -86,7 +182,12 @@ async function sessionCustomer(db: Db, req: Request) {
   if (!token) return null;
   const rows = await db.select().from(s.customerSessions).where(eq(s.customerSessions.tokenHash, hashSessionToken(token)));
   const sess = rows[0];
-  if (!sess || sess.expiresAt < Date.now()) return null;
+  if (!sess) return null;
+  if (sess.expiresAt < Date.now()) {
+    // B17: purge the expired session row instead of leaving it forever.
+    await db.delete(s.customerSessions).where(eq(s.customerSessions.id, sess.id));
+    return null;
+  }
   const cust = await db.select().from(s.customers).where(eq(s.customers.id, sess.customerId));
   return cust[0] || null;
 }
@@ -176,6 +277,12 @@ export function registerApi(app: Express) {
     app.post(`/api/${name}`, async (req, res) => {
       const db = dbOr503(res); if (!db) return;
       try {
+        // Resolve the staff session once per request (no token => null,
+        // no DB query). Every staff-gated handler reads req.staff from
+        // here; nothing is ever taken from a header or the request body.
+        const st = await sessionStaff(db, req);
+        (req as any).staff = st?.staff || null;
+        (req as any).staffSession = st?.session || null;
         if (opts?.area) {
           try { enforce(req, opts.area); }
           catch (e) {
@@ -207,7 +314,7 @@ export function registerApi(app: Express) {
   a("getBootstrap", async (_req, res, db) => {
     const cfg = await settingsMap(db);
     const cats = await db.select().from(s.categories).orderBy(asc(s.categories.sortOrder), asc(s.categories.id));
-    const staff = await db.select().from(s.staff);
+    const staff = (await db.select().from(s.staff)).map(publicStaffRow);
     const coupons = await db.select().from(s.coupons);
     const published = await db.select({ n: sql<number>`count(*)` }).from(s.products).where(eq(s.products.status, "Published"));
     const orders = await db.select().from(s.orders);
@@ -282,7 +389,7 @@ export function registerApi(app: Express) {
     for (const [role, area] of okProbes) {
       try { requirePermission(role, area); allowed.push(`${role} -> ${area} allowed`); } catch { denied.push(`${role} -> ${area} denied (unexpected)`); }
     }
-    res.json({ ok: true, allowed: t.allowed, denied: t.denied, checks: t.checks, liveDenied: denied, liveAllowed: allowed, note: "Sandbox reference: 41 allowed / 58 denied." });
+    res.json({ ok: true, allowed: t.allowed, denied: t.denied, checks: t.checks, liveDenied: denied, liveAllowed: allowed, note: "Reference: 52 allowed / 58 denied (110 checks, 10 roles x 11 areas)." });
   }, { area: "reports" });
 
   a("runCorrectionAndJourney", async (_req, res, db) => {
@@ -330,7 +437,7 @@ export function registerApi(app: Express) {
     const data: any = { sku: p.sku, name: p.name, shortDesc: p.shortDesc ?? "", description: p.description ?? "", category: p.category, subcategory: p.subcategory ?? "", brand: p.brand ?? "", price: p.price, salePrice: p.salePrice ?? null, priceHistory: p.priceHistory ?? "", stock: p.stock ?? 0, sold: p.sold ?? 0, rating: p.rating ?? 0, reviewsCount: p.reviewsCount ?? 0, status: p.status ?? "Published", sellerId: 0, sellerName: OFFICIAL_STORE_NAME, isFlash: !!p.isFlash, isFeatured: !!p.isFeatured, colors: p.colors ?? "", sizes: p.sizes ?? "", specs: p.specs ?? "", warranty: p.warranty ?? "", warehouse: p.warehouse ?? "Karachi Central", tile: p.tile ?? "", tileColor: p.tileColor ?? "" };
     let row;
     if (p.id) { await db.update(s.products).set(data).where(eq(s.products.id, p.id)); row = (await db.select().from(s.products).where(eq(s.products.id, p.id)))[0]; }
-    else { row = (await db.insert(s.products).values(data).returning())[0]; }
+    else { row = (await db.insert(s.products).values({ ...data, publishedAt: Date.now() }).returning())[0]; }
     await audit(db, "Product saved", staffRoleLabel(req), `${data.sku} ${data.name}`);
     res.json({ ok: true, product: row });
   }, { area: "products" });
@@ -705,13 +812,17 @@ export function registerApi(app: Express) {
     res.json({ ok: true, authenticated: true, orders: rows, buckets });
   });
 
-  a("clearCancelledOrders", async (_req, res, db) => {
+  a("clearCancelledOrders", async (req, res, db) => {
+    // Destructive (deletes orders + their events/items): needs a fresh
+    // re-auth, and the actor is audit-logged with the real staff identity.
+    if (!await requireStaffReauth(db, req, res, "clearCancelledOrders")) return;
     const cancelled = await db.select().from(s.orders).where(eq(s.orders.status, "Cancelled"));
     for (const o of cancelled) {
       await db.delete(s.orderEvents).where(eq(s.orderEvents.orderId, o.id));
       await db.delete(s.orderItems).where(eq(s.orderItems.orderId, o.id));
       await db.delete(s.orders).where(eq(s.orders.id, o.id));
     }
+    await audit(db, "Cancelled orders purged", staffRoleLabel(req), `${cancelled.length} orders removed`);
     res.json({ ok: true, removed: cancelled.length });
   }, { area: "orders" });
 
@@ -723,6 +834,9 @@ export function registerApi(app: Express) {
   // ---- 5.4 Customers & auth ----
   a("registerCustomer", async (req, res, db) => {
     const b = req.body || {};
+    // B16: 5 registrations/hour per IP (no CAPTCHA provider exists yet —
+    // noted as pending owner input; the limit is the mitigation in place).
+    if (rateLimited("register:ip:" + clientIp(req), 5, 60 * 60 * 1000)) { res.status(429).json(rateLimitBody()); return; }
     const v = validateCustomerInfo({ email: b.email, phone: b.phone, name: b.name });
     if (!v.ok) { res.status(400).json({ ok: false, errors: v.errors }); return; }
     if (!b.password || String(b.password).length < 6) { res.status(400).json({ ok: false, error: "Password must be at least 6 characters." }); return; }
@@ -737,10 +851,24 @@ export function registerApi(app: Express) {
 
   a("loginCustomer", async (req, res, db) => {
     const { email, password } = req.body || {};
+    const emailKey = String(email || "").trim().toLowerCase();
+    // B16: 5 login attempts / 15 min per IP and per account, then 429.
+    // Checked BEFORE the lookup so the limit itself leaks nothing.
+    if (rateLimited("login:ip:" + clientIp(req), 5, 15 * 60 * 1000) || (emailKey && rateLimited("login:email:" + emailKey, 5, 15 * 60 * 1000))) {
+      await audit(db, "LOGIN RATE LIMITED", emailKey || "anonymous", `login attempts exceeded for ${emailKey || clientIp(req)}`);
+      res.status(429).json(rateLimitBody()); return;
+    }
     const cust = (await db.select().from(s.customers).where(sql`lower(${s.customers.email}) = lower(${String(email || "")})`))[0];
-    if (!cust) { res.status(401).json({ ok: false, error: "No account with this email." }); return; }
+    // B16: generic error for unknown email AND wrong password (no
+    // enumeration). The passwordless case keeps its own message because
+    // it routes the owner to the owner-assisted reset (see A2).
+    if (!cust) {
+      await audit(db, "LOGIN FAILED", emailKey || "anonymous", "unknown email");
+      res.status(401).json({ ok: false, error: "Incorrect email or password." }); return;
+    }
     if (!cust.passwordHash) {
-      res.status(401).json({ ok: false, error: "This account has no password yet. Use 'Forgot password' to set one — the owner sets passwords via the reset flow after first deploy.", mustResetPassword: true });
+      await audit(db, "LOGIN FAILED", cust.email, "account has no password yet");
+      res.status(401).json({ ok: false, error: "This account has no password yet. Contact the store owner to set one.", mustResetPassword: true });
       return;
     }
     let ok = false;
@@ -752,7 +880,10 @@ export function registerApi(app: Express) {
         await audit(db, "Legacy password hash upgraded to PBKDF2", cust.email, `customer ${cust.id}`);
       }
     }
-    if (!ok) { res.status(401).json({ ok: false, error: "Incorrect password." }); return; }
+    if (!ok) {
+      await audit(db, "LOGIN FAILED", cust.email, "incorrect password");
+      res.status(401).json({ ok: false, error: "Incorrect email or password." }); return;
+    }
     const { token, tokenHash } = newSessionToken();
     await db.insert(s.customerSessions).values({ customerId: cust.id, tokenHash, expiresAt: Date.now() + SESSION_TTL_MS, createdAt: Date.now() });
     res.json({ ok: true, sessionToken: token, customer: { id: cust.id, name: cust.name, email: cust.email, phone: cust.phone, emailVerified: cust.emailVerified, phoneVerified: cust.phoneVerified } });
@@ -791,18 +922,35 @@ export function registerApi(app: Express) {
     if (!newPassword || String(newPassword).length < 6) { res.status(400).json({ ok: false, error: "New password must be at least 6 characters." }); return; }
     if (confirmNewPassword != null && confirmNewPassword !== newPassword) { res.status(400).json({ ok: false, error: "New passwords do not match." }); return; }
     await db.update(s.customers).set({ passwordHash: hashPassword(String(newPassword)), mustResetPassword: false }).where(eq(s.customers.id, cust.id));
+    // A2: revoke every OTHER session (stolen/old sessions die on password change).
+    const cur = bearerToken(req);
+    if (cur) await db.delete(s.customerSessions).where(and(eq(s.customerSessions.customerId, cust.id), ne(s.customerSessions.tokenHash, hashSessionToken(cur))));
+    else await db.delete(s.customerSessions).where(eq(s.customerSessions.customerId, cust.id));
     res.json({ ok: true });
   });
 
   a("requestPasswordReset", async (req, res, db) => {
     const { email } = req.body || {};
+    // A2: rate-limited BEFORE the lookup, counted the same whether or not
+    // the email exists, so neither the limit nor the timing leaks existence.
+    const emailKey = String(email || "").trim().toLowerCase();
+    if (rateLimited("reset:ip:" + clientIp(req), 5, 60 * 60 * 1000) || (emailKey && rateLimited("reset:email:" + emailKey, 3, 60 * 60 * 1000))) {
+      res.status(429).json(rateLimitBody());
+      return;
+    }
+    // A2: the token is NEVER returned in any API response. It is still
+    // created (hash only, 30-min expiry, burned on use) so the reset
+    // mechanics stay intact for Phase 2, which must decide how it is
+    // delivered: owner-assisted reset via admin OR self-service reset
+    // disabled until an email provider is connected. No email provider
+    // is invented here. The response is identical whether or not the
+    // email exists (no enumeration).
+    const genericNote = "If an account exists for this email, reset instructions were requested. No email provider is connected yet, so the reset link cannot be sent by email — contact the store owner for help.";
     const cust = (await db.select().from(s.customers).where(sql`lower(${s.customers.email}) = lower(${String(email || "")})`))[0];
-    if (!cust) { res.json({ ok: true, note: "If an account exists for this email, a reset token was created." }); return; }
-    const { token, tokenHash } = newResetToken();
+    if (!cust) { res.json({ ok: true, note: genericNote }); return; }
+    const { tokenHash } = newResetToken(); // token value never extracted, never exposed.
     await db.update(s.customers).set({ resetTokenHash: tokenHash, resetExpiresAt: Date.now() + RESET_TOKEN_TTL_MS }).where(eq(s.customers.id, cust.id));
-    // No email provider is connected: the token is shown once in the UI,
-    // labelled as a staging-only step, and never logged.
-    res.json({ ok: true, resetToken: token, note: "No email provider is connected yet, so the reset token is shown here once (staging only). It expires in 30 minutes and is burned on use." });
+    res.json({ ok: true, note: genericNote });
   });
 
   a("resetPassword", async (req, res, db) => {
@@ -814,8 +962,308 @@ export function registerApi(app: Express) {
     if (!newPassword || String(newPassword).length < 6) { res.status(400).json({ ok: false, error: "New password must be at least 6 characters." }); return; }
     if (confirmNewPassword != null && confirmNewPassword !== newPassword) { res.status(400).json({ ok: false, error: "New passwords do not match." }); return; }
     await db.update(s.customers).set({ passwordHash: hashPassword(String(newPassword)), mustResetPassword: false, resetTokenHash: null, resetExpiresAt: null }).where(eq(s.customers.id, cust.id));
+    // A2: revoke ALL sessions — a reset logs every device out.
+    await db.delete(s.customerSessions).where(eq(s.customerSessions.customerId, cust.id));
     res.json({ ok: true });
   });
+
+  // ---- Phase 2: owner setup + staff authentication ----
+  // Owner first-password procedure (NO email provider exists, so nothing
+  // is ever emailed and no provider is invented):
+  //   1. The owner picks any secret setup token HE chooses and sets it as
+  //      the Vercel env var NEXORA_OWNER_SETUP_TOKEN (Production target),
+  //      then redeploys (env changes need a redeploy to take effect).
+  //      No token value is ever in code, chat or logs.
+  //   2. He opens /admin/setup on his phone and types the setup token
+  //      plus the password he wants (8+ characters, letters + numbers).
+  //   3. The page shows a one-time authenticator secret (grouped text +
+  //      otpauth URL) — he types it into Google/Microsoft Authenticator
+  //      (or any TOTP app) as a manual setup key.
+  //   4. He types the 6-digit code from the app. ONLY then is the owner
+  //      account activated (staff #1, Muhammad Saleem, role Owner), TOTP
+  //      is enabled, setup is marked done, and he is signed in to /admin.
+  // The setup page works ONLY while no owner setup is complete
+  // (settings.ownerSetupDone != "true"). If the owner mistypes the
+  // password or secret before step 4, he simply repeats steps 2–3 with
+  // the same token — nothing is final until the code verifies. After
+  // setup, the endpoint refuses. While signed in the owner can change
+  // his password and re-enrol TOTP from the admin panel; if he is ever
+  // locked out of BOTH password and authenticator, there is NO
+  // self-service recovery — a code/DB step is needed (open item).
+  const OWNER_STAFF_ID = 1; // Muhammad Saleem, owner@nexora.demo
+  const OWNER_SETUP_TOKEN_ENV = "NEXORA_OWNER_SETUP_TOKEN";
+  function ownerSetupTokenMatches(token: string): boolean {
+    const env = process.env[OWNER_SETUP_TOKEN_ENV] || "";
+    if (!env || !token) return false;
+    const a = crypto.createHash("sha256").update(env).digest();
+    const b = crypto.createHash("sha256").update(String(token)).digest();
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  }
+  async function ownerSetupDone(db: Db): Promise<boolean> {
+    const cfg = await settingsMap(db);
+    return cfg.ownerSetupDone === "true";
+  }
+  async function ownerStaffRow(db: Db) {
+    return (await db.select().from(s.staff).where(eq(s.staff.id, OWNER_STAFF_ID)))[0] || null;
+  }
+
+  a("getOwnerSetupStatus", async (_req, res, db) => {
+    const owner = await ownerStaffRow(db);
+    res.json({
+      ok: true,
+      setupAvailable: !(await ownerSetupDone(db)),
+      ownerName: owner?.name || "Muhammad Saleem",
+      ownerEmail: owner?.email || "owner@nexora.demo",
+      hasEnvToken: Boolean(process.env[OWNER_SETUP_TOKEN_ENV]),
+      note: "Set NEXORA_OWNER_SETUP_TOKEN in the Vercel dashboard (Production) to a secret only you know, then open /admin/setup.",
+    });
+  });
+
+  a("ownerSetup", async (req, res, db) => {
+    if (rateLimited("owner-setup:ip:" + clientIp(req), 5, 60 * 60 * 1000)) { res.status(429).json(rateLimitBody()); return; }
+    if (await ownerSetupDone(db)) { res.status(410).json({ ok: false, error: "Owner setup is already complete. Sign in at /admin." }); return; }
+    const { setupToken, password, confirmPassword } = req.body || {};
+    if (!process.env[OWNER_SETUP_TOKEN_ENV]) { res.status(503).json({ ok: false, error: "Owner setup is not configured yet — set NEXORA_OWNER_SETUP_TOKEN in the Vercel dashboard first, then redeploy." }); return; }
+    if (!ownerSetupTokenMatches(String(setupToken || ""))) {
+      await audit(db, "OWNER SETUP FAILED", "anonymous", "invalid setup token");
+      res.status(403).json({ ok: false, error: "Invalid setup token." }); return;
+    }
+    if (!validStaffPassword(String(password || ""))) { res.status(400).json({ ok: false, error: "Password must be at least 8 characters with letters and numbers." }); return; }
+    if (confirmPassword != null && confirmPassword !== password) { res.status(400).json({ ok: false, error: "Passwords do not match." }); return; }
+    const owner = await ownerStaffRow(db);
+    if (!owner) { res.status(500).json({ ok: false, error: "Owner staff record not found." }); return; }
+    const secret = newTotpSecret();
+    await db.update(s.staff).set({ passwordHash: hashPassword(String(password)), totpSecret: secret, totpEnabled: false, mustResetPassword: true }).where(eq(s.staff.id, owner.id));
+    await audit(db, "Owner setup started", `staff:${owner.name} <${owner.email}>`, "password set, authenticator secret issued (TOTP not verified yet)");
+    // The secret is returned ONCE, here, for the setup page to display.
+    // It is never logged and never returned by any other endpoint.
+    res.json({ ok: true, ownerName: owner.name, ownerEmail: owner.email, totpSecret: secret, totpSecretDisplay: totpSecretDisplay(secret), otpauthUrl: totpAuthUrl(secret, owner.email), next: "Enter the 6-digit code from your authenticator app to finish setup." });
+  });
+
+  a("ownerSetupVerify", async (req, res, db) => {
+    if (rateLimited("owner-setup:ip:" + clientIp(req), 5, 60 * 60 * 1000)) { res.status(429).json(rateLimitBody()); return; }
+    if (await ownerSetupDone(db)) { res.status(410).json({ ok: false, error: "Owner setup is already complete. Sign in at /admin." }); return; }
+    const { setupToken, totpCode } = req.body || {};
+    if (!ownerSetupTokenMatches(String(setupToken || ""))) { res.status(403).json({ ok: false, error: "Invalid setup token." }); return; }
+    const owner = await ownerStaffRow(db);
+    if (!owner || !owner.totpSecret) { res.status(400).json({ ok: false, error: "Run step 1 of setup first (set your password to get an authenticator secret)." }); return; }
+    if (!verifyTotp(owner.totpSecret, String(totpCode || ""))) {
+      await audit(db, "OWNER SETUP FAILED", `staff:${owner.name} <${owner.email}>`, "wrong authenticator code");
+      res.status(400).json({ ok: false, error: "Incorrect authenticator code — check the code in your authenticator app and try again." }); return;
+    }
+    await db.update(s.staff).set({ totpEnabled: true, mustResetPassword: false, role: OWNER_ROLE, status: "Active" }).where(eq(s.staff.id, owner.id));
+    await db.insert(s.settings).values({ key: "ownerSetupDone", value: "true" }).onConflictDoUpdate({ target: s.settings.key, set: { value: "true" } });
+    await audit(db, "Owner setup complete", `staff:${owner.name} <${owner.email}> (Owner)`, "TOTP verified; owner account activated");
+    const token = await createStaffSession(db, owner.id);
+    setStaffCookie(req, res, token);
+    res.json({ ok: true, staff: publicStaffRow({ ...owner, role: OWNER_ROLE, totpEnabled: true }) });
+  });
+
+  // ---- Staff sign-in / sessions ----
+  a("loginStaff", async (req, res, db) => {
+    const { email, password, totpCode } = req.body || {};
+    const emailKey = String(email || "").trim().toLowerCase();
+    // B16: 5 attempts / 15 min per IP and per account, then 429.
+    if (rateLimited("staff-login:ip:" + clientIp(req), 5, 15 * 60 * 1000) || (emailKey && rateLimited("staff-login:email:" + emailKey, 5, 15 * 60 * 1000))) {
+      await audit(db, "STAFF LOGIN RATE LIMITED", emailKey || "anonymous", `staff login attempts exceeded for ${emailKey || clientIp(req)}`);
+      res.status(429).json(rateLimitBody()); return;
+    }
+    const st = (await db.select().from(s.staff).where(sql`lower(${s.staff.email}) = lower(${emailKey})`))[0];
+    if (!st || st.status !== "Active") {
+      await audit(db, "STAFF LOGIN FAILED", emailKey || "anonymous", "unknown or inactive staff email");
+      res.status(401).json({ ok: false, error: "Incorrect email or password." }); return;
+    }
+    if (!st.passwordHash) {
+      await audit(db, "STAFF LOGIN FAILED", st.email, "staff account not activated yet");
+      res.status(401).json({ ok: false, error: "This staff account has no password yet — ask the owner to activate it.", mustSetup: true }); return;
+    }
+    if (!verifyPassword(String(password || ""), st.passwordHash)) {
+      await audit(db, "STAFF LOGIN FAILED", st.email, "incorrect password");
+      res.status(401).json({ ok: false, error: "Incorrect email or password." }); return;
+    }
+    if (st.totpEnabled) {
+      if (!totpCode) { res.json({ ok: false, totpRequired: true, error: "Enter the 6-digit code from your authenticator app." }); return; }
+      if (!st.totpSecret || !verifyTotp(st.totpSecret, String(totpCode))) {
+        await audit(db, "STAFF LOGIN FAILED", st.email, "incorrect authenticator code");
+        res.status(401).json({ ok: false, error: "Incorrect authenticator code." }); return;
+      }
+    } else {
+      // Password is right but TOTP was never enrolled: issue the secret
+      // once here and require enrolment before any session is created.
+      const secret = st.totpSecret || newTotpSecret();
+      if (!st.totpSecret) await db.update(s.staff).set({ totpSecret: secret }).where(eq(s.staff.id, st.id));
+      res.json({ ok: false, totpSetupRequired: true, totpSecret: secret, totpSecretDisplay: totpSecretDisplay(secret), otpauthUrl: totpAuthUrl(secret, st.email), error: "Authenticator setup required — add this key to your authenticator app, then enter the 6-digit code." });
+      return;
+    }
+    const token = await createStaffSession(db, st.id);
+    setStaffCookie(req, res, token);
+    await audit(db, "Staff signed in", `staff:${st.name} <${st.email}> (${st.role})`, "TOTP verified");
+    res.json({ ok: true, staff: { ...publicStaffRow(st), totpEnabled: true } });
+  });
+
+  a("staffTotpVerify", async (req, res, db) => {
+    const { email, password, totpCode } = req.body || {};
+    const st = (await db.select().from(s.staff).where(sql`lower(${s.staff.email}) = lower(${String(email || "").trim().toLowerCase()})`))[0];
+    if (!st || !st.passwordHash || !verifyPassword(String(password || ""), st.passwordHash)) { res.status(401).json({ ok: false, error: "Incorrect email or password." }); return; }
+    if (!st.totpSecret || !verifyTotp(st.totpSecret, String(totpCode || ""))) { res.status(400).json({ ok: false, error: "Incorrect authenticator code." }); return; }
+    await db.update(s.staff).set({ totpEnabled: true, mustResetPassword: false }).where(eq(s.staff.id, st.id));
+    const token = await createStaffSession(db, st.id);
+    setStaffCookie(req, res, token);
+    await audit(db, "Staff authenticator enrolled", `staff:${st.name} <${st.email}> (${st.role})`, "TOTP verified on first sign-in");
+    res.json({ ok: true, staff: { ...publicStaffRow(st), totpEnabled: true } });
+  });
+
+  a("getStaffSession", async (req, res) => {
+    const st = (req as any).staff;
+    if (!st) { res.json({ ok: true, authenticated: false }); return; }
+    res.json({ ok: true, authenticated: true, staff: { ...publicStaffRow(st), totpEnabled: !!st.totpEnabled } });
+  });
+
+  a("logoutStaff", async (req, res, db) => {
+    const sess = staffSession(req);
+    if (sess) await db.delete(s.staffSessions).where(eq(s.staffSessions.id, sess.id));
+    clearStaffCookie(res);
+    res.json({ ok: true });
+  });
+
+  // B17 (staff side): sign out everywhere — revokes ALL staff sessions.
+  a("logoutStaffEverywhere", async (req, res, db) => {
+    const st = (req as any).staff;
+    if (!st) { res.status(401).json({ ok: false, error: "Staff sign-in required." }); return; }
+    await db.delete(s.staffSessions).where(eq(s.staffSessions.staffId, st.id));
+    clearStaffCookie(res);
+    await audit(db, "Staff signed out everywhere", `staff:${st.name} <${st.email}> (${st.role})`, "all staff sessions revoked");
+    res.json({ ok: true, note: "Signed out on all devices." });
+  });
+
+  a("changeStaffPassword", async (req, res, db) => {
+    const st = (req as any).staff;
+    if (!st) { res.status(401).json({ ok: false, error: "Staff sign-in required." }); return; }
+    const { currentPassword, newPassword, confirmNewPassword } = req.body || {};
+    if (!st.passwordHash || !verifyPassword(String(currentPassword || ""), st.passwordHash)) { res.status(400).json({ ok: false, error: "Current password is incorrect." }); return; }
+    if (!validStaffPassword(String(newPassword || ""))) { res.status(400).json({ ok: false, error: "New password must be at least 8 characters with letters and numbers." }); return; }
+    if (confirmNewPassword != null && confirmNewPassword !== newPassword) { res.status(400).json({ ok: false, error: "New passwords do not match." }); return; }
+    await db.update(s.staff).set({ passwordHash: hashPassword(String(newPassword)), mustResetPassword: false }).where(eq(s.staff.id, st.id));
+    // B17: revoke every OTHER staff session (this device stays signed in).
+    const sess = staffSession(req);
+    if (sess) await db.delete(s.staffSessions).where(and(eq(s.staffSessions.staffId, st.id), ne(s.staffSessions.tokenHash, sess.tokenHash)));
+    else await db.delete(s.staffSessions).where(eq(s.staffSessions.staffId, st.id));
+    await audit(db, "Staff password changed", `staff:${st.name} <${st.email}> (${st.role})`, "other sessions revoked");
+    res.json({ ok: true });
+  });
+
+  // Fresh password (+ authenticator code if TOTP is on) confirmation for
+  // destructive actions. Valid for 10 minutes on this session.
+  a("staffReauth", async (req, res, db) => {
+    const st = (req as any).staff;
+    const sess = staffSession(req);
+    if (!st || !sess) { res.status(401).json({ ok: false, error: "Staff sign-in required." }); return; }
+    const { password, totpCode } = req.body || {};
+    if (!st.passwordHash || !verifyPassword(String(password || ""), st.passwordHash)) { res.status(400).json({ ok: false, error: "Incorrect password." }); return; }
+    if (st.totpEnabled && (!st.totpSecret || !verifyTotp(st.totpSecret, String(totpCode || "")))) { res.status(400).json({ ok: false, error: "Incorrect authenticator code." }); return; }
+    await db.update(s.staffSessions).set({ reauthAt: Date.now() }).where(eq(s.staffSessions.id, sess.id));
+    res.json({ ok: true, note: "Confirmed — destructive actions are unlocked for 10 minutes." });
+  });
+
+  // Owner activates a staff account: creates a one-time setup token (24 h)
+  // the owner passes to the staff member out of band (e.g. WhatsApp).
+  // The staff member then completes setup at /staff/setup. Owner and
+  // Super Admin only — a lower role cannot activate accounts.
+  a("createStaffSetupToken", async (req, res, db) => {
+    const caller = (req as any).staff;
+    if (caller.role !== OWNER_ROLE && caller.role !== "Super Admin") { res.status(403).json({ ok: false, error: "Only the Owner or Super Admin can activate staff accounts." }); return; }
+    const target = (await db.select().from(s.staff).where(eq(s.staff.id, Number(req.body?.staffId))))[0];
+    if (!target) { res.status(404).json({ ok: false, error: "Staff member not found." }); return; }
+    const { token, tokenHash } = newResetToken();
+    await db.update(s.staff).set({ setupTokenHash: tokenHash, setupExpiresAt: Date.now() + 24 * 60 * 60 * 1000 }).where(eq(s.staff.id, target.id));
+    await audit(db, "Staff setup token issued", staffRoleLabel(req), `for ${target.name} <${target.email}> (24 h)`);
+    // Returned ONCE — the owner passes it to the staff member out of band.
+    res.json({ ok: true, staffId: target.id, email: target.email, setupToken: token, expiresInHours: 24, next: "Send this token to the staff member (e.g. WhatsApp). They complete setup at /staff/setup — it is shown once and never stored in plain text." });
+  }, { area: "staff" });
+
+  a("staffSetup", async (req, res, db) => {
+    if (rateLimited("staff-setup:ip:" + clientIp(req), 5, 60 * 60 * 1000)) { res.status(429).json(rateLimitBody()); return; }
+    const { email, setupToken, password, confirmPassword } = req.body || {};
+    const st = (await db.select().from(s.staff).where(sql`lower(${s.staff.email}) = lower(${String(email || "").trim().toLowerCase()})`))[0];
+    if (!st || !st.setupTokenHash || st.setupTokenHash !== crypto.createHash("sha256").update(String(setupToken || "")).digest("hex") || !st.setupExpiresAt || st.setupExpiresAt < Date.now()) {
+      res.status(400).json({ ok: false, error: "This setup token is invalid or expired — ask the owner for a new one." }); return;
+    }
+    if (!validStaffPassword(String(password || ""))) { res.status(400).json({ ok: false, error: "Password must be at least 8 characters with letters and numbers." }); return; }
+    if (confirmPassword != null && confirmPassword !== password) { res.status(400).json({ ok: false, error: "Passwords do not match." }); return; }
+    const secret = newTotpSecret();
+    await db.update(s.staff).set({ passwordHash: hashPassword(String(password)), totpSecret: secret, totpEnabled: false, mustResetPassword: true }).where(eq(s.staff.id, st.id));
+    await audit(db, "Staff setup started", `staff:${st.name} <${st.email}> (${st.role})`, "password set, authenticator secret issued (TOTP not verified yet)");
+    res.json({ ok: true, name: st.name, email: st.email, totpSecret: secret, totpSecretDisplay: totpSecretDisplay(secret), otpauthUrl: totpAuthUrl(secret, st.email), next: "Enter the 6-digit code from your authenticator app to finish setup." });
+  });
+
+  a("staffSetupVerify", async (req, res, db) => {
+    const { email, setupToken, totpCode } = req.body || {};
+    const st = (await db.select().from(s.staff).where(sql`lower(${s.staff.email}) = lower(${String(email || "").trim().toLowerCase()})`))[0];
+    if (!st || !st.setupTokenHash || st.setupTokenHash !== crypto.createHash("sha256").update(String(setupToken || "")).digest("hex") || !st.setupExpiresAt || st.setupExpiresAt < Date.now()) {
+      res.status(400).json({ ok: false, error: "This setup token is invalid or expired — ask the owner for a new one." }); return;
+    }
+    if (!st.totpSecret || !verifyTotp(st.totpSecret, String(totpCode || ""))) { res.status(400).json({ ok: false, error: "Incorrect authenticator code." }); return; }
+    await db.update(s.staff).set({ totpEnabled: true, mustResetPassword: false, setupTokenHash: null, setupExpiresAt: null }).where(eq(s.staff.id, st.id));
+    const token = await createStaffSession(db, st.id);
+    setStaffCookie(req, res, token);
+    await audit(db, "Staff setup complete", `staff:${st.name} <${st.email}> (${st.role})`, "TOTP verified; account activated");
+    res.json({ ok: true, staff: { ...publicStaffRow(st), totpEnabled: true } });
+  });
+
+  // Owner-assisted staff password reset (Owner / Super Admin only): clears
+  // the password + TOTP and issues a fresh one-time setup token (24 h).
+  // All of the member's sessions are revoked. There is no self-service
+  // staff reset — the owner is the recovery path.
+  a("resetStaffPassword", async (req, res, db) => {
+    const caller = (req as any).staff;
+    if (caller.role !== OWNER_ROLE && caller.role !== "Super Admin") { res.status(403).json({ ok: false, error: "Only the Owner or Super Admin can reset staff passwords." }); return; }
+    const target = (await db.select().from(s.staff).where(eq(s.staff.id, Number(req.body?.staffId))))[0];
+    if (!target) { res.status(404).json({ ok: false, error: "Staff member not found." }); return; }
+    if (target.id === caller.id) { res.status(400).json({ ok: false, error: "Use Change Password for your own account." }); return; }
+    const { token, tokenHash } = newResetToken();
+    await db.update(s.staff).set({ passwordHash: null, totpSecret: null, totpEnabled: false, mustResetPassword: true, setupTokenHash: tokenHash, setupExpiresAt: Date.now() + 24 * 60 * 60 * 1000 }).where(eq(s.staff.id, target.id));
+    await db.delete(s.staffSessions).where(eq(s.staffSessions.staffId, target.id));
+    await audit(db, "Staff password reset by owner", staffRoleLabel(req), `for ${target.name} <${target.email}> — all sessions revoked, fresh setup token issued (24 h)`);
+    res.json({ ok: true, staffId: target.id, email: target.email, setupToken: token, expiresInHours: 24, next: "Send this token to the staff member (e.g. WhatsApp). They complete setup at /staff/setup." });
+  }, { area: "staff" });
+
+  // CUSTOMER PASSWORD-RESET DECISION (Phase 2, B4): with no email provider,
+  // self-service reset cannot deliver a token, so it stays DISABLED as a
+  // delivery channel (requestPasswordReset returns a generic note and
+  // never a token — A2). The working path is OWNER-ASSISTED reset: the
+  // owner (staff area "customers") creates a one-time token here, passes
+  // it to the customer out of band (e.g. WhatsApp), and the customer
+  // completes it via the normal resetPassword endpoint (30-min expiry,
+  // burned on use, all sessions revoked). No email provider is invented.
+  a("adminResetCustomerPassword", async (req, res, db) => {
+    const { customerId, email } = req.body || {};
+    const cust = customerId
+      ? (await db.select().from(s.customers).where(eq(s.customers.id, Number(customerId))))[0]
+      : (await db.select().from(s.customers).where(sql`lower(${s.customers.email}) = lower(${String(email || "").trim().toLowerCase()})`))[0];
+    if (!cust) { res.status(404).json({ ok: false, error: "Customer not found." }); return; }
+    const { token, tokenHash } = newResetToken();
+    await db.update(s.customers).set({ resetTokenHash: tokenHash, resetExpiresAt: Date.now() + RESET_TOKEN_TTL_MS }).where(eq(s.customers.id, cust.id));
+    await audit(db, "Customer password reset token issued (owner-assisted)", staffRoleLabel(req), `for ${cust.email} (30 min)`);
+    // Returned ONCE to the staff caller — the owner passes it to the
+    // customer out of band. It is never emailed and never logged.
+    res.json({ ok: true, customerId: cust.id, email: cust.email, resetToken: token, expiresInMinutes: 30, next: "Send this token to the customer (e.g. WhatsApp). They use it once at Sign In → Forgot password, within 30 minutes." });
+  }, { area: "customers" });
+
+  // B17: sign out everywhere for customers — revokes ALL customer sessions.
+  a("logoutCustomerEverywhere", async (req, res, db) => {
+    const cust = await requireCustomer(db, req, res); if (!cust) return;
+    await db.delete(s.customerSessions).where(eq(s.customerSessions.customerId, cust.id));
+    await audit(db, "Customer signed out everywhere", cust.email, "all customer sessions revoked");
+    res.json({ ok: true, note: "Signed out on all devices." });
+  });
+
+  // B17: purge expired sessions (customer + staff). Safe to call anytime.
+  a("purgeExpiredSessions", async (_req, res, db) => {
+    const now = Date.now();
+    const c = await db.delete(s.customerSessions).where(lt(s.customerSessions.expiresAt, now)).returning({ id: s.customerSessions.id });
+    const st = await db.delete(s.staffSessions).where(lt(s.staffSessions.expiresAt, now)).returning({ id: s.staffSessions.id });
+    res.json({ ok: true, purgedCustomerSessions: c.length, purgedStaffSessions: st.length });
+  }, { area: "settings" });
 
   a("requestAccountDeletion", async (req, res, db) => {
     const cust = await requireCustomer(db, req, res); if (!cust) return;
@@ -968,7 +1416,12 @@ export function registerApi(app: Express) {
     res.json({ ok: true, discrepancies, decision: "PENDING — owner must choose correctLegacyReturn or markLegacyReturns per return (staff 'refunds' area + ownerApproved:true required). Until decided, both rows are seeded exactly as exported." });
   }, { area: "refunds" });
 
+  // B21: staff auth (refunds area, via the wrapper) + a FRESH password +
+  // authenticator re-confirmation (destructive: rewrites a return row).
+  // The body flag is only an extra confirmation now, not the authorisation.
+  // The audit log records the REAL acting staff identity, not "Owner".
   a("correctLegacyReturn", async (req, res, db) => {
+    if (!await requireStaffReauth(db, req, res, "correctLegacyReturn")) return;
     if (!req.body?.ownerApproved) { res.status(403).json({ ok: false, error: "ownerApproved:true is required — this is an owner-gated treatment." }); return; }
     const ret = (await db.select().from(s.returns).where(eq(s.returns.returnNumber, String(req.body?.returnNumber || "RET-DEMO-001"))))[0];
     if (!ret) { res.status(404).json({ ok: false, error: "Return not found." }); return; }
@@ -981,6 +1434,7 @@ export function registerApi(app: Express) {
   }, { area: "refunds" });
 
   a("markLegacyReturns", async (req, res, db) => {
+    if (!await requireStaffReauth(db, req, res, "markLegacyReturns")) return;
     if (!req.body?.ownerApproved) { res.status(403).json({ ok: false, error: "ownerApproved:true is required — this is an owner-gated treatment." }); return; }
     const nums: string[] = req.body?.returnNumbers || ["RET-DEMO-001", "RET-DEMO-002"];
     for (const n of nums) {
@@ -990,7 +1444,10 @@ export function registerApi(app: Express) {
     res.json({ ok: true, marked: nums });
   }, { area: "refunds" });
 
-  a("cleanupInvalidReturns", async (_req, res, db) => {
+  a("cleanupInvalidReturns", async (req, res, db) => {
+    // Destructive (deletes rows): needs a fresh re-auth, like the other
+    // legacy corrections.
+    if (!await requireStaffReauth(db, req, res, "cleanupInvalidReturns")) return;
     // Removes invalid returns (refund <= 0 or order missing) but preserves
     // legacy-flagged rows.
     const rows = await db.select().from(s.returns);
@@ -1126,14 +1583,24 @@ export function registerApi(app: Express) {
 
   a("listStaff", async (_req, res, db) => {
     const rows = await db.select().from(s.staff).orderBy(asc(s.staff.id));
-    res.json({ ok: true, staff: rows });
+    res.json({ ok: true, staff: rows.map(publicStaffRow) });
   }, { area: "staff" });
   a("saveStaff", async (req, res, db) => {
     const b = req.body || {};
+    const caller = (req as any).staff;
+    // Only the Owner can grant the Owner role (or take it away).
+    if (b.role === OWNER_ROLE && caller.role !== OWNER_ROLE) { res.status(403).json({ ok: false, error: "Only the Owner can grant the Owner role." }); return; }
+    if (b.id) {
+      const existing = (await db.select().from(s.staff).where(eq(s.staff.id, b.id)))[0];
+      if (existing && existing.role === OWNER_ROLE && b.role !== OWNER_ROLE && caller.role !== OWNER_ROLE) { res.status(403).json({ ok: false, error: "Only the Owner can change the Owner's role." }); return; }
+    }
+    // New staff rows start with NO usable password and TOTP off — the
+    // owner activates them with a one-time setup token (createStaffSetupToken).
     let row;
     if (b.id) { await db.update(s.staff).set({ name: b.name, email: b.email, role: b.role, department: b.department ?? "", status: b.status ?? "Active" }).where(eq(s.staff.id, b.id)); row = (await db.select().from(s.staff).where(eq(s.staff.id, b.id)))[0]; }
     else row = (await db.insert(s.staff).values({ name: b.name, email: b.email, role: b.role, department: b.department ?? "", status: b.status ?? "Active" }).returning())[0];
-    res.json({ ok: true, staff: row });
+    await audit(db, "Staff saved", staffRoleLabel(req), `${row.name} <${row.email}> (${row.role})`);
+    res.json({ ok: true, staff: publicStaffRow(row) });
   }, { area: "staff" });
 
   a("listAudit", async (req, res, db) => {

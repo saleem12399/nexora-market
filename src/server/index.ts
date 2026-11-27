@@ -64,6 +64,8 @@ app.get("/product/:id", async (req, res) => {
 });
 
 app.get("/cart", (_req, res) => res.send(views.cartView()));
+app.get("/admin/setup", (_req, res) => res.send(views.ownerSetupView()));
+app.get("/staff/setup", (_req, res) => res.send(views.staffSetupView()));
 app.get("/checkout", (req, res) => {
   const step = Math.min(7, Math.max(1, Number(req.query.step || 1)));
   res.send(views.checkoutView(step));

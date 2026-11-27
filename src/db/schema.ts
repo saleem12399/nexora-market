@@ -30,6 +30,31 @@ export const staff = pgTable("staff", {
   role: text("role").notNull(),
   department: text("department").notNull().default(""),
   status: text("status").notNull().default("Active"),
+  // Phase 2 — real staff auth. passwordHash NULL = account not activated
+  // yet (no usable password until the owner activates it via a one-time
+  // setup token, or the staff member completes staff setup). TOTP is
+  // mandatory for the Owner and for every activated staff account.
+  passwordHash: text("password_hash"),
+  totpSecret: text("totp_secret"),
+  totpEnabled: boolean("totp_enabled").notNull().default(false),
+  mustResetPassword: boolean("must_reset_password").notNull().default(true),
+  setupTokenHash: text("setup_token_hash"),
+  setupExpiresAt: bigint("setup_expires_at", { mode: "number" }),
+});
+
+// Phase 2 — staff sessions (server-issued, stored only as SHA-256 hash).
+// Issued as an HttpOnly cookie (nx_staff_token) on staff sign-in; the
+// Bearer form of the same token is accepted for API/curl use.
+export const staffSessions = pgTable("staff_sessions", {
+  id: serial("id").primaryKey(),
+  staffId: integer("staff_id").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+  // Last password+TOTP re-authentication (for destructive actions:
+  // legacy-return correction, invalid-return cleanup, cancelled-order
+  // purge). NULL = never re-authenticated in this session.
+  reauthAt: bigint("reauth_at", { mode: "number" }),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
 export const sellers = pgTable("sellers", {
@@ -61,6 +86,10 @@ export const products = pgTable("products", {
   sellerName: text("seller_name").notNull().default("NEXORA MARKET — Official Store"),
   isFlash: boolean("is_flash").notNull().default(false),
   isFeatured: boolean("is_featured").notNull().default(false),
+  // Phase 2 (B7): real arrival date. Backfilled from seed order (staggered
+  // by id, so the highest id is newest initially); new products get the
+  // creation time. New Arrivals + /shop?sort=newest sort by this, not id.
+  publishedAt: bigint("published_at", { mode: "number" }),
   colors: text("colors").notNull().default(""),
   sizes: text("sizes").notNull().default(""),
   specs: text("specs").notNull().default(""),
@@ -197,6 +226,9 @@ export const notifications = pgTable("notifications", {
   body: text("body").notNull().default(""),
   type: text("type").notNull().default(""),
   isRead: boolean("is_read").notNull().default(false),
+  // Phase 2 (B19): owning customer, NULL = system-wide admin notice
+  // (visible only in the staff global view, never to customers).
+  customerId: integer("customer_id"),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
@@ -227,6 +259,10 @@ export const customers = pgTable("customers", {
   deletionRequested: boolean("deletion_requested").notNull().default(false),
   resetTokenHash: text("reset_token_hash"),
   resetExpiresAt: bigint("reset_expires_at", { mode: "number" }),
+  // Phase 2 (B14): notification preferences as a JSON string, e.g.
+  // {"orderUpdates":true,"supportReplies":true,"offers":false}. Empty =
+  // all on (the default).
+  notifPrefs: text("notif_prefs").notNull().default(""),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 

@@ -5,8 +5,9 @@
 //
 // Customer passwords: the export contains NO hash values (PBKDF2 format
 // only). Customers are seeded with passwordHash NULL and
-// mustResetPassword=true; the owner sets passwords via the reset flow after
-// first deploy. NEVER invent or default a password.
+// mustResetPassword=true; the owner sets passwords (owner-assisted reset;
+// self-service reset by email is unavailable — no email provider is
+// connected). NEVER invent or default a password.
 //
 // Owner's order NX-DEMO-98524600 (id 12, Rs 23,463, COD Pending) is seeded
 // unchanged — no step writes to existing orders.
@@ -369,9 +370,9 @@ export async function runSeed(force = false): Promise<void> {
   await db.execute(sql.raw(`DELETE FROM sellers`));
   await db.execute(sql.raw(`DELETE FROM payouts`));
   await db.execute(sql.raw(`UPDATE products SET seller_id = 0, seller_name = 'NEXORA MARKET — Official Store'`));
-  await setSequences(db, ["categories","staff","products","orders","order_items","order_events","cart_items","wishlist_items","tickets","returns","reviews","questions","notifications","coupons","customers","product_images","customer_sessions","customer_addresses","inventory_movements","payment_transactions","shipments","audit_logs","demo_merchants","hero_banners","home_collections","home_sections","saved_searches"]);
+  await setSequences(db, ["categories","staff","staff_sessions","products","orders","order_items","order_events","cart_items","wishlist_items","tickets","returns","reviews","questions","notifications","coupons","customers","product_images","customer_sessions","customer_addresses","inventory_movements","payment_transactions","shipments","audit_logs","demo_merchants","hero_banners","home_collections","home_sections","saved_searches"]);
   console.log("Seed complete:", JSON.stringify(d.counts));
-  console.log("Customers seeded with NO usable password (passwordHash NULL, mustResetPassword=true). Owner sets passwords via the reset flow — see README.");
+  console.log("Customers seeded with NO usable password (passwordHash NULL, mustResetPassword=true). Owner sets passwords (owner-assisted; no email provider) — see README.");
 }
 
 async function main() {

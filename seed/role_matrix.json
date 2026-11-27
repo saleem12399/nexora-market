@@ -1,1 +1,121 @@
-{"areas":["products","inventory","orders","payments","refunds","shipments","customers","returns","staff","settings","reports"],"exportedAt":"2026-11-26T13:56:42+05:00","roles":[{"permissions":["products","inventory","orders","payments","refunds","shipments","customers","returns","staff","settings","reports"],"role":"Super Admin"},{"permissions":["products","inventory","orders","payments","refunds","shipments","customers","returns","staff","settings","reports"],"role":"Admin"},{"permissions":["products","reports"],"role":"Product Manager"},{"permissions":["inventory","reports"],"role":"Inventory Manager"},{"permissions":["orders","shipments","returns","reports"],"role":"Order Manager"},{"permissions":["payments","refunds","reports"],"role":"Finance Officer"},{"permissions":["customers","returns","reports"],"role":"Customer Support Agent"},{"permissions":["inventory","shipments"],"role":"Warehouse Staff"},{"permissions":["orders","shipments","reports"],"role":"Delivery Manager"}],"source":"nexora-market getrolematrix"}
+{
+  "areas": [
+    "products",
+    "inventory",
+    "orders",
+    "payments",
+    "refunds",
+    "shipments",
+    "customers",
+    "returns",
+    "staff",
+    "settings",
+    "reports"
+  ],
+  "exportedAt": "2026-11-26T13:56:42+05:00",
+  "roles": [
+    {
+      "role": "Owner",
+      "permissions": [
+        "products",
+        "inventory",
+        "orders",
+        "payments",
+        "refunds",
+        "shipments",
+        "customers",
+        "returns",
+        "staff",
+        "settings",
+        "reports"
+      ]
+    },
+    {
+      "permissions": [
+        "products",
+        "inventory",
+        "orders",
+        "payments",
+        "refunds",
+        "shipments",
+        "customers",
+        "returns",
+        "staff",
+        "settings",
+        "reports"
+      ],
+      "role": "Super Admin"
+    },
+    {
+      "permissions": [
+        "products",
+        "inventory",
+        "orders",
+        "payments",
+        "refunds",
+        "shipments",
+        "customers",
+        "returns",
+        "staff",
+        "settings",
+        "reports"
+      ],
+      "role": "Admin"
+    },
+    {
+      "permissions": [
+        "products",
+        "reports"
+      ],
+      "role": "Product Manager"
+    },
+    {
+      "permissions": [
+        "inventory",
+        "reports"
+      ],
+      "role": "Inventory Manager"
+    },
+    {
+      "permissions": [
+        "orders",
+        "shipments",
+        "returns",
+        "reports"
+      ],
+      "role": "Order Manager"
+    },
+    {
+      "permissions": [
+        "payments",
+        "refunds",
+        "reports"
+      ],
+      "role": "Finance Officer"
+    },
+    {
+      "permissions": [
+        "customers",
+        "returns",
+        "reports"
+      ],
+      "role": "Customer Support Agent"
+    },
+    {
+      "permissions": [
+        "inventory",
+        "shipments"
+      ],
+      "role": "Warehouse Staff"
+    },
+    {
+      "permissions": [
+        "orders",
+        "shipments",
+        "reports"
+      ],
+      "role": "Delivery Manager"
+    }
+  ],
+  "source": "nexora-market getrolematrix"
+}

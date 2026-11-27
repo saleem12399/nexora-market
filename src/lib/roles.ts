@@ -1,12 +1,19 @@
-// Role matrix — verbatim from seed/role_matrix.json (9 roles x 11 areas).
+// Role matrix — verbatim from seed/role_matrix.json (10 roles x 11 areas).
 // Server-side enforcement: requirePermission(area, role) throws on denial;
 // callers audit-log "PERMISSION DENIED".
+// "Owner" is the store owner (Saleem) — the top role, same areas as Super
+// Admin. It exists as a distinct role so the owner account is identifiable
+// in audit logs and so owner-only actions (staff activation, legacy-return
+// confirmation) can require it explicitly.
 
 import { ROLE_AREAS } from "./constants";
 
 export type RoleArea = (typeof ROLE_AREAS)[number];
 
+export const OWNER_ROLE = "Owner";
+
 export const ROLE_MATRIX: Record<string, RoleArea[]> = {
+  Owner: ["products", "inventory", "orders", "payments", "refunds", "shipments", "customers", "returns", "staff", "settings", "reports"],
   "Super Admin": ["products", "inventory", "orders", "payments", "refunds", "shipments", "customers", "returns", "staff", "settings", "reports"],
   Admin: ["products", "inventory", "orders", "payments", "refunds", "shipments", "customers", "returns", "staff", "settings", "reports"],
   "Product Manager": ["products", "reports"],
@@ -37,7 +44,7 @@ export function requirePermission(role: string, area: RoleArea): void {
   if (!roleCan(role, area)) throw new PermissionDeniedError(role, area);
 }
 
-/** Self-test: all 99 role x area checks, as runRoleSelfTest does. */
+/** Self-test: all 110 role x area checks, as runRoleSelfTest does. */
 export function runRoleSelfTest(): { allowed: number; denied: number; checks: { role: string; area: RoleArea; allowed: boolean }[] } {
   const checks: { role: string; area: RoleArea; allowed: boolean }[] = [];
   let allowed = 0;

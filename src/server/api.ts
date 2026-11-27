@@ -211,7 +211,12 @@ async function requireCustomer(db: Db, req: Request, res: Response) {
   return c;
 }
 
-function imageUrlOf(img: any): string {
+export function imageUrlOf(img: any): string {
+  // B20: uploaded images are stored as data URIs in blob_url (the
+  // Vercel serverless filesystem is read-only, so no file is ever written
+  // at runtime); sample images are static files under public/images.
+  const blob: string = img.blobUrl || "";
+  if (blob.startsWith("data:image/")) return blob;
   // Serve stored bytes from public/images (storageKey is storage-relative).
   const key: string = img.storageKey || "";
   const file = key.split("/").pop() || "";
@@ -687,15 +692,19 @@ export function registerApi(app: Express) {
     if (mime && !["image/jpeg", "image/png", "image/webp"].includes(mime)) { res.status(400).json({ ok: false, error: "Only JPEG/PNG/WebP images are accepted." }); return; }
     const prod = (await db.select().from(s.products).where(eq(s.products.id, Number(productId))))[0];
     if (!prod) { res.status(404).json({ ok: false, error: "Product not found." }); return; }
-    const fs = await import("node:fs");
+    // B20 fix: the Vercel serverless filesystem is READ-ONLY (only /tmp is
+    // writable, and it is ephemeral per instance), so the old
+    // fs.writeFileSync into public/images/products threw on every live
+    // upload (HTTP 500). Store the bytes as a data URI in
+    // product_images.blob_url (text — no migration needed) and serve it
+    // via imageUrlOf(), which prefers a data: blobUrl. The 2 MB cap above
+    // bounds the row size. Sample images stay static files.
+    const dataUri = `data:image/${kind === "jpeg" ? "jpeg" : kind};base64,${buf.toString("base64")}`;
     const ext = kind === "jpeg" ? "jpg" : kind;
     const name = `${Date.now()}-${(fileName || "upload").replace(/[^a-zA-Z0-9._-]/g, "_")}.${ext}`;
-    const dir = path.resolve(__dirname, "../../public/images/products");
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, name), buf);
-    const storageKey = `product-images/${prod.id}/${name}`;
-    const row = (await db.insert(s.productImages).values({ productId: prod.id, storageKey, blobUrl: "", fileName: name, sortOrder: 0, isSample: false }).returning())[0];
-    res.json({ ok: true, image: { ...row, url: `/images/products/${name}`, isSample: false } });
+    const storageKey = `db:${prod.id}/${name}`;
+    const row = (await db.insert(s.productImages).values({ productId: prod.id, storageKey, blobUrl: dataUri, fileName: name, sortOrder: 0, isSample: false }).returning())[0];
+    res.json({ ok: true, image: { ...row, url: imageUrlOf(row), isSample: false } });
   }, { area: "products" });
 
   a("listProductImages", async (req, res, db) => {

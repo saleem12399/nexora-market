@@ -10,7 +10,7 @@ import { checkDb, getDb, isDbConfigured } from "../db";
 import { getBootStatus } from "../db/boot-migrate";
 import * as s from "../db/schema";
 import { asc, desc, eq, inArray } from "drizzle-orm";
-import { callApiAction, productsWithImages, registerApi } from "./api";
+import { callApiAction, imageUrlOf, productsWithImages, registerApi } from "./api";
 import * as views from "./views";
 
 const app = express();
@@ -112,7 +112,7 @@ app.get("/product/:id", async (req, res) => {
   const p = (await db.select().from(s.products).where(eq(s.products.id, id)))[0];
   if (!p) { res.status(404).send(views.layout("Not found", "<p>Product not found.</p>")); return; }
   const imgs = await db.select().from(s.productImages).where(eq(s.productImages.productId, id)).orderBy(asc(s.productImages.sortOrder));
-  const full = { ...p, images: imgs.map((i: any) => ({ ...i, url: `/images/products/${(i.storageKey || "").split("/").pop()}` })) };
+  const full = { ...p, images: imgs.map((i: any) => ({ ...i, url: imageUrlOf(i) })) };
   const reviews = await db.select().from(s.reviews).where(eq(s.reviews.productId, id));
   const questions = await db.select().from(s.questions).where(eq(s.questions.productId, id));
   // D2: related products — same category, excluding self, 4 items.

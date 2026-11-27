@@ -10,8 +10,19 @@ function token() { return localStorage.getItem("nx_session_token") || ""; }
 async function api(name, body, opts) {
   const headers = { "content-type": "application/json" };
   if (token()) headers["authorization"] = "Bearer " + token();
-  const r = await fetch("/api/" + name, { method: "POST", headers, body: JSON.stringify(body || {}) });
-  return r.json();
+  // Opt-in timeout (opts.timeoutMs): AbortController so a stalled fetch can
+  // never hang a page forever. Callers that pass no timeout keep the old
+  // behaviour (long admin calls such as backup/restore are untouched).
+  const timeoutMs = opts && opts.timeoutMs;
+  let ctrl, timer;
+  if (timeoutMs) { ctrl = new AbortController(); timer = setTimeout(() => ctrl.abort(), timeoutMs); }
+  try {
+    const r = await fetch("/api/" + name, { method: "POST", headers, body: JSON.stringify(body || {}), signal: ctrl ? ctrl.signal : undefined });
+    return r.json();
+  } catch (e) {
+    if (e && e.name === "AbortError") throw new Error("Request timed out after " + Math.round(timeoutMs / 1000) + "s — please retry.");
+    throw e;
+  } finally { if (timer) clearTimeout(timer); }
 }
 function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; }
 function money(n) { return "Rs. " + Number(n || 0).toLocaleString("en-PK"); }
@@ -447,7 +458,7 @@ async function trackOrder(e) {
 async function loadAccount() {
   const root = document.getElementById("accountRoot"); if (!root) return;
   let r;
-  try { r = await api("getCustomer", {}); } catch (e) { root.innerHTML = loadErrorHtml("Network error: " + (e.message || e), "loadAccount()"); return; }
+  try { r = await api("getCustomer", {}, { timeoutMs: 15000 }); } catch (e) { root.innerHTML = loadErrorHtml("Network error: " + (e.message || e), "loadAccount()"); return; }
   if (!r.ok || !r.authenticated) {
     root.innerHTML = `<div class="dash"><h1>Welcome back!</h1><p class="muted">Please sign in to see your own orders — signed-out view shows no orders.</p>
 <p><a class="btn" href="/login">Sign In</a> <a class="btn ghost" href="/register">Register</a></p></div>`;
@@ -854,7 +865,7 @@ async function loadAdminAudit(offset, search) {
   const r = await api("listAudit", { limit: 50, offset, search: search || undefined });
   if (!r.ok) { root.innerHTML = "<p>" + esc(r.error || "Denied.") + "</p>"; return; }
   const total = r.total || 0, limit = r.limit || 50;
-  root.innerHTML = `<h2>Audit Log (${total})</h2><form onsubmit="return doAdminAuditSearch(event)"><label>Search <input id="aaSearch" value="${esc(search)}" placeholder="Action, actor or detail"></label><button class="btn small">Search</button></form><div class="tablewrap"><table><tr><th>#</th><th>Action</th><th>Actor</th><th>Detail</th></tr>${(r.logs || []).map((l) => `<tr><td>${l.id}</td><td>${esc(l.action)}</td><td>${esc(l.actor)}</td><td>${esc(l.detail)}</td></tr>`).join("")}</table></div><p>${offset > 0 ? `<button class="btn ghost small" onclick="loadAdminAudit(${Math.max(0, offset - limit)})">← Previous</button> ` : ""}${offset + (r.logs || []).length < total ? `<button class="btn ghost small" onclick="loadAdminAudit(${offset + limit)})">Next →</button>` : ""} <span class="note">Showing ${total ? offset + 1 : 0}–${offset + (r.logs || []).length} of ${total}</span></p>`;
+  root.innerHTML = `<h2>Audit Log (${total})</h2><form onsubmit="return doAdminAuditSearch(event)"><label>Search <input id="aaSearch" value="${esc(search)}" placeholder="Action, actor or detail"></label><button class="btn small">Search</button></form><div class="tablewrap"><table><tr><th>#</th><th>Action</th><th>Actor</th><th>Detail</th></tr>${(r.logs || []).map((l) => `<tr><td>${l.id}</td><td>${esc(l.action)}</td><td>${esc(l.actor)}</td><td>${esc(l.detail)}</td></tr>`).join("")}</table></div><p>${offset > 0 ? `<button class="btn ghost small" onclick="loadAdminAudit(${Math.max(0, offset - limit)})">← Previous</button> ` : ""}${offset + (r.logs || []).length < total ? `<button class="btn ghost small" onclick="loadAdminAudit(${offset + limit})">Next →</button>` : ""} <span class="note">Showing ${total ? offset + 1 : 0}–${offset + (r.logs || []).length} of ${total}</span></p>`;
 }
 function doAdminAuditSearch(e) { e.preventDefault(); loadAdminAudit(0, document.getElementById("aaSearch").value.trim()); return false; }
 // D13: backup export (download) + restore (Owner-only, re-auth, type RESTORE).
@@ -918,7 +929,7 @@ async function initAdmin() {
   const root = document.getElementById("adminRoot");
   const tabs = document.getElementById("adminTabs");
   let r;
-  try { r = await api("getStaffSession", {}); } catch (e) { root.innerHTML = loadErrorHtml("Network error: " + (e.message || e), "initAdmin()"); return; }
+  try { r = await api("getStaffSession", {}, { timeoutMs: 15000 }); } catch (e) { root.innerHTML = loadErrorHtml("Network error: " + (e.message || e), "initAdmin()"); return; }
   if (!r.authenticated) {
     staffSession = null;
     if (tabs) tabs.style.display = "none";
@@ -1012,10 +1023,24 @@ async function reauthAndRetry(name, body) {
 }
 
 // ---- Owner setup (/admin/setup) ----
+// FIX (2026-11-27): loadOwnerSetup used to call getOwnerSetupStatus with no
+// try/catch, no timeout and no error UI — if that one call hung (cold start
+// right after a deploy, or the single-connection pg pool busy) or threw,
+// the promise rejected unhandled and the page stayed on "Loading setup
+// status…" forever. Now: 15s timeout + ONE automatic retry, then a visible
+// error with a Retry button (same A5 pattern as loadCart/loadCheckout).
 let ownerSetupToken = "";
 async function loadOwnerSetup() {
   const root = document.getElementById("ownerSetupRoot");
-  const r = await api("getOwnerSetupStatus", {});
+  if (!root) return;
+  let r;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try { r = await api("getOwnerSetupStatus", {}, { timeoutMs: 15000 }); break; }
+    catch (e) {
+      if (attempt === 1) { root.innerHTML = loadErrorHtml("Could not reach the setup service: " + (e.message || e) + " (tried twice — this can happen on a cold start; please retry.)", "loadOwnerSetup()"); return; }
+    }
+  }
+  if (!r || typeof r.setupAvailable === "undefined") { root.innerHTML = loadErrorHtml("Setup service gave an unexpected reply. Please retry.", "loadOwnerSetup()"); return; }
   if (!r.setupAvailable) {
     root.innerHTML = `<h2>Owner setup is already complete</h2><p>The owner account is active. Sign in at <a href="/admin">Admin</a>.</p>`;
     return;
@@ -1033,7 +1058,9 @@ async function doOwnerSetup(e) {
   const token = document.getElementById("oToken").value;
   const p1 = document.getElementById("oPass").value, p2 = document.getElementById("oPass2").value;
   if (p1 !== p2) { document.getElementById("oMsg").textContent = "Passwords do not match."; return false; }
-  const r = await api("ownerSetup", { setupToken: token, password: p1, confirmPassword: p2 });
+  let r;
+  try { r = await api("ownerSetup", { setupToken: token, password: p1, confirmPassword: p2 }, { timeoutMs: 20000 }); }
+  catch (err) { document.getElementById("oMsg").textContent = "Network error: " + (err.message || err) + " — please try again."; return false; }
   if (!r.ok) { document.getElementById("oMsg").textContent = r.error || "Setup failed."; return false; }
   ownerSetupToken = token;
   document.getElementById("oStep2").innerHTML = `<h2>Step 2 — Authenticator app</h2>
@@ -1046,7 +1073,9 @@ async function doOwnerSetup(e) {
 }
 async function doOwnerSetupVerify(e) {
   e.preventDefault();
-  const r = await api("ownerSetupVerify", { setupToken: ownerSetupToken, totpCode: document.getElementById("oCode").value });
+  let r;
+  try { r = await api("ownerSetupVerify", { setupToken: ownerSetupToken, totpCode: document.getElementById("oCode").value }, { timeoutMs: 20000 }); }
+  catch (err) { document.getElementById("oMsg2").textContent = "Network error: " + (err.message || err) + " — please try again."; return false; }
   if (!r.ok) { document.getElementById("oMsg2").textContent = r.error || "Verification failed."; return false; }
   location.href = "/admin";
   return false;
@@ -1070,7 +1099,9 @@ async function doStaffSetup(e) {
   const email = document.getElementById("stEmail").value, token = document.getElementById("stToken").value;
   const p1 = document.getElementById("stPass").value, p2 = document.getElementById("stPass2").value;
   if (p1 !== p2) { document.getElementById("stMsg").textContent = "Passwords do not match."; return false; }
-  const r = await api("staffSetup", { email, setupToken: token, password: p1, confirmPassword: p2 });
+  let r;
+  try { r = await api("staffSetup", { email, setupToken: token, password: p1, confirmPassword: p2 }, { timeoutMs: 20000 }); }
+  catch (err) { document.getElementById("stMsg").textContent = "Network error: " + (err.message || err) + " — please try again."; return false; }
   if (!r.ok) { document.getElementById("stMsg").textContent = r.error || "Setup failed."; return false; }
   document.getElementById("stStep2").innerHTML = `<h2>Step 2 — Authenticator app</h2>
 <p>Add this key to your authenticator app:</p>
@@ -1082,7 +1113,9 @@ async function doStaffSetup(e) {
 }
 async function doStaffSetupVerify(e) {
   e.preventDefault();
-  const r = await api("staffSetupVerify", { email: document.getElementById("stEmail").value, setupToken: document.getElementById("stToken").value, totpCode: document.getElementById("stCode").value });
+  let r;
+  try { r = await api("staffSetupVerify", { email: document.getElementById("stEmail").value, setupToken: document.getElementById("stToken").value, totpCode: document.getElementById("stCode").value }, { timeoutMs: 20000 }); }
+  catch (err) { document.getElementById("stMsg2").textContent = "Network error: " + (err.message || err) + " — please try again."; return false; }
   if (!r.ok) { document.getElementById("stMsg2").textContent = r.error || "Verification failed."; return false; }
   location.href = "/admin";
   return false;

@@ -58,14 +58,14 @@ export function layout(title: string, body: string, opts?: { active?: string; no
 <button class="menu-btn" onclick="document.getElementById('nav').classList.toggle('open')" aria-label="Menu">☰ Menu</button>
 <nav id="nav" class="nav">
 <a href="/">Home</a><a href="/shop">Shop</a><a href="/merchants">Merchants</a><a href="/help">Help Center</a><a href="/policies/shipping">Policies</a>
-<a href="/cart">Cart <span class="badge" id="cartCount">0</span></a><a href="/account">My Account</a><a href="/admin">Admin</a>
+<a href="/cart">Cart <span class="badge" id="cartCount">0</span></a><a href="/wishlist">Wishlist</a><a href="/account">My Account</a><a href="/admin">Admin</a>
 </nav></header>
 ${opts?.admin ? `<div class="demo-banner">DEMO / TRIAL MODE — No live payment gateway, courier or messaging provider is connected. Every payment, shipment and tracking step is a simulation.</div>` : ""}
 <main class="wrap">${body}</main>
 <footer class="footer"><p><strong>NEXORA MARKET</strong> — Shop Smarter. Live Better.</p>
 <p>All prices in PKR. Cash on Delivery is collected only at delivery. 14-day return window.</p>
 <p><a href="/policies/privacy">Privacy</a> · <a href="/policies/terms">Terms</a> · <a href="/policies/shipping">Shipping</a> · <a href="/policies/returns">Returns &amp; Refunds</a></p></footer>
-<nav class="bottomnav"><a href="/">Home</a><a href="/shop">Shop</a><a href="/cart">Cart</a><a href="/track">Track</a><a href="/account">Account</a></nav>
+<nav class="bottomnav"><a href="/">Home</a><a href="/shop">Shop</a><a href="/wishlist">Wishlist</a><a href="/cart">Cart</a><a href="/track">Track</a><a href="/account">Account</a></nav>
 <script src="/js/app.js"></script></body></html>`;
 }
 
@@ -153,7 +153,7 @@ export function shopView(data: any, q: any): string {
 <label><input type="checkbox" name="inStock" value="1" ${q.inStock ? "checked" : ""}> In stock only</label>
 <label><input type="checkbox" name="onDiscount" value="1" ${q.onDiscount ? "checked" : ""}> On discount</label>
 <button class="btn small">Apply</button> <a class="btn ghost small" href="/shop">Clear all</a>
-${q.category ? `<a class="btn ghost small" href="/shop?category=${encodeURIComponent(q.category)}&subcategory=Smartwatches">Smartwatches only →</a>` : ""}
+${q.category && data.hasSmartwatches ? `<a class="btn ghost small" href="/shop?category=${encodeURIComponent(q.category)}&subcategory=Smartwatches">Smartwatches only →</a>` : ""}
 </form>
 <p class="note">${data.total} product(s)${q.flash ? " — full flash list" : ""}</p>
 <div class="grid">${(data.products || []).map(productCard).join("") || "<p>No products match these filters.</p>"}</div>
@@ -193,6 +193,14 @@ export function trackView(): string {
 export function accountView(): string {
   return layout("My Account", `<div class="dash" id="accountRoot"><p>Loading your dashboard…</p></div>
 `);
+}
+
+// B2: the wishlist page — a real route, not a hidden panel. Filled by
+// loadWishlist() in app.js from listWishlist (server-scoped key).
+export function wishlistView(): string {
+  return layout("My Wishlist", `<h1>My Wishlist</h1><p class="note">Items you saved — sign in and they follow your account; guests keep them in this browser.</p>
+<div id="wishlistRoot"><p>Loading your wishlist…</p></div>
+<p><a class="btn ghost" href="/shop">Continue shopping →</a></p>`);
 }
 
 export function adminView(): string {

@@ -1,18 +1,14 @@
-// NEXORA MARKET client JS — guest cart key + session token in localStorage.
-// The token (not a bare email) is what the server uses to scope "my orders".
-
-function guestKey() {
-  let k = localStorage.getItem("nx_guest_key");
-  if (!k) { k = "guest-" + Math.random().toString(36).slice(2, 10); localStorage.setItem("nx_guest_key", k); }
-  return k;
-}
+// NEXORA MARKET client JS — session token in localStorage; the cart /
+// wishlist key is derived SERVER-side (session email, or a server-set
+// HttpOnly guest cookie). The client never sends a cart key anymore —
+// the old localStorage guest key is gone (B11).
 function token() { return localStorage.getItem("nx_session_token") || ""; }
 // Phase 2: staff auth is a server session (HttpOnly cookie nx_staff_token,
 // set by loginStaff). The client never asserts a role — there is no
 // x-nexora-role header anymore. fetch() sends same-origin cookies by
 // default, so staff calls just work once signed in.
 async function api(name, body, opts) {
-  const headers = { "content-type": "application/json", "x-guest-key": guestKey() };
+  const headers = { "content-type": "application/json" };
   if (token()) headers["authorization"] = "Bearer " + token();
   const r = await fetch("/api/" + name, { method: "POST", headers, body: JSON.stringify(body || {}) });
   return r.json();
@@ -117,6 +113,20 @@ async function loadCart() {
 }
 async function updateQty(id, qty) { const r = await api("updateCartItem", { id, qty: Number(qty) }); if (r.note) alert(r.note); loadCart(); refreshCartCount(); }
 async function removeLine(id) { if (!confirm("Remove this item? Yes / Keep")) return; await api("removeCartItem", { id }); loadCart(); refreshCartCount(); }
+
+// ---- Wishlist page (B2) ----
+async function loadWishlist() {
+  const root = document.getElementById("wishlistRoot"); if (!root) return;
+  let r;
+  try { r = await api("listWishlist", {}); } catch (e) { root.innerHTML = loadErrorHtml("Network error: " + (e.message || e), "loadWishlist()"); return; }
+  if (!r.ok) { root.innerHTML = "<p>Wishlist is unavailable: " + esc(r.error || "") + "</p>"; return; }
+  if (!r.items.length) { root.innerHTML = "<p>Your wishlist is empty. Tap ♡ Wishlist on any product to save it here.</p><p><a class='btn' href='/shop'>Browse the Shop</a></p>"; return; }
+  root.innerHTML = `<div class="grid">${r.items.map((p) => {
+    const price = p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price;
+    return `<div class="card light-panel"><a href="/product/${p.id}">${p.imageUrl ? `<img src="${esc(p.imageUrl)}" style="width:100%;height:150px;object-fit:cover;border-radius:8px">` : ""}<h3>${esc(dispName(p.name))}</h3></a><p class="stars">★ ${p.rating} (${p.reviewsCount})</p><p><strong>${money(price)}</strong>${p.salePrice != null && p.salePrice < p.price ? ` <s>${money(p.price)}</s>` : ""}</p><button class="btn small" onclick="addToCart(${p.id},1)">Add to Cart</button> <button class="btn ghost small" onclick="removeFromWishlist(${p.id})">Remove</button></div>`;
+  }).join("")}</div>`;
+}
+async function removeFromWishlist(id) { await api("removeFromWishlist", { productId: id }); loadWishlist(); }
 
 // ---- Checkout (7 steps) ----
 // B4: checkout state persists across the full-page step navigations in
@@ -366,7 +376,7 @@ async function loadAccount() {
 <div class="stat"><b>${st.totalOrders}</b><span>Total Orders</span></div>
 <div class="stat"><b>${st.inProgress}</b><span>Orders In Progress</span></div>
 <div class="stat"><b>${st.delivered}</b><span>Delivered Orders</span></div>
-<div class="stat"><b>${st.wishlistItems}</b><span>Wishlist Items</span></div></div>
+<div class="stat"><b>${st.wishlistItems}</b><span><a href="/wishlist" style="color:#fff">Wishlist Items</a></span></div></div>
 <h3 style="color:#fff">Recent Orders</h3>
 ${recent.length ? recent.map((o) => `<p>${esc(o.orderNumber)} — ${esc(o.status)} — ${money(o.total)} <a href="/track" style="color:#fff">Track</a></p>`).join("") : "<p class='muted'>No orders yet.</p>"}
 <p><a href="/account" style="color:#fff">View All →</a></p>
@@ -408,6 +418,37 @@ function privacySec(e) { e.preventDefault(); if (confirm("Request account deleti
 
 // ---- Admin ----
 const ADMIN_TABS = ["Dashboard", "Products", "Categories", "Inventory", "Orders", "Payments", "Returns / Refunds", "Customers", "Support", "Reviews", "Notifications", "Coupons", "Staff & Permissions", "Reports", "Settings", "Homepage", "Demo Merchants", "Demo Manager", "Phase 2", "Audit Log"];
+// ---- Staff activation (owner / Super Admin only) ----
+// The one-time setup token is shown ONCE here and must be passed to the
+// staff member out of band (e.g. WhatsApp). It is never stored in the
+// browser and never appears in logs.
+function showOneTimeToken(title, token, note) {
+  const el = document.getElementById("tokenPanel"); if (!el) { alert(title + ": " + token); return; }
+  el.innerHTML = `<div class="card" style="border:2px solid #F59E0B;padding:12px;margin:10px 0"><h3>${esc(title)}</h3>
+<p class="note">${esc(note)}</p><p><input readonly value="${esc(token)}" style="width:100%" onclick="this.select()"></p>
+<p><button class="btn small" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(token)}')">Copy token</button></p></div>`;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+async function doCreateStaff(e) {
+  e.preventDefault();
+  const r = await api("saveStaff", { name: document.getElementById("nsName").value, email: document.getElementById("nsEmail").value, role: document.getElementById("nsRole").value, department: document.getElementById("nsDept").value, status: "Active" });
+  if (!r.ok) { alert(r.error || "Could not add staff."); return false; }
+  alert("Staff added with no password. Now issue a setup token so they can activate at /staff/setup.");
+  adminTab(12, document.querySelectorAll("#adminTabs .tab")[12]);
+  return false;
+}
+async function issueStaffToken(id, name) {
+  const r = await api("createStaffSetupToken", { staffId: id });
+  if (!r.ok) { alert(r.error || "Could not issue a token."); return; }
+  showOneTimeToken("Setup token for " + name, r.setupToken, "Valid 24 hours, one use. " + name + " opens /staff/setup, types this token, sets a password, then adds the authenticator secret and types the 6-digit code. After that the token is dead.");
+}
+async function resetStaffPw(id, name) {
+  if (!confirm("Reset " + name + "'s password and authenticator? Their old password stops working and all their sessions end.")) return;
+  const r = await api("resetStaffPassword", { staffId: id });
+  if (!r.ok) { alert(r.error || "Could not reset."); return; }
+  showOneTimeToken("New setup token for " + name, r.setupToken, "Valid 24 hours, one use. " + name + " opens /staff/setup and activates again with this token.");
+}
+
 async function adminTab(i, btn) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.remove("on"));
   if (btn) btn.classList.add("on");
@@ -426,7 +467,14 @@ async function adminTab(i, btn) {
     else if (i === 9) { const r = await api("listReviews", {}); root.innerHTML = `<h2>Reviews (${r.reviews.length})</h2>` + r.reviews.map((x) => `<p><strong>${esc(x.productName)}</strong> ${"★".repeat(x.rating)} — ${esc(x.text)} <small>(${esc(x.customerName)})</small></p>`).join(""); }
     else if (i === 10) { const r = await api("listNotifications", {}); root.innerHTML = `<h2>Notifications (${r.notifications.length}, ${r.unread} unread)</h2>` + r.notifications.slice(0, 15).map((n) => `<p><strong>${esc(n.title)}</strong> — ${esc(n.body)} ${n.isRead ? "" : "(unread)"}</p>`).join(""); }
     else if (i === 11) { const r = await api("getBootstrap", {}); root.innerHTML = `<h2>Coupons / Promotions</h2><div class="tablewrap"><table><tr><th>Code</th><th>Type</th><th>Value</th><th>Min</th><th>Status</th><th>Expires</th><th>Limit</th><th>Uses</th></tr>${r.coupons.map((c) => `<tr><td>${esc(c.code)}</td><td>${esc(c.discountType)}</td><td>${c.value}${c.discountType === "percent" ? "%" : ""}</td><td>${money(c.minOrder)}</td><td>${esc(c.status)}</td><td>${esc(c.expiresAt || "— (unbounded)")}</td><td>${c.usageLimit || "unbounded"}</td><td>${c.uses}</td></tr>`).join("")}</table></div><p class="note">Production expiry/limit values for 000 / WELCOME10 / FLASH500 are owner inputs — deliberately not invented. BIGTEST5 is a temporary test coupon (expires 2026-12-25, limit 20, per-customer 3).</p>`; }
-    else if (i === 12) { const r = await api("listStaff", {}); const m = await api("getRoleMatrix", {}); const t = await api("runRoleSelfTest", {}); root.innerHTML = `<h2>Staff &amp; Permissions</h2><div class="tablewrap"><table><tr><th>Name</th><th>Role</th><th>Department</th><th>Email</th></tr>${r.staff.map((x) => `<tr><td>${esc(x.name)}</td><td>${esc(x.role)}</td><td>${esc(x.department)}</td><td>${esc(x.email)}</td></tr>`).join("")}</table></div><p>Role self-test: <strong>${t.allowed} allowed / ${t.denied} denied</strong> (110 checks; reference 52/58). Live probes: ${t.liveDenied.join("; ")}; ${t.liveAllowed.join("; ")}.</p><p class="note">Matrix: ${m.roles.map((x) => esc(x.role) + " → " + x.permissions.join(", ")).join(" | ")}</p>`; }
+    else if (i === 12) { const r = await api("listStaff", {}); const m = await api("getRoleMatrix", {}); const t = await api("runRoleSelfTest", {}); root.innerHTML = `<h2>Staff &amp; Permissions</h2>
+<form onsubmit="return doCreateStaff(event)"><h3>Add staff member</h3><p class="note">New staff start with NO password — the owner then issues them a one-time setup token (24 h) so they set their own password + authenticator at /staff/setup. Only the Owner can grant the Owner role.</p>
+<label>Name <input id="nsName" required></label><label>Email <input id="nsEmail" type="email" required></label>
+<label>Role <select id="nsRole">${m.roles.map((x) => `<option>${esc(x.role)}</option>`).join("")}</select></label>
+<label>Department <input id="nsDept" placeholder="Management"></label>
+<button class="btn">Add staff</button></form>
+<div id="tokenPanel"></div>
+<div class="tablewrap"><table><tr><th>Name</th><th>Role</th><th>Department</th><th>Email</th><th>Status</th><th>Password</th><th>Authenticator</th><th>Setup</th><th>Actions</th></tr>${r.staff.map((x) => `<tr><td>${esc(x.name)}</td><td>${esc(x.role)}</td><td>${esc(x.department)}</td><td>${esc(x.email)}</td><td>${esc(x.status)}</td><td>${x.hasPassword ? "Set" : "Not set"}</td><td>${x.totpEnabled ? "On" : "Off"}</td><td>${x.setupPending ? "Token issued" : "—"}</td><td><button class="btn ghost small" onclick="issueStaffToken(${x.id},'${esc(x.name)}')">Issue setup token</button> <button class="btn ghost small" onclick="resetStaffPw(${x.id},'${esc(x.name)}')">Reset password</button></td></tr>`).join("")}</table></div><p>Role self-test: <strong>${t.allowed} allowed / ${t.denied} denied</strong> (110 checks; reference 52/58). Live probes: ${t.liveDenied.join("; ")}; ${t.liveAllowed.join("; ")}.</p><p class="note">Matrix: ${m.roles.map((x) => esc(x.role) + " → " + x.permissions.join(", ")).join(" | ")}</p>`; }
     else if (i === 13) { const r = await api("getAnalytics", {}); root.innerHTML = `<h2>Reports / Analytics</h2><p>GMV ${money(r.gmv)} · Avg order ${money(r.avgOrderValue)} · Legacy orders excluded: ${r.legacyOrders}</p><p>CSV export: <button class="btn ghost small" onclick="exportCsv()">Download orders CSV</button></p>`; }
     else if (i === 14) { const r = await api("getBootstrap", {}); root.innerHTML = `<h2>Settings</h2><pre>${esc(JSON.stringify(r.config, null, 2))}</pre><p class="note">Brand: NEXORA MARKET — navy #101828, blue #315EFB, amber #F59E0B. Demo mode ON.</p>`; }
     else if (i === 15) { const r = await api("getHomepageAdmin", {}); root.innerHTML = `<h2>Homepage</h2><p>Flash row: size ${r.flashRowSize} (4–5), new set every ${r.flashRotateDays} day(s), anchor ${r.flashRowAnchor}. Campaign end: ${esc(r.flashEndsAt || "not set — no countdown")}</p><p>Banners: ${r.banners.map((b) => esc(b.headline)).join(" · ")}</p><p>Collections: ${r.collections.map((c) => esc(c.name)).join(" · ")}</p><p>Sections: ${r.sections.map((s) => esc(s.key) + (s.visible ? "" : " (hidden)")).join(", ")}</p>`; }
@@ -449,6 +497,7 @@ async function exportCsv() {
 // <head>; no page depends on script order anymore.
 function initPage() {
   if (document.getElementById("cartRoot")) { loadCart(); return; }
+  if (document.getElementById("wishlistRoot")) { loadWishlist(); return; }
   const co = document.getElementById("checkoutRoot");
   if (co) { loadCheckout(Number(co.dataset.step || 1)); return; }
   if (document.getElementById("accountRoot")) { loadAccount(); return; }

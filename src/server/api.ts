@@ -82,10 +82,12 @@ function clearStaffCookie(res: Response) {
 
 // Staff rows must never leak credentials: strip them everywhere a staff
 // row is returned (getBootstrap, listStaff, saveStaff, getStaffSession).
+// The UI still needs to know the activation state, so two SAFE booleans
+// are exposed (never the hash/secret/token itself).
 function publicStaffRow(st: any) {
   if (!st) return null;
   const { passwordHash, totpSecret, setupTokenHash, ...rest } = st;
-  return rest;
+  return { ...rest, hasPassword: !!passwordHash, setupPending: !!setupTokenHash };
 }
 
 async function sessionStaff(db: Db, req: Request): Promise<{ staff: any; session: any } | null> {
@@ -410,13 +412,20 @@ export function registerApi(app: Express) {
     if (b.minRating != null) rows = rows.filter((p: any) => p.rating >= b.minRating);
     if (b.inStock) rows = rows.filter((p: any) => p.stock > 0);
     if (b.onDiscount) rows = rows.filter((p: any) => p.salePrice != null && p.salePrice < p.price);
+    // B1: /shop?flash=1 shows EXACTLY the 11-product flash pool (isFlash
+    // and actually discounted) — not the 44 all-discounted products.
+    if (b.flash) rows = rows.filter((p: any) => p.isFlash && p.salePrice != null && p.salePrice < p.price);
     if (b.color) rows = rows.filter((p: any) => (p.colors || "").toLowerCase().includes(String(b.color).toLowerCase()));
     if (b.size) rows = rows.filter((p: any) => (p.sizes || "").includes(String(b.size)));
+    // B6: price sorts use the EFFECTIVE (sale) price, not the list price.
+    const effPrice = (p: any) => (p.salePrice != null && p.salePrice < p.price ? p.salePrice : p.price);
     if (b.sort === "biggest-discount") rows.sort((x: any, y: any) => ((y.salePrice != null ? (y.price - y.salePrice) / y.price : 0) - (x.salePrice != null ? (x.price - x.salePrice) / x.price : 0)));
-    else if (b.sort === "price-asc") rows.sort((x: any, y: any) => x.price - y.price);
-    else if (b.sort === "price-desc") rows.sort((x: any, y: any) => y.price - x.price);
+    else if (b.sort === "price-asc") rows.sort((x: any, y: any) => effPrice(x) - effPrice(y));
+    else if (b.sort === "price-desc") rows.sort((x: any, y: any) => effPrice(y) - effPrice(x));
     else if (b.sort === "rating") rows.sort((x: any, y: any) => y.rating - x.rating);
-    else if (b.sort === "newest") rows.sort((x: any, y: any) => y.id - x.id);
+    // B7: newest sorts by published_at (backfilled from seed order), with
+    // id as the tie-break so the order is stable.
+    else if (b.sort === "newest") rows.sort((x: any, y: any) => (Number(y.publishedAt ?? 0) - Number(x.publishedAt ?? 0)) || (y.id - x.id));
     const total = rows.length;
     const limit = Math.min(100, Number(b.limit || 48));
     const offset = Number(b.offset || 0);
@@ -522,10 +531,60 @@ export function registerApi(app: Express) {
     res.json({ ok: true, note: "Sample images are downloaded at build time into public/images/products (see BUILD-REPORT.md). This action never overwrites a product that already has ANY photo — owner uploads are never disturbed.", productsWithPhotos: skipped, productsWithoutPhotos: present });
   });
 
-  const cartKey = (req: Request) => (req.body?.customerEmail as string) || (req.headers["x-guest-key"] as string) || "guest";
+  // B11: the cart/wishlist key is derived server-side ONLY — from the
+  // validated customer session (their email) or from a server-set HttpOnly
+  // guest cookie (nx_guest). A client-supplied email, header or body value
+  // is NEVER trusted as the key: anyone could pass another customer's
+  // email and read/mutate their cart. The guest cookie is set on the
+  // response the first time a guest needs a cart; the browser sends it
+  // back automatically on same-origin requests.
+  const GUEST_COOKIE = "nx_guest";
+  function newGuestKey(): string {
+    return "guest-" + crypto.randomBytes(9).toString("hex");
+  }
+  function setGuestCookie(req: Request, res: Response, key: string) {
+    if (typeof (res as any).cookie !== "function") return;
+    const secure = (req as any).secure || req.headers["x-forwarded-proto"] === "https";
+    (res as any).cookie(GUEST_COOKIE, key, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000 });
+  }
+  async function cartKey(db: Db, req: Request, res: Response): Promise<string> {
+    const cust = await sessionCustomer(db, req);
+    if (cust) return cust.email.toLowerCase();
+    const cookies = parseCookies(req);
+    const g = cookies[GUEST_COOKIE];
+    if (g && /^guest-[0-9a-f]{18}$/.test(g)) return g;
+    const fresh = newGuestKey();
+    setGuestCookie(req, res, fresh);
+    return fresh;
+  }
+  // B2/B11: when a customer signs in (or registers), move their guest
+  // cart/wishlist rows (keyed by the server guest cookie) onto their
+  // account email, merging quantities into existing lines (capped at
+  // stock). The guest rows are removed, not duplicated.
+  async function migrateGuestRows(db: Db, req: Request, email: string) {
+    const g = parseCookies(req)[GUEST_COOKIE];
+    if (!g || g === email.toLowerCase()) return;
+    const emailKey = email.toLowerCase();
+    for (const table of [s.cartItems, s.wishlistItems]) {
+      const guestRows = await db.select().from(table).where(eq(table.customerEmail, g));
+      for (const row of guestRows) {
+        const existing = (await db.select().from(table).where(and(eq(table.customerEmail, emailKey), eq(table.productId, row.productId))))[0];
+        if (existing) {
+          if (table === s.cartItems) {
+            const p = (await db.select().from(s.products).where(eq(s.products.id, row.productId)))[0];
+            const next = Math.min((existing as any).qty + (row as any).qty, p?.stock ?? (existing as any).qty);
+            await db.update(table).set({ qty: next } as any).where(eq(table.id, (existing as any).id));
+          }
+          await db.delete(table).where(eq(table.id, (row as any).id));
+        } else {
+          await db.update(table).set({ customerEmail: emailKey } as any).where(eq(table.id, (row as any).id));
+        }
+      }
+    }
+  }
 
   a("getCart", async (req, res, db) => {
-    const key = cartKey(req);
+    const key = await cartKey(db, req, res);
     const lines = await db.select().from(s.cartItems).where(eq(s.cartItems.customerEmail, key));
     const out = [];
     for (const l of lines) {
@@ -538,7 +597,7 @@ export function registerApi(app: Express) {
   });
 
   a("addToCart", async (req, res, db) => {
-    const key = cartKey(req);
+    const key = await cartKey(db, req, res);
     const { productId, qty } = req.body || {};
     const p = (await db.select().from(s.products).where(eq(s.products.id, Number(productId))))[0];
     if (!p) { res.status(404).json({ ok: false, error: "Product not found." }); return; }
@@ -557,8 +616,11 @@ export function registerApi(app: Express) {
   });
 
   a("updateCartItem", async (req, res, db) => {
+    // B11: a cart line can only be changed by its owner — the line must
+    // belong to the caller's server-derived key, not just any id.
+    const key = await cartKey(db, req, res);
     const { id, qty } = req.body || {};
-    const line = (await db.select().from(s.cartItems).where(eq(s.cartItems.id, Number(id))))[0];
+    const line = (await db.select().from(s.cartItems).where(and(eq(s.cartItems.id, Number(id)), eq(s.cartItems.customerEmail, key))))[0];
     if (!line) { res.status(404).json({ ok: false, error: "Cart line not found." }); return; }
     if (Number(qty) <= 0) { await db.delete(s.cartItems).where(eq(s.cartItems.id, line.id)); res.json({ ok: true, removed: true }); return; }
     const p = (await db.select().from(s.products).where(eq(s.products.id, line.productId)))[0];
@@ -568,12 +630,14 @@ export function registerApi(app: Express) {
   });
 
   a("removeCartItem", async (req, res, db) => {
-    await db.delete(s.cartItems).where(eq(s.cartItems.id, req.body.id));
+    // B11: only the owner's own line can be removed.
+    const key = await cartKey(db, req, res);
+    await db.delete(s.cartItems).where(and(eq(s.cartItems.id, req.body.id), eq(s.cartItems.customerEmail, key)));
     res.json({ ok: true });
   });
 
   a("listWishlist", async (req, res, db) => {
-    const key = cartKey(req);
+    const key = await cartKey(db, req, res);
     const rows = await db.select().from(s.wishlistItems).where(eq(s.wishlistItems.customerEmail, key));
     const out = [];
     for (const r of rows) { const p = (await db.select().from(s.products).where(eq(s.products.id, r.productId)))[0]; if (p) out.push(await productWithImages(db, p)); }
@@ -581,7 +645,7 @@ export function registerApi(app: Express) {
   });
 
   a("addToWishlist", async (req, res, db) => {
-    const key = cartKey(req);
+    const key = await cartKey(db, req, res);
     const pid = Number(req.body?.productId);
     const ex = await db.select().from(s.wishlistItems).where(and(eq(s.wishlistItems.customerEmail, key), eq(s.wishlistItems.productId, pid)));
     if (!ex.length) await db.insert(s.wishlistItems).values({ customerEmail: key, productId: pid });
@@ -589,7 +653,7 @@ export function registerApi(app: Express) {
   });
 
   a("removeFromWishlist", async (req, res, db) => {
-    const key = cartKey(req);
+    const key = await cartKey(db, req, res);
     await db.delete(s.wishlistItems).where(and(eq(s.wishlistItems.customerEmail, key), eq(s.wishlistItems.productId, Number(req.body?.productId))));
     res.json({ ok: true });
   });
@@ -645,7 +709,14 @@ export function registerApi(app: Express) {
     const couponCode = String(b.couponCode || b.coupon || "").trim().toUpperCase();
     if (couponCode) {
       const c = (await db.select().from(s.coupons).where(eq(s.coupons.code, couponCode)))[0];
-      const cv = validateCouponRules(c ? { ...c, discountType: c.discountType as "percent" | "fixed", expiresAt: c.expiresAt || "" } : null, subtotal, 0, todayYmdKarachi());
+      // B18: REAL per-customer use count from order history (same query as
+      // validateCoupon), not the hardcoded 0 the old code passed.
+      let customerUses = 0;
+      if (b.customerEmail) {
+        const mine = await db.select().from(s.orders).where(eq(s.orders.customerEmail, String(b.customerEmail).toLowerCase()));
+        customerUses = mine.filter((o: any) => o.discount > 0).length;
+      }
+      const cv = validateCouponRules(c ? { ...c, discountType: c.discountType as "percent" | "fixed", expiresAt: c.expiresAt || "" } : null, subtotal, customerUses, todayYmdKarachi());
       if (cv.ok) discount = cv.discount || 0;
     }
     const method = (b.shippingMethod || "Standard") as ShippingMethod;
@@ -677,10 +748,19 @@ export function registerApi(app: Express) {
     await db.insert(s.orderEvents).values({ orderId: order.id, status: "Pending", note: `Order placed. Payment: ${paymentMethod}${isCod ? " — cash collected on delivery." : ` from ${b.paymentAccount || ""}, Transaction ${paymentRef} recorded.`}`, location: "NEXORA Karachi Central", actor: "System", createdAt: now });
     await db.insert(s.paymentTransactions).values({ orderId: order.id, orderNumber: on, method: paymentMethod, provider: paymentMethod.replace(" (Demo)", ""), account: b.paymentAccount || (isCod ? "Cash collected on delivery" : ""), reference: paymentRef, amount: totals.total, status: paymentStatus, mode: PAYMENT_MODE_DEMO, createdAt: now });
     if (couponCode && discount > 0) {
+      // B18: atomic increment — one UPDATE that only succeeds while the
+      // coupon is still under its limit (usageLimit 0 = unbounded, the
+      // production values for 000/WELCOME10/FLASH500 are still an open
+      // owner decision). No read-then-write race.
       const c = (await db.select().from(s.coupons).where(eq(s.coupons.code, couponCode)))[0];
-      if (c) await db.update(s.coupons).set({ uses: c.uses + 1 }).where(eq(s.coupons.id, c.id));
+      if (c) {
+        await db.execute(sql`UPDATE "coupons" SET "uses" = "uses" + 1 WHERE "id" = ${c.id} AND ("usage_limit" = 0 OR "uses" < "usage_limit")`);
+      }
     }
-    await db.insert(s.notifications).values({ title: "Order placed", body: `${on} confirmed. Total ${formatPkr(totals.total)}. Tracking ${trackingNumber(on)}.`, type: "Order", isRead: false, createdAt: now });
+    // B19: the order-placed notification belongs to the ordering customer
+    // (looked up by email; guests get NULL = system-wide, staff view only).
+    const notifCustomer = b.customerEmail ? (await db.select().from(s.customers).where(sql`lower(${s.customers.email}) = lower(${String(b.customerEmail)})`))[0] : null;
+    await db.insert(s.notifications).values({ title: "Order placed", body: `${on} confirmed. Total ${formatPkr(totals.total)}. Tracking ${trackingNumber(on)}.`, type: "Order", isRead: false, customerId: notifCustomer?.id ?? null, createdAt: now });
     return { ok: true, order, totals, adjustments, duplicate: false };
   }
 
@@ -846,6 +926,9 @@ export function registerApi(app: Express) {
     const cust = (await db.insert(s.customers).values({ name: b.name, email: b.email.trim(), phone: b.phone, passwordHash: hashPassword(b.password), mustResetPassword: false, emailVerified: false, phoneVerified: false, deletionRequested: false, createdAt: Date.now() }).returning())[0];
     const { token, tokenHash } = newSessionToken();
     await db.insert(s.customerSessions).values({ customerId: cust.id, tokenHash, expiresAt: Date.now() + SESSION_TTL_MS, createdAt: Date.now() });
+    // B2/B11: a guest cart/wishlist built before registering moves onto
+    // the new account.
+    await migrateGuestRows(db, req, cust.email);
     res.json({ ok: true, sessionToken: token, customer: { id: cust.id, name: cust.name, email: cust.email, phone: cust.phone } });
   });
 
@@ -886,6 +969,9 @@ export function registerApi(app: Express) {
     }
     const { token, tokenHash } = newSessionToken();
     await db.insert(s.customerSessions).values({ customerId: cust.id, tokenHash, expiresAt: Date.now() + SESSION_TTL_MS, createdAt: Date.now() });
+    // B2/B11: a guest cart/wishlist built before signing in moves onto
+    // the account (quantities merged, capped at stock).
+    await migrateGuestRows(db, req, cust.email);
     res.json({ ok: true, sessionToken: token, customer: { id: cust.id, name: cust.name, email: cust.email, phone: cust.phone, emailVerified: cust.emailVerified, phoneVerified: cust.phoneVerified } });
   });
 
@@ -900,8 +986,10 @@ export function registerApi(app: Express) {
     const addrs = await db.select().from(s.customerAddresses).where(eq(s.customerAddresses.customerId, cust.id));
     const def = addrs.find((x: any) => x.isDefault) || addrs[0] || null;
     const myOrders = await db.select().from(s.orders).where(sql`lower(${s.orders.customerEmail}) = lower(${cust.email})`);
-    const wishlist = await db.select().from(s.wishlistItems).where(eq(s.wishlistItems.customerEmail, cust.email));
-    const unread = await db.select().from(s.notifications).where(eq(s.notifications.isRead, false));
+    const wishlist = await db.select().from(s.wishlistItems).where(eq(s.wishlistItems.customerEmail, cust.email.toLowerCase()));
+    // B19: the unread count is scoped to this customer's own notifications
+    // (system-wide rows have customerId NULL and are staff-view only).
+    const unread = await db.select().from(s.notifications).where(and(eq(s.notifications.isRead, false), eq(s.notifications.customerId, cust.id)));
     const profileCompletion = Math.round((([cust.name, cust.email, cust.phone, def ? "x" : ""].filter(Boolean).length) / 4) * 100);
     res.json({ ok: true, authenticated: true, customer: { id: cust.id, name: cust.name, email: cust.email, phone: cust.phone, emailVerified: cust.emailVerified, phoneVerified: cust.phoneVerified, createdAt: cust.createdAt, mustResetPassword: cust.mustResetPassword }, defaultAddress: def, addresses: addrs, stats: { totalOrders: myOrders.length, inProgress: myOrders.filter((o: any) => !["Delivered", "Cancelled"].includes(o.status)).length, delivered: myOrders.filter((o: any) => o.status === "Delivered").length, wishlistItems: wishlist.length }, profileCompletion, unreadNotifications: unread.length });
   });
@@ -1511,23 +1599,56 @@ export function registerApi(app: Express) {
     res.json({ ok: true });
   }, { area: "customers" });
 
-  a("listNotifications", async (_req, res, db) => {
-    const rows = await db.select().from(s.notifications).orderBy(desc(s.notifications.createdAt));
-    res.json({ ok: true, notifications: rows, unread: rows.filter((n: any) => !n.isRead).length });
+  a("listNotifications", async (req, res, db) => {
+    // B9/B19: staff (customers area) see the global list; a signed-in
+    // customer sees ONLY their own rows (customerId = their id — the
+    // system-wide rows with customerId NULL are staff-view only). Anyone
+    // else gets 401. This used to return every notification to anyone.
+    if (staffRole(req)) {
+      if (!await enforceOr401(db, req, res, "customers", "listNotifications")) return;
+      const rows = await db.select().from(s.notifications).orderBy(desc(s.notifications.createdAt));
+      res.json({ ok: true, notifications: rows, unread: rows.filter((n: any) => !n.isRead).length });
+      return;
+    }
+    const cust = await requireCustomer(db, req, res); if (!cust) return;
+    const rows = await db.select().from(s.notifications).where(eq(s.notifications.customerId, cust.id)).orderBy(desc(s.notifications.createdAt));
+    res.json({ ok: true, notifications: rows, unread: rows.filter((n: any) => !n.isRead).length, mine: true });
   });
   a("addNotification", async (req, res, db) => {
+    // B9: creating a notification is a staff action (customers area).
+    if (!await enforceOr401(db, req, res, "customers", "addNotification")) return;
     const row = (await db.insert(s.notifications).values({ title: req.body?.title || "", body: req.body?.body || "", type: req.body?.type || "General", isRead: false, createdAt: Date.now() }).returning())[0];
     res.json({ ok: true, notification: row });
   });
-  a("markNotificationsRead", async (_req, res, db) => {
-    await db.update(s.notifications).set({ isRead: true });
+  a("markNotificationsRead", async (req, res, db) => {
+    // B19: a customer marks ONLY their own rows read; staff mark all.
+    if (staffRole(req)) {
+      if (!await enforceOr401(db, req, res, "customers", "markNotificationsRead")) return;
+      await db.update(s.notifications).set({ isRead: true });
+      res.json({ ok: true });
+      return;
+    }
+    const cust = await requireCustomer(db, req, res); if (!cust) return;
+    await db.update(s.notifications).set({ isRead: true }).where(eq(s.notifications.customerId, cust.id));
     res.json({ ok: true });
   });
   a("markNotificationRead", async (req, res, db) => {
-    await db.update(s.notifications).set({ isRead: true }).where(eq(s.notifications.id, req.body.id));
+    // B19: a customer can only mark their own row read (404 otherwise);
+    // staff can mark any.
+    if (staffRole(req)) {
+      if (!await enforceOr401(db, req, res, "customers", "markNotificationRead")) return;
+      await db.update(s.notifications).set({ isRead: true }).where(eq(s.notifications.id, req.body.id));
+      res.json({ ok: true });
+      return;
+    }
+    const cust = await requireCustomer(db, req, res); if (!cust) return;
+    const updated = await db.update(s.notifications).set({ isRead: true }).where(and(eq(s.notifications.id, req.body.id), eq(s.notifications.customerId, cust.id))).returning();
+    if (!updated.length) { res.status(404).json({ ok: false, error: "Notification not found." }); return; }
     res.json({ ok: true });
   });
   a("deleteNotification", async (req, res, db) => {
+    // B9: deleting a notification is a staff action (customers area).
+    if (!await enforceOr401(db, req, res, "customers", "deleteNotification")) return;
     await db.delete(s.notifications).where(eq(s.notifications.id, req.body.id));
     res.json({ ok: true });
   });
@@ -1685,7 +1806,7 @@ export function registerApi(app: Express) {
       flashRow: { ...flashRow, products: flashProducts },
       flashEndsAt: cfg.flashSaleEndsAt || "",
       categories, bestSellers: bestSellersOut, recommended,
-      newArrivals: await Promise.all(products.slice(-8).reverse().map((p: any) => productWithImages(db, p))),
+      newArrivals: await Promise.all([...products].sort((a: any, b: any) => (Number(b.publishedAt ?? 0) - Number(a.publishedAt ?? 0)) || (b.id - a.id)).slice(0, 8).map((p: any) => productWithImages(db, p))),
       reviews, demoMode: cfg.demoMode === "true",
     });
   });

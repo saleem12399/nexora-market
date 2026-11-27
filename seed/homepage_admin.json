@@ -1,1 +1,153 @@
-{"banners":[{"active":true,"cta2Label":"Men's Fashion","cta2Target":"{\"k\":\"shop\",\"category\":\"Men's Fashion\"}","ctaLabel":"Shop Fashion","ctaTarget":"{\"k\":\"shop\",\"category\":\"Women's Fashion\"}","endsAt":"","hasImage":false,"headline":"Fashion for Every Day","id":1,"productId":33,"sortOrder":0,"startsAt":"","subtext":"Men's and women's fashion from NEXORA's official store — full prices, sizes and stock shown on every product."},{"active":true,"cta2Label":"Accessories","cta2Target":"{\"k\":\"shop\",\"category\":\"Mobile Accessories\"}","ctaLabel":"Shop Phones","ctaTarget":"{\"k\":\"shop\",\"category\":\"Mobile Phones\"}","endsAt":"","hasImage":false,"headline":"Phones & Tablets, Specs Up Front","id":2,"productId":40,"sortOrder":1,"startsAt":"","subtext":"RAM, storage, display, battery and warranty details on every listing — compare before you buy."},{"active":true,"cta2Label":"Audio & Electronics","cta2Target":"{\"k\":\"shop\",\"category\":\"Audio & Electronics\"}","ctaLabel":"Explore Wearables","ctaTarget":"{\"k\":\"shop\",\"category\":\"Smart Wearables\"}","endsAt":"","hasImage":false,"headline":"Smart Wearables & Audio","id":3,"productId":53,"sortOrder":2,"startsAt":"","subtext":"Smartwatches, smart glasses, earbuds and speakers — real photos, ratings and reviews on every product."}],"collections":[{"active":true,"category":"Mobile Phones","id":1,"name":"Trending Smartphones","productId":40,"sortOrder":0,"subcategory":"","tagline":"The latest phones in the catalogue"},{"active":true,"category":"Men's Fashion","id":2,"name":"Everyday Fashion","productId":25,"sortOrder":1,"subcategory":"","tagline":"Everyday styles for men and women"},{"active":true,"category":"Smart Wearables","id":3,"name":"Smart Wearables","productId":53,"sortOrder":2,"subcategory":"","tagline":"Watches, glasses, bands and rings"},{"active":true,"category":"Audio & Electronics","id":4,"name":"Audio Essentials","productId":56,"sortOrder":3,"subcategory":"","tagline":"Earbuds, headphones and speakers"},{"active":true,"category":"Beauty & Personal Care","id":5,"name":"Beauty & Personal Care","productId":66,"sortOrder":4,"subcategory":"","tagline":"Skincare, makeup and grooming"}],"exportedAt":"2026-11-26T13:56:42+05:00","flashEndsAt":"","flashRotateDays":2,"flashRowSize":5,"sections":[{"key":"hero","sortOrder":0,"visible":true},{"key":"categories","sortOrder":1,"visible":true},{"key":"flash","sortOrder":2,"visible":true},{"key":"collections","sortOrder":3,"visible":true},{"key":"bestSellers","sortOrder":4,"visible":true},{"key":"newArrivals","sortOrder":5,"visible":true},{"key":"recommended","sortOrder":6,"visible":true},{"key":"trust","sortOrder":7,"visible":true},{"key":"reviews","sortOrder":8,"visible":true}],"source":"nexora-market gethomepageadmin"}
+{
+  "banners": [
+    {
+      "active": true,
+      "cta2Label": "Men's Fashion",
+      "cta2Target": "{\"k\":\"shop\",\"category\":\"Men's Fashion\"}",
+      "ctaLabel": "Shop Fashion",
+      "ctaTarget": "{\"k\":\"shop\",\"category\":\"Women's Fashion\"}",
+      "endsAt": "",
+      "hasImage": false,
+      "headline": "Fashion for Every Day",
+      "id": 1,
+      "productId": 33,
+      "sortOrder": 0,
+      "startsAt": "",
+      "subtext": "Men's and women's fashion from NEXORA's official store — prices and stock shown on every product."
+    },
+    {
+      "active": true,
+      "cta2Label": "Accessories",
+      "cta2Target": "{\"k\":\"shop\",\"category\":\"Mobile Accessories\"}",
+      "ctaLabel": "Shop Phones",
+      "ctaTarget": "{\"k\":\"shop\",\"category\":\"Mobile Phones\"}",
+      "endsAt": "",
+      "hasImage": false,
+      "headline": "Phones & Tablets, Specs Up Front",
+      "id": 2,
+      "productId": 40,
+      "sortOrder": 1,
+      "startsAt": "",
+      "subtext": "RAM, storage, display and battery details on every listing — compare before you buy."
+    },
+    {
+      "active": true,
+      "cta2Label": "Audio & Electronics",
+      "cta2Target": "{\"k\":\"shop\",\"category\":\"Audio & Electronics\"}",
+      "ctaLabel": "Explore Wearables",
+      "ctaTarget": "{\"k\":\"shop\",\"category\":\"Smart Wearables\"}",
+      "endsAt": "",
+      "hasImage": false,
+      "headline": "Smart Wearables & Audio",
+      "id": 3,
+      "productId": 53,
+      "sortOrder": 2,
+      "startsAt": "",
+      "subtext": "Smartwatches, smart glasses, earbuds and speakers — specs, prices and stock on every listing."
+    }
+  ],
+  "collections": [
+    {
+      "active": true,
+      "category": "Mobile Phones",
+      "id": 1,
+      "name": "Trending Smartphones",
+      "productId": 40,
+      "sortOrder": 0,
+      "subcategory": "",
+      "tagline": "The latest phones in the catalogue"
+    },
+    {
+      "active": true,
+      "category": "Men's Fashion",
+      "id": 2,
+      "name": "Everyday Fashion",
+      "productId": 25,
+      "sortOrder": 1,
+      "subcategory": "",
+      "tagline": "Everyday styles for men and women"
+    },
+    {
+      "active": true,
+      "category": "Smart Wearables",
+      "id": 3,
+      "name": "Smart Wearables",
+      "productId": 53,
+      "sortOrder": 2,
+      "subcategory": "",
+      "tagline": "Watches, glasses, bands and rings"
+    },
+    {
+      "active": true,
+      "category": "Audio & Electronics",
+      "id": 4,
+      "name": "Audio Essentials",
+      "productId": 56,
+      "sortOrder": 3,
+      "subcategory": "",
+      "tagline": "Earbuds, headphones and speakers"
+    },
+    {
+      "active": true,
+      "category": "Beauty & Personal Care",
+      "id": 5,
+      "name": "Beauty & Personal Care",
+      "productId": 66,
+      "sortOrder": 4,
+      "subcategory": "",
+      "tagline": "Skincare, makeup and grooming"
+    }
+  ],
+  "exportedAt": "2026-11-26T13:56:42+05:00",
+  "flashEndsAt": "",
+  "flashRotateDays": 2,
+  "flashRowSize": 5,
+  "sections": [
+    {
+      "key": "hero",
+      "sortOrder": 0,
+      "visible": true
+    },
+    {
+      "key": "categories",
+      "sortOrder": 1,
+      "visible": true
+    },
+    {
+      "key": "flash",
+      "sortOrder": 2,
+      "visible": true
+    },
+    {
+      "key": "collections",
+      "sortOrder": 3,
+      "visible": true
+    },
+    {
+      "key": "bestSellers",
+      "sortOrder": 4,
+      "visible": true
+    },
+    {
+      "key": "newArrivals",
+      "sortOrder": 5,
+      "visible": true
+    },
+    {
+      "key": "recommended",
+      "sortOrder": 6,
+      "visible": true
+    },
+    {
+      "key": "trust",
+      "sortOrder": 7,
+      "visible": true
+    },
+    {
+      "key": "reviews",
+      "sortOrder": 8,
+      "visible": true
+    }
+  ],
+  "source": "nexora-market gethomepageadmin"
+}

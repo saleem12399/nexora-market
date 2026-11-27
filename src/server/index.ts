@@ -55,10 +55,19 @@ app.get("/shop", async (req, res) => {
   const db = getDb();
   if (!db) return noDb(res, "the shop");
   const q: any = req.query;
-  const body: any = { category: q.category || undefined, subcategory: q.subcategory || undefined, search: q.search || undefined, sort: q.sort || undefined, inStock: q.inStock ? true : undefined, onDiscount: q.flash ? true : q.onDiscount ? true : undefined, limit: 48, offset: Number(q.offset || 0) };
+  // B1: ?flash=1 passes flash:true (the 11-product pool) — it used to be
+  // mapped to onDiscount, which shows all 44 discounted products.
+  const body: any = { category: q.category || undefined, subcategory: q.subcategory || undefined, search: q.search || undefined, sort: q.sort || undefined, inStock: q.inStock ? true : undefined, onDiscount: q.onDiscount ? true : undefined, flash: q.flash ? true : undefined, limit: 48, offset: Number(q.offset || 0) };
   const cats = await db.select().from(s.categories).orderBy(asc(s.categories.sortOrder), asc(s.categories.id));
+  // B5: the "Smartwatches only" shortcut renders only when the current
+  // category actually has a Smartwatches subcategory.
+  let hasSmartwatches = false;
+  if (q.category) {
+    const subs = await db.select({ sub: s.products.subcategory }).from(s.products).where(eq(s.products.category, String(q.category)));
+    hasSmartwatches = subs.some((r: any) => r.sub === "Smartwatches");
+  }
   const data: any = await callApiAction("listProducts", body);
-  res.send(views.shopView({ ...data, categories: cats }, { ...(q as any), flash: q.flash }));
+  res.send(views.shopView({ ...data, categories: cats, hasSmartwatches }, { ...(q as any), flash: q.flash }));
 });
 
 app.get("/product/:id", async (req, res) => {
@@ -75,6 +84,7 @@ app.get("/product/:id", async (req, res) => {
 });
 
 app.get("/cart", (_req, res) => res.send(views.cartView()));
+app.get("/wishlist", (_req, res) => res.send(views.wishlistView()));
 app.get("/admin/setup", (_req, res) => res.send(views.ownerSetupView()));
 app.get("/staff/setup", (_req, res) => res.send(views.staffSetupView()));
 app.get("/checkout", (req, res) => {

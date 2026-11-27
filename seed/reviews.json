@@ -1,1 +1,61 @@
-{"exportedAt":"2026-11-26T13:56:42+05:00","reviews":[{"customerName":"Zainab R.","helpful":18,"id":5,"productId":4,"productName":"Men's Premium Cotton Kurta","rating":4,"sellerReply":"","text":"Visible glow in two weeks of use. Packaging was sealed.","verified":true},{"customerName":"Ali H.","helpful":12,"id":4,"productId":3,"productName":"PulseFit Smart Watch Series 9","rating":5,"sellerReply":"","text":"Fabric quality is genuinely premium. True to size.","verified":true},{"customerName":"Mahnoor K.","helpful":31,"id":3,"productId":2,"productName":"Nova S24 Smartphone 256GB","rating":5,"sellerReply":"","text":"Camera is superb. Seller responded within an hour.","verified":true},{"customerName":"Danish M.","helpful":9,"id":2,"productId":1,"productName":"Aurora X5 Wireless Earbuds","rating":4,"sellerReply":"","text":"Good battery. Case feels premium. Verified purchase.","verified":true},{"customerName":"Hira S.","helpful":24,"id":1,"productId":1,"productName":"Aurora X5 Wireless Earbuds","rating":5,"sellerReply":"","text":"Sound quality is excellent for the price. Delivery took 2 days to Lahore.","verified":true}],"source":"nexora-market listreviews"}
+{
+  "exportedAt": "2026-11-26T13:56:42+05:00",
+  "reviews": [
+    {
+      "customerName": "Zainab R.",
+      "helpful": 18,
+      "id": 5,
+      "productId": 30,
+      "productName": "Men's Cotton Kurta — Traditional Wear",
+      "rating": 4,
+      "sellerReply": "",
+      "text": "Fabric quality is genuinely premium. True to size.",
+      "verified": true
+    },
+    {
+      "customerName": "Ali H.",
+      "helpful": 12,
+      "id": 4,
+      "productId": 53,
+      "productName": "PulseFit Smartwatch Series 9",
+      "rating": 5,
+      "sellerReply": "",
+      "text": "Battery easily lasts ten days with normal use. The AMOLED display is bright and the strap is comfortable.",
+      "verified": true
+    },
+    {
+      "customerName": "Mahnoor K.",
+      "helpful": 31,
+      "id": 3,
+      "productId": 40,
+      "productName": "Samsung Galaxy A55 5G — 256GB",
+      "rating": 5,
+      "sellerReply": "",
+      "text": "Camera is superb. Seller responded within an hour.",
+      "verified": true
+    },
+    {
+      "customerName": "Danish M.",
+      "helpful": 9,
+      "id": 2,
+      "productId": 56,
+      "productName": "Aurora X5 Wireless Earbuds",
+      "rating": 4,
+      "sellerReply": "",
+      "text": "Good battery. Case feels premium. Verified purchase.",
+      "verified": true
+    },
+    {
+      "customerName": "Hira S.",
+      "helpful": 24,
+      "id": 1,
+      "productId": 56,
+      "productName": "Aurora X5 Wireless Earbuds",
+      "rating": 5,
+      "sellerReply": "",
+      "text": "Sound quality is excellent for the price. Delivery took 2 days to Lahore.",
+      "verified": true
+    }
+  ],
+  "source": "nexora-market listreviews"
+}

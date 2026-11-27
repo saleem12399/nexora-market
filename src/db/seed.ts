@@ -176,7 +176,7 @@ export function validateSeed(): { ok: boolean; counts: SeedCounts; problems: str
   const c = d.counts;
   const expect: Partial<SeedCounts> = {
     products: 48, categories: 114, orders: 14, orderItems: 19, orderEvents: 52,
-    returns: 4, reviews: 5, questions: 4, tickets: 3, notifications: 46,
+    returns: 4, reviews: 5, questions: 3, tickets: 3, notifications: 46,
     auditLogs: 48, demoMerchants: 10, shipments: 1, paymentTransactions: 5,
     inventoryMovements: 6, addresses: 1, heroBanners: 3, homeCollections: 5,
     homeSections: 9, customers: 3, coupons: 5, staff: 9, productImages: 48,

@@ -191,8 +191,13 @@ export function registerApi(app: Express) {
         }
         await handler(req, res, db);
       } catch (e) {
-        console.error(`[api/${name}]`, (e as Error).message);
-        if (!res.headersSent) res.status(500).json({ ok: false, error: (e as Error).message });
+        // Surface the underlying driver cause (same pattern as /health):
+        // Drizzle's message alone ("Failed query: ... params: ...") hides
+        // whether the pooler refused, reset, or timed out the connection.
+        const cause = (e as any)?.cause;
+        const msg = cause?.message ? `${(e as Error).message} — caused by: ${cause.message}` : (e as Error).message;
+        console.error(`[api/${name}]`, msg);
+        if (!res.headersSent) res.status(500).json({ ok: false, error: msg });
       }
     });
   };

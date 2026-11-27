@@ -565,21 +565,25 @@ export function registerApi(app: Express) {
     const g = parseCookies(req)[GUEST_COOKIE];
     if (!g || g === email.toLowerCase()) return;
     const emailKey = email.toLowerCase();
-    for (const table of [s.cartItems, s.wishlistItems]) {
-      const guestRows = await db.select().from(table).where(eq(table.customerEmail, g));
-      for (const row of guestRows) {
-        const existing = (await db.select().from(table).where(and(eq(table.customerEmail, emailKey), eq(table.productId, row.productId))))[0];
-        if (existing) {
-          if (table === s.cartItems) {
-            const p = (await db.select().from(s.products).where(eq(s.products.id, row.productId)))[0];
-            const next = Math.min((existing as any).qty + (row as any).qty, p?.stock ?? (existing as any).qty);
-            await db.update(table).set({ qty: next } as any).where(eq(table.id, (existing as any).id));
-          }
-          await db.delete(table).where(eq(table.id, (row as any).id));
-        } else {
-          await db.update(table).set({ customerEmail: emailKey } as any).where(eq(table.id, (row as any).id));
-        }
+    // Cart: merge quantities into existing lines (capped at stock).
+    const guestCart = await db.select().from(s.cartItems).where(eq(s.cartItems.customerEmail, g));
+    for (const row of guestCart) {
+      const existing = (await db.select().from(s.cartItems).where(and(eq(s.cartItems.customerEmail, emailKey), eq(s.cartItems.productId, row.productId))))[0];
+      if (existing) {
+        const p = (await db.select().from(s.products).where(eq(s.products.id, row.productId)))[0];
+        const next = Math.min(existing.qty + row.qty, p?.stock ?? existing.qty);
+        await db.update(s.cartItems).set({ qty: next }).where(eq(s.cartItems.id, existing.id));
+        await db.delete(s.cartItems).where(eq(s.cartItems.id, row.id));
+      } else {
+        await db.update(s.cartItems).set({ customerEmail: emailKey }).where(eq(s.cartItems.id, row.id));
       }
+    }
+    // Wishlist: move rows that are not already saved on the account.
+    const guestWish = await db.select().from(s.wishlistItems).where(eq(s.wishlistItems.customerEmail, g));
+    for (const row of guestWish) {
+      const existing = (await db.select().from(s.wishlistItems).where(and(eq(s.wishlistItems.customerEmail, emailKey), eq(s.wishlistItems.productId, row.productId))))[0];
+      if (existing) await db.delete(s.wishlistItems).where(eq(s.wishlistItems.id, row.id));
+      else await db.update(s.wishlistItems).set({ customerEmail: emailKey }).where(eq(s.wishlistItems.id, row.id));
     }
   }
 
@@ -769,7 +773,7 @@ export function registerApi(app: Express) {
     if (!r.ok) { res.status(r.status || 400).json({ ok: false, error: r.error, errors: (r as any).errors }); return; }
     // Clear the buyer's cart lines for the ordered products.
     if (req.body?.clearCart !== false) {
-      const key = cartKey(req);
+      const key = await cartKey(db, req, res);
       for (const it of (req.body?.items || [])) await db.delete(s.cartItems).where(and(eq(s.cartItems.customerEmail, key), eq(s.cartItems.productId, Number(it.productId))));
     }
     res.json({ ok: true, order: r.order, totals: r.totals, adjustments: r.adjustments, duplicateBlocked: r.duplicate === true });
